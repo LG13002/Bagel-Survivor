@@ -32,30 +32,61 @@ function eyes(g: G, x1: number, x2: number, y: number, r: number, angry = false)
   }
 }
 
-function bagel(g: G, seeds: number[] | null): void {
+interface BagelLook {
+  rim: number;
+  top: number;
+  hi: number;
+  seeds?: number[];
+  seedCount?: number;
+  seedSize?: number;
+  swirl?: number;
+}
+
+function bagel(g: G, look: BagelLook): void {
   const c = 20;
   g.fillStyle(0x000000, 0.25).fillEllipse(c, c + 15, 30, 8);
-  g.lineStyle(11, 0xb8742f).strokeCircle(c, c, 10.5);
-  g.lineStyle(7, 0xe0a458).strokeCircle(c - 0.5, c - 1, 10.5);
-  g.lineStyle(2.5, 0xf6cf8a);
+  g.lineStyle(11, look.rim).strokeCircle(c, c, 10.5);
+  g.lineStyle(7, look.top).strokeCircle(c - 0.5, c - 1, 10.5);
+  if (look.swirl !== undefined) {
+    g.lineStyle(1.4, look.swirl, 0.9);
+    for (let i = 0; i < 3; i++) {
+      g.beginPath();
+      g.arc(c, c, 8.5 + i * 2.6, Math.PI * (0.2 + i * 0.7), Math.PI * (1.0 + i * 0.7));
+      g.strokePath();
+    }
+  }
+  g.lineStyle(2.5, look.hi);
   g.beginPath();
   g.arc(c, c, 12, Math.PI * 1.1, Math.PI * 1.65);
   g.strokePath();
-  if (seeds) {
+  if (look.seeds) {
     const r = rng(7);
-    for (let i = 0; i < 26; i++) {
+    const n = look.seedCount ?? 26;
+    const sz = look.seedSize ?? 1;
+    for (let i = 0; i < n; i++) {
       const a = r() * Math.PI * 2;
       const d = 7 + r() * 8;
-      g.fillStyle(seeds[i % seeds.length]);
-      g.fillEllipse(c + Math.cos(a) * d, c + Math.sin(a) * d, 2.2, 1.3);
+      g.fillStyle(look.seeds[i % look.seeds.length]);
+      g.fillEllipse(c + Math.cos(a) * d, c + Math.sin(a) * d, 2.2 * sz, 1.3 * sz);
     }
   }
   eyes(g, c - 5, c + 5, c - 10.5, 3.4);
 }
 
 export function makeTextures(scene: Phaser.Scene): void {
-  tex(scene, 'bagel_plain', 40, 40, (g) => bagel(g, null));
-  tex(scene, 'bagel_everything', 40, 40, (g) => bagel(g, [0x222222, 0xf6efd9, 0x5a3b1c, 0xe9d8a6]));
+  const golden = { rim: 0xb8742f, top: 0xe0a458, hi: 0xf6cf8a };
+  tex(scene, 'bagel_plain', 40, 40, (g) => bagel(g, golden));
+  tex(scene, 'bagel_everything', 40, 40, (g) => bagel(g, { ...golden, seeds: [0x222222, 0xf6efd9, 0x5a3b1c, 0xe9d8a6] }));
+  tex(scene, 'bagel_poppy', 40, 40, (g) => bagel(g, { ...golden, seeds: [0x1b1f2e, 0x2c3248], seedCount: 70, seedSize: 0.8 }));
+  tex(scene, 'bagel_cinnamon', 40, 40, (g) =>
+    bagel(g, { rim: 0x7a4320, top: 0xa0602e, hi: 0xd09a62, swirl: 0x5a2f14, seeds: [0x3d1f2b, 0x5a2a3a], seedCount: 9, seedSize: 1.7 }),
+  );
+  tex(scene, 'bagel_pumpernickel', 40, 40, (g) => bagel(g, { rim: 0x24140c, top: 0x452819, hi: 0x6e4630 }));
+  tex(scene, 'bagel_onion', 40, 40, (g) => bagel(g, { ...golden, seeds: [0xf3e2b0, 0x8a5a2a, 0xd9b870], seedCount: 22, seedSize: 1.5 }));
+  tex(scene, 'mine', 10, 10, (g) => {
+    g.fillStyle(0x1b1f2e).fillEllipse(5, 5, 6, 4);
+    g.fillStyle(0x4a5578).fillEllipse(4.4, 4.4, 2.6, 1.4);
+  });
 
   tex(scene, 'floor', 64, 64, (g) => {
     g.fillStyle(0x6e5a48).fillRect(0, 0, 64, 64);

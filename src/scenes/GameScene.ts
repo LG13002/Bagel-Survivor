@@ -20,6 +20,8 @@ import { makeTextures } from '../textures';
 import { button, panel, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
 import { setSound, sfx, soundOn, unlockAudio } from '../sfx';
+import { checkUnlocks } from '../progress';
+import { clearRun, loadRun, saveRun, type RunSnapshot } from '../runsave';
 
 type PauseReason = '' | 'levelup' | 'pause' | 'chest' | 'over';
 
@@ -122,10 +124,29 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private practice = false;
+  private resume: RunSnapshot | null = null;
+  private healsTaken = 0;
+  private raisinKills = 0;
+  private mines: { img: Phaser.GameObjects.Image; x: number; y: number; life: number }[] = [];
+  private mineT = 0;
+  private auraImg: Phaser.GameObjects.Image | null = null;
+  private auraT = 0;
+  private snapT = 0;
 
-  init(data: { bagel?: string; practice?: boolean }): void {
+  init(data: { bagel?: string; practice?: boolean; resume?: boolean }): void {
+    this.resume = data.resume ? loadRun() : null;
+    if (this.resume) {
+      data = { bagel: this.resume.bagel, practice: this.resume.practice };
+    }
     this.bagel = BAGELS.find((b) => b.id === data.bagel) ?? BAGELS[0];
     this.practice = !!data.practice;
+    this.healsTaken = 0;
+    this.raisinKills = 0;
+    this.mines = [];
+    this.mineT = 0;
+    this.auraImg = null;
+    this.auraT = 0;
+    this.snapT = 0;
     this.player = new Player();
     this.now = this.practice ? PRACTICE_START : DEBUG.start;
     this.enemies = [];
@@ -196,7 +217,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.recomputeStats();
     this.player.hp = this.stats.maxHp;
     this.addWeapon(this.bagel.weapon);
-    if (this.practice) {
+    if (this.resume) this.applySnapshot(this.resume);
+    else if (this.practice) {
       this.pendingLevels = PRACTICE_LEVELS;
       this.level = 1 + PRACTICE_LEVELS;
       this.xpNext = xpNeeded(this.level);
@@ -390,6 +412,7 @@ export class GameScene extends Phaser.Scene implements World {
         break;
       case 'heal':
         this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 30);
+        this.healsTaken++;
         break;
       case 'coin':
         this.coins += 15;
@@ -455,7 +478,142 @@ export class GameScene extends Phaser.Scene implements World {
     this.updateShots(dt);
     this.updateHazards(dt);
     this.updatePickups(dt);
+    this.updateQuirk(dt);
+    this.snapT -= dt;
+    if (this.snapT <= 0) {
+      this.snapT = 5;
+      this.writeSnapshot();
+    }
     if (this.pendingLevels > 0 && !this.paused) this.openLevelUp();
+  }
+
+  // ---------------------------------------------------------------- Bagel quirks
+
+  private updateQuirk(dt: number): void {
+    const p = this.player;
+    const q = this.bagel.quirkId;
+    if (q === 'trail') {
+      // Poppy: drop a seed mine every so often while moving.
+      this.mineT -= dt;
+      if (this.mineT <= 0 && Math.hypot(p.moveX, p.moveY) > 0.3) {
+        this.mineT = 0.14;
+        const img = this.img('mine', p.x, p.y, 4);
+        this.mines.push({ img, x: p.x, y: p.y, life: 2.6 });
+        if (this.mines.length > 40) this.mines.shift()!.img.destroy();
+      }
+      const dmg = 7 * this.stats.damage;
+      for (let i = this.mines.length - 1; i >= 0; i--) {
+        const m = this.mines[i];
+        m.life -= dt;
+        if (m.life < 0.5) m.img.setAlpha(m.life / 0.5);
+        this.query(m.x, m.y, 8 * this.stats.area, (e) => {
+          this.hit(e, dmg, 0, 0, 'trail', 0.5);
+        });
+        if (m.life <= 0) {
+          m.img.destroy();
+          this.mines.splice(i, 1);
+        }
+      }
+    } else if (q === 'aura') {
+      // Onion Olly: tear-gas aura that slows and hurts.
+      const r = 58 * this.stats.area;
+      if (!this.auraImg) {
+        this.auraImg = this.img('puddle', p.x, p.y, 1).setTint(0xb7e36a).setAlpha(0.28);
+      }
+      this.auraImg.setPosition(p.x, p.y).setScale(((r * 2) / 128) * (1 / S) * (1 + 0.04 * Math.sin(this.now * 5)));
+      this.auraT -= dt;
+      const tick = this.auraT <= 0;
+      if (tick) this.auraT = 0.5;
+      const dmg = 6 * this.stats.damage;
+      this.query(p.x, p.y, r, (e) => {
+        e.slowUntil = this.now + 0.3;
+        if (tick) this.hit(e, dmg, 0, 0, '', 0);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- Save & resume
+
+  private writeSnapshot(): void {
+    if (this.paused === 'over') return;
+    const snap: RunSnapshot = {
+      v: 1,
+      savedAt: Date.now(),
+      bagel: this.bagel.id,
+      practice: this.practice,
+      now: this.now,
+      level: this.level,
+      xp: this.xp,
+      pendingLevels: this.pendingLevels,
+      hp: this.player.hp,
+      weapons: this.weapons.map((w) => ({ id: w.def.id, level: w.level, evolved: w.evolved })),
+      toppings: [...this.toppings],
+      kills: this.kills,
+      coins: this.coins,
+      rerolls: this.rerolls,
+      nextWave: this.nextWave,
+      nextAnts: this.nextAnts,
+      nextElite: this.nextElite,
+      miniSpawned: this.miniSpawned,
+      miniHp: this.mini?.alive ? this.mini.hp : 0,
+      miniKilled: this.miniKilled,
+      bossSpawned: this.bossSpawned,
+      bossHp: this.boss?.alive ? this.boss.hp : 0,
+      evolutions: this.evolutionsThisRun,
+      healsTaken: this.healsTaken,
+    };
+    saveRun(snap);
+  }
+
+  private applySnapshot(s: RunSnapshot): void {
+    this.weapons.forEach((w) => w.destroy());
+    this.weapons = [];
+    for (const w of s.weapons) {
+      const wp = createWeapon(this, w.id as WeaponId);
+      wp.level = w.level;
+      wp.evolved = w.evolved;
+      this.weapons.push(wp);
+    }
+    this.toppings = new Map(s.toppings as [ToppingId, number][]);
+    this.now = s.now;
+    this.level = s.level;
+    this.xp = s.xp;
+    this.xpNext = xpNeeded(s.level);
+    this.pendingLevels = s.pendingLevels;
+    this.kills = s.kills;
+    this.coins = s.coins;
+    this.rerolls = s.rerolls;
+    this.nextWave = s.nextWave;
+    this.nextAnts = s.nextAnts;
+    this.nextElite = s.nextElite;
+    this.miniSpawned = s.miniSpawned;
+    this.miniKilled = s.miniKilled;
+    this.bossSpawned = s.bossSpawned;
+    this.evolutionsThisRun = s.evolutions;
+    this.healsTaken = s.healsTaken;
+    this.recomputeStats();
+    this.player.hp = Math.min(this.stats.maxHp, s.hp);
+    if (s.miniHp > 0) {
+      const sp = this.spawnPoint();
+      const e = this.spawnEnemy('croissant', sp.x, sp.y, 1);
+      if (e) {
+        e.hp = s.miniHp;
+        e.dropsChest = true;
+        this.mini = e;
+      }
+    }
+    if (s.bossHp > 0) {
+      const sp = this.spawnPoint();
+      const e = this.spawnEnemy('toaster', sp.x, sp.y, 1);
+      if (e) {
+        e.hp = s.bossHp;
+        e.boss = true;
+        e.attack2T = 4;
+        this.boss = e;
+      }
+    }
+    // Start paused so there's time to get a thumb on the screen.
+    this.time.delayedCall(50, () => this.openPause());
   }
 
   private updatePlayer(dt: number): void {
@@ -808,7 +966,13 @@ export class GameScene extends Phaser.Scene implements World {
       const cx = e.x - p.x;
       const cy = e.y - p.y;
       const rr = e.radius + p.radius - 3;
-      if (cx * cx + cy * cy < rr * rr) this.damagePlayer(e.dmg);
+      if (cx * cx + cy * cy < rr * rr) {
+        if (this.bagel.quirkId === 'tank' && !e.boss) {
+          const dl = Math.hypot(cx, cy) || 1;
+          this.hit(e, 15 * this.stats.damage, (cx / dl) * 260, (cy / dl) * 260, 'tank', 0.4);
+        }
+        if (e.alive) this.damagePlayer(e.dmg);
+      }
 
       e.sprite.setPosition(e.x, e.y);
       const flashing = e.flashUntil > t;
@@ -841,6 +1005,10 @@ export class GameScene extends Phaser.Scene implements World {
   private killEnemy(e: Enemy): void {
     this.removeEnemy(e);
     this.kills++;
+    if (this.bagel.quirkId === 'raisin' && ++this.raisinKills >= 20) {
+      this.raisinKills = 0;
+      this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 1);
+    }
     sfx('kill');
     this.deathPop(e);
     const big = e.radius > 20;
@@ -1091,6 +1259,7 @@ export class GameScene extends Phaser.Scene implements World {
         this.coins += 1;
         break;
       case 'heal':
+        this.healsTaken++;
         this.player.hp = Math.min(this.stats.maxHp, this.player.hp + it.value);
         this.burst(this.player.x, this.player.y, 0x7fbf4d, 8, 30);
         break;
@@ -1476,6 +1645,7 @@ export class GameScene extends Phaser.Scene implements World {
   private openPause(): void {
     if (this.paused) return;
     this.setPaused('pause');
+    this.writeSnapshot();
     const W = this.scale.width;
     const H = this.scale.height;
     const c = this.add.container(0, 0);
@@ -1525,14 +1695,12 @@ export class GameScene extends Phaser.Scene implements World {
     save.dough += dough;
     save.totalKills += this.kills;
     if (!this.practice) save.bestTime = Math.max(save.bestTime, Math.floor(this.now));
-    let newUnlock = '';
+    clearRun();
     if (victory && !this.practice) {
       save.clears++;
-      if (!save.unlocked.includes('everything')) {
-        save.unlocked.push('everything');
-        newUnlock = 'Everything Ed';
-      }
+      if (this.healsTaken === 0) save.noHealClear = true;
     }
+    const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
     persist();
     const result: RunResult = {
       victory,

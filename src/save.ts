@@ -9,6 +9,7 @@ export interface SaveData {
   clears: number;
   sound?: boolean;
   practice?: boolean;
+  noHealClear?: boolean;
 }
 
 const KEY = 'everything-bagel-save-v1';

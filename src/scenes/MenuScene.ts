@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
-import { BAGELS, BAKERY } from '../data';
+import { BAGELS, BAKERY, TOPPINGS, WEAPONS, type WeaponId } from '../data';
+import { goalStatus } from '../progress';
+import { clearRun, loadRun } from '../runsave';
 import { load, persist } from '../save';
 import { makeTextures } from '../textures';
 import { button, panel, txt } from '../ui';
@@ -61,9 +63,9 @@ export class MenuScene extends Phaser.Scene {
     if (locked) hero.setTint(0x222222);
     c.add(hero);
     this.tweens.add({ targets: hero, y: by - 10 * S, scaleX: 3.5, scaleY: 3.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    c.add(txt(this, W / 2, by + 82 * S, bagel.name, 26, locked ? CSS.muted : CSS.cream));
+    c.add(txt(this, W / 2, by + 92 * S, bagel.name, 26, locked ? CSS.muted : CSS.cream));
     c.add(
-      txt(this, W / 2, by + 112 * S, locked ? `\u{1F512} ${bagel.unlock}` : bagel.quirk, 14, locked ? CSS.red : '#e8d8c0', {
+      txt(this, W / 2, by + 132 * S, locked && bagel.goal ? `Locked: ${bagel.goal.text}\n(${goalStatus(save, bagel).progress})` : bagel.quirk, 14, locked ? CSS.red : '#e8d8c0', {
         wrap: Math.min(W / S - 60, 320),
         bold: false,
       }),
@@ -77,6 +79,13 @@ export class MenuScene extends Phaser.Scene {
         }
         this.build();
       }, { color: COLORS.panelLight, textColor: CSS.cream, size: 24 });
+    const dots = this.add.graphics();
+    BAGELS.forEach((b, i) => {
+      const x = W / 2 + (i - (BAGELS.length - 1) / 2) * 14 * S;
+      const on = i === this.idx;
+      dots.fillStyle(on ? COLORS.gold : save.unlocked.includes(b.id) ? COLORS.panelLight : 0x1d140d).fillCircle(x, by + 66 * S, (on ? 4 : 3) * S);
+    });
+    c.add(dots);
     const ax = Math.min(W / 2 - 34 * S, 140 * S);
     c.add(arrow(-ax, '<', -1));
     c.add(arrow(ax, '>', 1));
@@ -92,30 +101,99 @@ export class MenuScene extends Phaser.Scene {
       }, { color: COLORS.panel, textColor: CSS.cream, size: 14, radius: 10 });
       c.add(b);
     };
-    toggle(W / 2 - tw / 2 - 6 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
-      save.practice = !save.practice;
-      persist();
-    });
-    toggle(W / 2 + tw / 2 + 6 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
+    const saved = loadRun();
+    if (saved) {
+      const name = BAGELS.find((b) => b.id === saved.bagel)?.name ?? 'run';
+      const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 280 * S), 44 * S, `Resume ${name} at ${fmtTime(saved.now)}`, () => {
+        unlockAudio();
+        this.cameras.main.fadeOut(200, 18, 12, 8);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { resume: true }));
+      }, { color: COLORS.green, textColor: CSS.dark, size: 16, radius: 12 });
+      c.add(rb);
+    } else {
+      toggle(W / 2 - tw / 2 - 6 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
+        save.practice = !save.practice;
+        persist();
+      });
+      toggle(W / 2 + tw / 2 + 6 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
+    }
     const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
       if (locked) return;
       unlockAudio();
+      clearRun();
       this.cameras.main.fadeOut(200, 18, 12, 8);
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, practice: !!save.practice }));
     }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
     c.add(play);
     if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    const bw = (Math.min(W - 60 * S, 280 * S) - 10 * S) / 2;
     c.add(
-      button(this, W / 2, playY + 80 * S, Math.min(W - 60 * S, 280 * S), 54 * S, 'BAKERY', () => this.openBakery(), {
+      button(this, W / 2 - bw / 2 - 5 * S, playY + 80 * S, bw, 54 * S, 'BAKERY', () => this.openBakery(), {
         color: COLORS.panelLight,
         textColor: CSS.cream,
-        size: 22,
+        size: 19,
+      }),
+    );
+    c.add(
+      button(this, W / 2 + bw / 2 + 5 * S, playY + 80 * S, bw, 54 * S, 'COOKBOOK', () => this.openCookbook(), {
+        color: COLORS.panelLight,
+        textColor: CSS.cream,
+        size: 19,
       }),
     );
     c.add(
       txt(this, W / 2, bottom - 22 * S, `Best ${fmtTime(save.bestTime)}  ·  Clears ${save.clears}  ·  Cookbook ${save.cookbook.length}/6`, 13, CSS.muted, {
         bold: false,
       }),
+    );
+  }
+
+  private openCookbook(): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const save = load();
+    this.bakery?.destroy();
+    const c = this.add.container(0, 0);
+    this.bakery = c;
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    const ids = Object.keys(WEAPONS) as WeaponId[];
+    const pw = Math.min(W - 24 * S, 400 * S);
+    const rowH = 62 * S;
+    const ph = 160 * S + ids.length * rowH;
+    c.add(panel(this, W / 2, H / 2, pw, ph));
+    const top = H / 2 - ph / 2;
+    c.add(txt(this, W / 2, top + 36 * S, 'THE COOKBOOK', 28, CSS.gold));
+    c.add(txt(this, W / 2, top + 64 * S, `${save.cookbook.length} of ${ids.length} evolutions found`, 14, CSS.cream, { bold: false }));
+    const lx = W / 2 - pw / 2 + 20 * S;
+    ids.forEach((id, i) => {
+      const w = WEAPONS[id];
+      const t = TOPPINGS[w.evolveWith];
+      const found = save.cookbook.includes(id);
+      const y = top + 108 * S + i * rowH;
+      c.add(this.add.image(lx + 18 * S, y, w.icon).setScale(0.9));
+      c.add(txt(this, lx + 44 * S, y, '+', 18, CSS.muted));
+      const ti = this.add.image(lx + 70 * S, y, t.icon).setScale(0.9);
+      if (!found) ti.setTintFill(0x1d140d);
+      c.add(ti);
+      const tx = lx + 98 * S;
+      c.add(txt(this, tx, y - 10 * S, found ? w.evoName : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
+      c.add(
+        txt(this, tx, y + 11 * S, found ? `${w.name} + ${t.name}` : `Max it + a mystery topping`, 12, CSS.muted, {
+          bold: false,
+          stroke: false,
+          wrap: (pw - 120 * S) / S,
+          align: 'left',
+        }).setOrigin(0, 0.5),
+      );
+    });
+    c.add(
+      txt(this, W / 2, top + ph - 82 * S, 'Evolve: max a weapon, own its topping, open a chest.', 12, CSS.muted, { bold: false, wrap: (pw - 40 * S) / S }),
+    );
+    c.add(
+      button(this, W / 2, top + ph - 40 * S, 160 * S, 46 * S, 'Done', () => {
+        c.destroy();
+        this.bakery = null;
+      }, { size: 20 }),
     );
   }
 

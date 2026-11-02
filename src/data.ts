@@ -96,13 +96,18 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 
+export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura';
+
+export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook';
+
 export interface BagelDef {
   id: string;
   name: string;
   tex: string;
   weapon: WeaponId;
   quirk: string;
-  unlock: string;
+  quirkId: Quirk;
+  goal: { kind: GoalKind; target: number; text: string } | null;
   hp: number;
   speed: number;
   choices: number;
@@ -116,7 +121,8 @@ export const BAGELS: BagelDef[] = [
     tex: 'bagel_plain',
     weapon: 'sesame',
     quirk: '+10% to all stats. The easy starter.',
-    unlock: '',
+    quirkId: 'none',
+    goal: null,
     hp: 100,
     speed: 140,
     choices: 3,
@@ -128,10 +134,63 @@ export const BAGELS: BagelDef[] = [
     tex: 'bagel_everything',
     weapon: 'storm',
     quirk: '4 upgrade choices instead of 3. Lower health.',
-    unlock: 'Clear Stage 1 to unlock',
+    quirkId: 'none',
+    goal: { kind: 'clear', target: 1, text: 'Clear Stage 1' },
     hp: 75,
     speed: 145,
     choices: 4,
+    allStats: 0,
+  },
+  {
+    id: 'poppy',
+    name: 'Poppy',
+    tex: 'bagel_poppy',
+    weapon: 'lox',
+    quirk: 'Leaves a trail of poppy seeds that hurt enemies. Starts with Lox Boomerang.',
+    quirkId: 'trail',
+    goal: { kind: 'time', target: 180, text: 'Survive 3:00 in one run' },
+    hp: 90,
+    speed: 150,
+    choices: 3,
+    allStats: 0,
+  },
+  {
+    id: 'cinnamon',
+    name: 'Cinnamon Raisin',
+    tex: 'bagel_cinnamon',
+    weapon: 'pin',
+    quirk: 'Heals 1 health for every 20 enemies defeated. Starts with Rolling Pin.',
+    quirkId: 'raisin',
+    goal: { kind: 'kills', target: 1000, text: 'Defeat 1,000 enemies in total' },
+    hp: 100,
+    speed: 140,
+    choices: 3,
+    allStats: 0,
+  },
+  {
+    id: 'pumpernickel',
+    name: 'Pumpernickel',
+    tex: 'bagel_pumpernickel',
+    weapon: 'coffee',
+    quirk: 'Tanky and slow. Enemies that touch you take damage and bounce off.',
+    quirkId: 'tank',
+    goal: { kind: 'noheal', target: 1, text: 'Beat the Toaster Tyrant without picking up a heal' },
+    hp: 160,
+    speed: 122,
+    choices: 3,
+    allStats: 0,
+  },
+  {
+    id: 'onion',
+    name: 'Onion Olly',
+    tex: 'bagel_onion',
+    weapon: 'puddle',
+    quirk: 'A tear-gas aura slows and hurts enemies near you. Starts with Cream Cheese Puddle.',
+    quirkId: 'aura',
+    goal: { kind: 'cookbook', target: 3, text: 'Discover 3 evolutions' },
+    hp: 90,
+    speed: 140,
+    choices: 3,
     allStats: 0,
   },
 ];

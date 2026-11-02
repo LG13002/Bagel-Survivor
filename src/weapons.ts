@@ -385,7 +385,9 @@ class RollingPinW extends Weapon {
     const size = (lv >= 5 || this.evolved ? 1.5 : 1) * s.area;
     const dmg = (this.evolved ? 40 : 28 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     if (this.tick(dt, (this.evolved ? 3.2 : 3) * s.cooldown)) {
-      const base = Math.atan2(p.faceY, p.faceX);
+      // Roll toward the nearest enemy (falls back to the direction of travel).
+      const aim = this.aim(420);
+      const base = Math.atan2(aim.y, aim.x);
       const angles: number[] = [];
       if (this.evolved) for (let i = 0; i < 13; i++) angles.push(base + (i / 13) * Math.PI * 2);
       else {
