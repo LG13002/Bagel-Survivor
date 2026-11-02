@@ -169,7 +169,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   knife: { tex: 'en_knife', hp: 26, speed: 50, dmg: 12, radius: 10, xp: 3, mass: 1.3 },
   ant: { tex: 'en_ant', hp: 12, speed: 95, dmg: 6, radius: 7, xp: 1, mass: 0.8 },
   elite: { tex: 'en_mold', hp: 260, speed: 46, dmg: 14, radius: 24, xp: 15, mass: 5 },
-  croissant: { tex: 'en_croissant', hp: 1300, speed: 42, dmg: 15, radius: 30, xp: 30, mass: 12 },
+  croissant: { tex: 'en_croissant', hp: 1300, speed: 72, dmg: 15, radius: 30, xp: 30, mass: 12 },
   toaster: { tex: 'en_toaster', hp: 5000, speed: 38, dmg: 25, radius: 36, xp: 0, mass: 40 },
 };
 

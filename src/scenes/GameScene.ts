@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene implements World {
   private joyBase = { x: 0, y: 0 };
   private joyVec = { x: 0, y: 0 };
   private joyGfx!: Phaser.GameObjects.Graphics;
+  private arrowGfx!: Phaser.GameObjects.Graphics;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
 
   constructor() {
@@ -188,6 +189,8 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.joyGfx = this.add.graphics().setDepth(900);
     this.uiLayer.add(this.joyGfx);
+    this.arrowGfx = this.add.graphics().setDepth(800);
+    this.uiLayer.add(this.arrowGfx);
 
     this.buildHud();
     this.recomputeStats();
@@ -493,6 +496,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.cameras.main.centerOn(p.x, p.y);
     this.floor.setPosition(Math.round(p.x / 64) * 64, Math.round(p.y / 64) * 64);
     this.updateHud();
+    this.drawArrows();
   }
 
   // ---------------------------------------------------------------- Director
@@ -1162,6 +1166,47 @@ export class GameScene extends Phaser.Scene implements World {
     if (b && show) {
       h.bossName.setText(b.kind === 'toaster' ? 'The Toaster Tyrant' : 'Crusty Croissant');
       h.bossFill.setSize((h.bossBg.getData('w') as number) * Math.max(0, b.hp / b.maxHp), 6 * S);
+    }
+  }
+
+  /** Arrows on the screen edge pointing at off-screen bosses, elites and chests. */
+  private drawArrows(): void {
+    const g = this.arrowGfx;
+    g.clear();
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const p = this.player;
+    const ins = safeInsets();
+    const m = 26 * S;
+    const top = (ins.top + 96) * S;
+    const bottom = H - (ins.bottom + 26) * S;
+    const targets: { x: number; y: number; color: number }[] = [];
+    for (const e of this.bigs) {
+      if (!e.alive) continue;
+      targets.push({ x: e.x, y: e.y, color: e.boss ? COLORS.red : e.kind === 'croissant' ? COLORS.gold : COLORS.green });
+    }
+    for (const it of this.pickups) if (it.kind === 'chest') targets.push({ x: it.x, y: it.y, color: 0xfff0a0 });
+    const pulse = 1 + 0.12 * Math.sin(this.now * 8);
+    for (const t of targets) {
+      const sx = W / 2 + (t.x - p.x) * S;
+      const sy = H / 2 + (t.y - p.y) * S;
+      if (sx > 0 && sx < W && sy > 0 && sy < H) continue;
+      const dx = sx - W / 2;
+      const dy = sy - H / 2;
+      // Scale the direction until it touches the inset screen edge.
+      const kx = dx > 0 ? (W - m - W / 2) / dx : dx < 0 ? (m - W / 2) / dx : Infinity;
+      const ky = dy > 0 ? (bottom - H / 2) / dy : dy < 0 ? (top - H / 2) / dy : Infinity;
+      const k = Math.min(kx, ky);
+      const ax = W / 2 + dx * k;
+      const ay = H / 2 + dy * k;
+      const a = Math.atan2(dy, dx);
+      const r = 13 * S * pulse;
+      const pts = [0, 2.5, -2.5].map((o, i) => ({
+        x: ax + Math.cos(a + o) * (i === 0 ? r : r * 0.8),
+        y: ay + Math.sin(a + o) * (i === 0 ? r : r * 0.8),
+      }));
+      g.fillStyle(0x1d140d, 0.85).fillCircle(ax, ay, r * 0.95);
+      g.fillStyle(t.color, 1).fillTriangle(pts[0].x, pts[0].y, pts[1].x, pts[1].y, pts[2].x, pts[2].y);
     }
   }
 

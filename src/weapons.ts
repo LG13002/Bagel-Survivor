@@ -320,10 +320,12 @@ class CoffeeSplash extends Weapon {
     const cd = (this.evolved ? 1.1 : 1.5 * (lv >= 5 ? 0.75 : 1)) * s.cooldown;
     if (!this.tick(dt, cd)) return;
     const p = this.w.player;
-    const range = (this.evolved ? 140 : 105 * (lv >= 5 ? 1.3 : 1)) * s.area;
+    const range = (this.evolved ? 190 : 150 * (lv >= 5 ? 1.3 : 1)) * s.area;
     const half = this.evolved ? 0.42 : lv >= 3 ? 0.65 : 0.45;
     const dmg = (this.evolved ? 22 : 14 * (lv >= 2 ? 1.4 : 1)) * s.damage;
-    const base = Math.atan2(p.faceY, p.faceX);
+    // Aim at the nearest enemy in reach (falls back to the direction of travel).
+    const aim = this.aim(range * 1.2);
+    const base = Math.atan2(aim.y, aim.x);
     const dirs: number[] = [];
     if (this.evolved) for (let i = 0; i < 8; i++) dirs.push(base + (i / 8) * Math.PI * 2);
     else {
@@ -339,7 +341,6 @@ class CoffeeSplash extends Weapon {
         }
       }
     });
-    this.w.shake(70, 0.0025);
     this.w.playSfx('splash');
     // Visual: droplets fanning out
     for (const d of dirs) {
@@ -391,7 +392,7 @@ class RollingPinW extends Weapon {
         const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
         for (let i = 0; i < count; i++) angles.push(base + (i - (count - 1) / 2) * 0.45);
       }
-      this.w.shake(90, 0.003);
+      this.w.shake(60, 0.0015);
       this.w.playSfx('pin');
       for (const a of angles) {
         const img = this.w.img('pin', p.x, p.y, 19);
