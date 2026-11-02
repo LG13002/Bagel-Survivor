@@ -50,26 +50,34 @@ export class MenuScene extends Phaser.Scene {
     c.add(txt(this, 40 * S, top + 30 * S, `${save.dough} Dough`, 17, CSS.gold).setOrigin(0, 0.5));
 
     // Title
-    const titleY = top + Math.max(90 * S, H * 0.13);
-    c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40, CSS.gold));
-    c.add(txt(this, W / 2, titleY + 44 * S, 'BAGEL', 54, CSS.cream));
-    c.add(txt(this, W / 2, titleY + 86 * S, 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
+    // Short screens (e.g. iPhone mini, or the in-app preview with its top bar) get a compact layout.
+    const compact = (bottom - top) / S < 720;
+    const k = compact ? 0.78 : 1;
+    const titleY = top + (compact ? 66 * S : Math.max(90 * S, H * 0.13));
+    c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40 * k, CSS.gold));
+    c.add(txt(this, W / 2, titleY + 44 * k * S, 'BAGEL', 54 * k, CSS.cream));
+    c.add(txt(this, W / 2, titleY + 86 * k * S, 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
 
     // Bagel picker
     const bagel = BAGELS[this.idx];
     const locked = !save.unlocked.includes(bagel.id);
-    const by = H * 0.47;
-    const hero = this.add.image(W / 2, by, bagel.tex).setScale(3.4);
+    // Description first, so the picker can be placed to fit above the buttons on any screen height.
+    const desc = txt(this, W / 2, 0, locked && bagel.goal ? `Locked: ${bagel.goal.text}\n(${goalStatus(save, bagel).progress})` : bagel.quirk, 14, locked ? CSS.red : '#e8d8c0', {
+      wrap: Math.min(W / S - 60, 320),
+      bold: false,
+    }).setOrigin(0.5, 0);
+    const buttonsTop = bottom - 150 * S - 66 * S - (compact ? 36 : 40) * S; // top of the toggles row, with a gap
+    const titleBottom = titleY + (86 * k + 14) * S;
+    const hs = compact ? 2.6 : 3.4; // hero scale
+    const descOff = (compact ? 92 : 114) * S;
+    const by = Math.max(titleBottom + hs * 18 * S, Math.min(H * 0.47, buttonsTop - descOff - desc.height));
+    desc.setY(by + descOff);
+    const hero = this.add.image(W / 2, by, bagel.tex).setScale(hs);
     if (locked) hero.setTint(0x222222);
     c.add(hero);
-    this.tweens.add({ targets: hero, y: by - 10 * S, scaleX: 3.5, scaleY: 3.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    c.add(txt(this, W / 2, by + 92 * S, bagel.name, 26, locked ? CSS.muted : CSS.cream));
-    c.add(
-      txt(this, W / 2, by + 132 * S, locked && bagel.goal ? `Locked: ${bagel.goal.text}\n(${goalStatus(save, bagel).progress})` : bagel.quirk, 14, locked ? CSS.red : '#e8d8c0', {
-        wrap: Math.min(W / S - 60, 320),
-        bold: false,
-      }),
-    );
+    this.tweens.add({ targets: hero, y: by - 10 * k * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    c.add(txt(this, W / 2, by + (compact ? 72 : 92) * S, bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream));
+    c.add(desc);
     const arrow = (dx: number, label: string, d: number) =>
       button(this, W / 2 + dx, by, 48 * S, 56 * S, label, () => {
         this.idx = (this.idx + d + BAGELS.length) % BAGELS.length;
@@ -83,7 +91,7 @@ export class MenuScene extends Phaser.Scene {
     BAGELS.forEach((b, i) => {
       const x = W / 2 + (i - (BAGELS.length - 1) / 2) * 14 * S;
       const on = i === this.idx;
-      dots.fillStyle(on ? COLORS.gold : save.unlocked.includes(b.id) ? COLORS.panelLight : 0x1d140d).fillCircle(x, by + 66 * S, (on ? 4 : 3) * S);
+      dots.fillStyle(on ? COLORS.gold : save.unlocked.includes(b.id) ? COLORS.panelLight : 0x1d140d).fillCircle(x, by + (compact ? 52 : 66) * S, (on ? 4 : 3) * S);
     });
     c.add(dots);
     const ax = Math.min(W / 2 - 34 * S, 140 * S);
