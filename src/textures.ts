@@ -66,18 +66,21 @@ export function makeTextures(scene: Phaser.Scene): void {
     for (let i = 0; i < 6; i++) g.fillCircle(r() * 64, r() * 64, 0.8 + r());
   });
 
-  tex(scene, 'en_crumb', 16, 16, (g) => {
+  // Crumb enemy: big, dark and outlined with red eyes so it never reads as loot.
+  tex(scene, 'en_crumb', 24, 24, (g) => {
     const r = rng(11);
     const pts: Phaser.Types.Math.Vector2Like[] = [];
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      const d = 5 + r() * 2.5;
-      pts.push({ x: 8 + Math.cos(a) * d, y: 8 + Math.sin(a) * d });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const d = 8 + r() * 3;
+      pts.push({ x: 12 + Math.cos(a) * d, y: 12 + Math.sin(a) * d });
     }
-    g.fillStyle(0x8a5526).fillPoints(pts, true);
-    g.fillStyle(0xb57a3c).fillCircle(7, 7, 3);
-    g.fillStyle(0xffffff).fillCircle(6, 7, 1.6).fillCircle(10, 7, 1.6);
-    g.fillStyle(0x000000).fillCircle(6.3, 7.4, 0.8).fillCircle(10.3, 7.4, 0.8);
+    g.fillStyle(0x1a0f08).fillPoints(pts.map((p) => ({ x: 12 + (p.x - 12) * 1.18, y: 12 + (p.y - 12) * 1.18 })), true);
+    g.fillStyle(0x5a3416).fillPoints(pts, true);
+    g.fillStyle(0x7a4a22).fillCircle(10, 10, 4);
+    g.fillStyle(0xff3b2f).fillCircle(8.5, 11, 2.3).fillCircle(15.5, 11, 2.3);
+    g.fillStyle(0xffd23f).fillCircle(8.8, 11.3, 0.9).fillCircle(15.8, 11.3, 0.9);
+    g.lineStyle(1.6, 0x1a0f08).lineBetween(6, 7.5, 11, 9.5).lineBetween(18, 7.5, 13, 9.5);
   });
 
   const blob = (g: G, size: number) => {
@@ -188,14 +191,16 @@ export function makeTextures(scene: Phaser.Scene): void {
   });
 
   // Pickups
+  // XP seeds: bright, cool-colored and glowing so they read as loot against the brown floor.
   const gem = (key: string, col: number, hi: number, w: number) =>
-    tex(scene, key, 14, 14, (g) => {
-      g.fillStyle(col).fillEllipse(7, 7, w, w * 0.62);
-      g.fillStyle(hi).fillEllipse(6.3, 6.3, w * 0.6, w * 0.3);
+    tex(scene, key, 16, 16, (g) => {
+      g.fillStyle(col, 0.25).fillCircle(8, 8, 7.5);
+      g.fillStyle(col).fillEllipse(8, 8, w, w * 0.62);
+      g.fillStyle(hi).fillEllipse(7.3, 7.2, w * 0.55, w * 0.28);
     });
-  gem('gem1', 0xe9d8a6, 0xffffff, 7);
-  gem('gem2', 0x6cc7f0, 0xd9f4ff, 9);
-  gem('gem3', 0xff6b8a, 0xffd6e0, 12);
+  gem('gem1', 0x4fd2ff, 0xe6f9ff, 7.5);
+  gem('gem2', 0x7dff8a, 0xeaffec, 9.5);
+  gem('gem3', 0xff6bd5, 0xffe0f6, 12);
   tex(scene, 'coin', 14, 14, (g) => {
     g.fillStyle(0xb8862b).fillCircle(7, 7, 6);
     g.fillStyle(0xf2c14e).fillCircle(7, 6.5, 5);

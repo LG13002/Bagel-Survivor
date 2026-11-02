@@ -12,6 +12,8 @@ export interface World {
   hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number): boolean;
   img(tex: string, x: number, y: number, depth: number): Phaser.GameObjects.Image;
   tweens: Phaser.Tweens.TweenManager;
+  shake(ms: number, intensity: number): void;
+  playSfx(name: 'pin' | 'splash'): void;
 }
 
 export abstract class Weapon {
@@ -72,7 +74,7 @@ class SesameShot extends Weapon {
       } else {
         const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
         const dmg = 12 * (lv >= 3 ? 1.5 : 1);
-        for (let i = 0; i < count; i++) this.fire(base + (i - (count - 1) / 2) * 0.16, dmg, lv >= 5 ? 2 : 1, 'seed');
+        for (let i = 0; i < count; i++) this.fire(base + (i - (count - 1) / 2) * 0.16, dmg, lv >= 5 ? 3 : 2, 'seed');
       }
     }
     const p = this.w.player;
@@ -122,7 +124,7 @@ class SeedStorm extends Weapon {
           { r: 95, n: 5, sp: -2.7 },
           { r: 135, n: 7, sp: 2.1 },
         ]
-      : [{ r: 62 * (lv >= 5 ? 1.3 : 1), n: 2 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0), sp: 3.2 * (lv >= 5 ? 1.3 : 1) }];
+      : [{ r: 62 * (lv >= 5 ? 1.3 : 1), n: 3 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0), sp: 3.2 * (lv >= 5 ? 1.3 : 1) }];
     const total = rings.reduce((a, r) => a + r.n, 0);
     const key = `${total}-${this.evolved}`;
     if (key !== this.layoutKey) {
@@ -337,6 +339,8 @@ class CoffeeSplash extends Weapon {
         }
       }
     });
+    this.w.shake(70, 0.0025);
+    this.w.playSfx('splash');
     // Visual: droplets fanning out
     for (const d of dirs) {
       const n = this.evolved ? 6 : 12;
@@ -387,6 +391,8 @@ class RollingPinW extends Weapon {
         const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
         for (let i = 0; i < count; i++) angles.push(base + (i - (count - 1) / 2) * 0.45);
       }
+      this.w.shake(90, 0.003);
+      this.w.playSfx('pin');
       for (const a of angles) {
         const img = this.w.img('pin', p.x, p.y, 19);
         img.setScale(img.scaleX * size).setRotation(a + Math.PI / 2);

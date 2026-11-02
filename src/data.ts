@@ -163,7 +163,7 @@ export interface EnemyDef {
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
-  crumb: { tex: 'en_crumb', hp: 8, speed: 62, dmg: 5, radius: 7, xp: 1, mass: 1 },
+  crumb: { tex: 'en_crumb', hp: 8, speed: 62, dmg: 5, radius: 9, xp: 1, mass: 1 },
   mold: { tex: 'en_mold', hp: 22, speed: 40, dmg: 8, radius: 12, xp: 2, mass: 1.6 },
   moldling: { tex: 'en_moldling', hp: 8, speed: 55, dmg: 5, radius: 8, xp: 1, mass: 1 },
   knife: { tex: 'en_knife', hp: 26, speed: 50, dmg: 12, radius: 10, xp: 3, mass: 1.3 },
@@ -175,14 +175,15 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
 
 // Run pacing (seconds)
 export const RUN = {
-  eliteAt: 60,
+  eliteAt: 45,
   eliteEvery: 60,
   miniBossAt: 150,
   bossAt: 270,
   waveEvery: 30,
   antsFrom: 120,
   antsEvery: 20,
-  maxEnemies: 320,
+  maxEnemies: 260,
+  earlyMaxEnemies: 180, // cap before 3:00
 };
 
 /** XP needed to go from level `lvl` to `lvl + 1`. */

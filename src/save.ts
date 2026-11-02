@@ -7,6 +7,8 @@ export interface SaveData {
   bestTime: number;
   totalKills: number;
   clears: number;
+  sound?: boolean;
+  practice?: boolean;
 }
 
 const KEY = 'everything-bagel-save-v1';

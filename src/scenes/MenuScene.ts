@@ -4,6 +4,7 @@ import { BAGELS, BAKERY } from '../data';
 import { load, persist } from '../save';
 import { makeTextures } from '../textures';
 import { button, panel, txt } from '../ui';
+import { setSound, soundOn, unlockAudio } from '../sfx';
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
@@ -82,10 +83,25 @@ export class MenuScene extends Phaser.Scene {
 
     // Buttons
     const playY = bottom - 150 * S;
+    const tw = Math.min((W - 72 * S) / 2, 134 * S);
+    const toggle = (x: number, label: () => string, flip: () => void) => {
+      const b = button(this, x, playY - 66 * S, tw, 40 * S, label(), () => {
+        unlockAudio();
+        flip();
+        (b.getData('label') as Phaser.GameObjects.Text).setText(label());
+      }, { color: COLORS.panel, textColor: CSS.cream, size: 14, radius: 10 });
+      c.add(b);
+    };
+    toggle(W / 2 - tw / 2 - 6 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
+      save.practice = !save.practice;
+      persist();
+    });
+    toggle(W / 2 + tw / 2 + 6 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
     const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
       if (locked) return;
+      unlockAudio();
       this.cameras.main.fadeOut(200, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id }));
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, practice: !!save.practice }));
     }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
     c.add(play);
     if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });

@@ -14,9 +14,11 @@ Game plan: https://claude.ai/artifact/3zMQXC7czm7Hi7xSGMgoZV
 - Touch and drag anywhere to move. Weapons fire on their own.
 - Collect sesame seeds (XP) to level up, then pick 1 of 3 upgrades. Up to 4 weapons and 4 toppings, each to level 5.
 - A max-level weapon plus its matching topping **evolves** when you open a Toaster Chest (dropped by elites every minute and the mini-boss).
-- Giant Mold every minute, Crusty Croissant at 2:30, the Toaster Tyrant at 4:30. Beat him to clear the stage and unlock Everything Ed.
+- Giant Mold at 0:45 and every minute after, Crusty Croissant at 2:30, the Toaster Tyrant at 4:30. Beat him to clear the stage and unlock Everything Ed.
 - Every run pays Dough, which you spend in the Bakery on permanent upgrades.
 - The game pauses itself when you switch apps, so you can jump back into your match any time.
+- **Practice** (menu toggle) starts runs at 2:30 with 12 level-ups so you can test builds, chests and bosses. Practice runs pay no Dough.
+- Sound can be turned off from the menu or the pause screen.
 
 | Weapon | + Topping | = Evolution |
 | --- | --- | --- |

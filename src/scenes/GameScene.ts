@@ -19,6 +19,7 @@ import { load, persist } from '../save';
 import { makeTextures } from '../textures';
 import { button, panel, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
+import { setSound, sfx, soundOn, unlockAudio } from '../sfx';
 
 type PauseReason = '' | 'levelup' | 'pause' | 'chest' | 'over';
 
@@ -29,6 +30,7 @@ interface Choice {
 
 export interface RunResult {
   victory: boolean;
+  practice: boolean;
   time: number;
   level: number;
   kills: number;
@@ -39,6 +41,9 @@ export interface RunResult {
 }
 
 const CELL = 48;
+/** Practice runs start at 2:30 with a head start of level-ups. */
+const PRACTICE_START = 150;
+const PRACTICE_LEVELS = 12;
 
 export class GameScene extends Phaser.Scene implements World {
   player = new Player();
@@ -100,6 +105,8 @@ export class GameScene extends Phaser.Scene implements World {
   };
   private overlay: Phaser.GameObjects.Container | null = null;
   private lastTimerSec = -1;
+  private hitstop = 0;
+  private lastHitstop = 0;
   private banners = 0;
 
   // Joystick
@@ -113,10 +120,13 @@ export class GameScene extends Phaser.Scene implements World {
     super('game');
   }
 
-  init(data: { bagel?: string }): void {
+  private practice = false;
+
+  init(data: { bagel?: string; practice?: boolean }): void {
     this.bagel = BAGELS.find((b) => b.id === data.bagel) ?? BAGELS[0];
+    this.practice = !!data.practice;
     this.player = new Player();
-    this.now = DEBUG.start;
+    this.now = this.practice ? PRACTICE_START : DEBUG.start;
     this.enemies = [];
     this.bigs = [];
     this.pool = [];
@@ -138,8 +148,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.evolutionsThisRun = [];
     this.miniKilled = false;
     this.spawnT = 0.5;
-    this.nextWave = RUN.miniBossAt;
-    this.nextAnts = RUN.antsFrom;
+    this.nextWave = Math.max(RUN.miniBossAt, this.now + 20);
+    this.nextAnts = Math.max(RUN.antsFrom, this.now + 10);
     this.nextElite = Math.max(RUN.eliteAt, Math.ceil(this.now / RUN.eliteEvery) * RUN.eliteEvery);
     this.miniSpawned = this.now > RUN.miniBossAt;
     this.bossSpawned = false;
@@ -147,6 +157,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.mini = null;
     this.overlay = null;
     this.lastTimerSec = -1;
+    this.hitstop = 0;
+    this.lastHitstop = 0;
     this.banners = 0;
     this.joyId = null;
     this.joyVec = { x: 0, y: 0 };
@@ -181,6 +193,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.recomputeStats();
     this.player.hp = this.stats.maxHp;
     this.addWeapon(this.bagel.weapon);
+    if (this.practice) {
+      this.pendingLevels = PRACTICE_LEVELS;
+      this.level = 1 + PRACTICE_LEVELS;
+      this.xpNext = xpNeeded(this.level);
+    }
     this.onResize();
 
     this.setupInput();
@@ -205,6 +222,14 @@ export class GameScene extends Phaser.Scene implements World {
     im.setData('base', 1 / S);
     this.worldLayer.add(im);
     return im;
+  }
+
+  shake(ms: number, intensity: number): void {
+    this.cameras.main.shake(ms, intensity);
+  }
+
+  playSfx(name: 'pin' | 'splash'): void {
+    sfx(name);
   }
 
   private ui<T extends Phaser.GameObjects.GameObject>(obj: T): T {
@@ -265,9 +290,14 @@ export class GameScene extends Phaser.Scene implements World {
       e.hitCd.set(key, this.now);
     }
     e.hp -= dmg;
-    e.kx += kx / e.mass;
-    e.ky += ky / e.mass;
-    e.flashUntil = this.now + 0.07;
+    e.kx += (kx * 1.5) / e.mass;
+    e.ky += (ky * 1.5) / e.mass;
+    e.flashUntil = this.now + 0.08;
+    sfx('hit');
+    if (dmg >= 30 && this.now - this.lastHitstop > 0.3) {
+      this.lastHitstop = this.now;
+      this.hitstop = 0.045;
+    }
     if (e.hp <= 0) this.killEnemy(e);
     return true;
   }
@@ -284,7 +314,7 @@ export class GameScene extends Phaser.Scene implements World {
     const t = (id: ToppingId) => this.toppings.get(id) ?? 0;
     const prevMax = this.stats.maxHp;
     this.stats = {
-      damage: 1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven'),
+      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven')),
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
@@ -401,6 +431,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.lastFrame = nowMs;
     this.updateJoystickGfx();
     if (this.paused) return;
+    if (this.hitstop > 0) {
+      // Freeze-frame on heavy hits sells the impact.
+      this.hitstop -= dt;
+      return;
+    }
     const steps = DEBUG.speed;
     for (let i = 0; i < steps && !this.paused; i++) this.step(dt);
     this.render2();
@@ -469,10 +504,21 @@ export class GameScene extends Phaser.Scene implements World {
     return this.scale.height / S;
   }
 
-  private spawnPoint(): { x: number; y: number } {
-    const a = Math.random() * Math.PI * 2;
-    const d = Math.hypot(this.viewW(), this.viewH()) / 2 + 40;
-    return { x: this.player.x + Math.cos(a) * d, y: this.player.y + Math.sin(a) * d };
+  /**
+   * A point just off-screen. While the player is moving, most spawns land in the direction
+   * of travel (within ±75°), so running away never leaves an empty lane ahead.
+   */
+  private spawnPoint(aheadBias = 0.7): { x: number; y: number } {
+    const p = this.player;
+    const moving = Math.hypot(p.moveX, p.moveY) > 0.3;
+    let a: number;
+    if (moving && Math.random() < aheadBias) a = Math.atan2(p.moveY, p.moveX) + (Math.random() * 2 - 1) * 1.3;
+    else a = Math.random() * Math.PI * 2;
+    const dx = Math.cos(a);
+    const dy = Math.sin(a);
+    const edge = Math.min(this.viewW() / 2 / Math.max(Math.abs(dx), 1e-3), this.viewH() / 2 / Math.max(Math.abs(dy), 1e-3));
+    const d = edge + 40;
+    return { x: p.x + dx * d, y: p.y + dy * d };
   }
 
   private pickKind(t: number): EnemyKind {
@@ -494,14 +540,16 @@ export class GameScene extends Phaser.Scene implements World {
 
   private director(dt: number): void {
     const t = this.now;
-    const hpMult = 1 + t / 120;
-    let interval = Math.max(0.08, 0.6 - t * 0.0019);
+    const hpMult = 1 + t / 180;
+    let interval = Math.max(0.1, 0.7 - t * 0.0018);
     if (this.boss) interval *= 4;
-    const batch = 1 + Math.floor(t / 60);
+    // Gentler through 3:00, then the swarm ramps up toward the boss.
+    const batch = 1 + Math.floor(t / 75) + (t > 180 ? 2 : 0);
+    const cap = t < 180 ? RUN.earlyMaxEnemies : RUN.maxEnemies;
     this.spawnT -= dt;
     while (this.spawnT <= 0) {
       this.spawnT += interval;
-      for (let i = 0; i < batch && this.enemies.length < RUN.maxEnemies; i++) {
+      for (let i = 0; i < batch && this.enemies.length < cap; i++) {
         const sp = this.spawnPoint();
         this.spawnEnemy(this.pickKind(t), sp.x, sp.y, hpMult);
       }
@@ -561,6 +609,7 @@ export class GameScene extends Phaser.Scene implements World {
         e.attack2T = 4;
       }
       this.banner('THE TOASTER TYRANT', CSS.red, 30);
+      sfx('boss');
       this.vacuum();
       this.cameras.main.shake(400, 0.006);
     }
@@ -620,8 +669,8 @@ export class GameScene extends Phaser.Scene implements World {
     const p = this.player;
     const t = this.now;
     const decay = Math.exp(-8 * dt);
-    const farX = this.viewW() / 2 + 260;
-    const farY = this.viewH() / 2 + 260;
+    const farX = this.viewW() / 2 + 170;
+    const farY = this.viewH() / 2 + 170;
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const dx = p.x - e.x;
@@ -743,9 +792,11 @@ export class GameScene extends Phaser.Scene implements World {
             this.removeEnemy(e);
             continue;
           }
-          const sp = this.spawnPoint();
+          // Put it back in front of the player so it re-joins the fight instead of trailing behind.
+          const sp = this.spawnPoint(0.95);
           e.x = sp.x;
           e.y = sp.y;
+          e.kx = e.ky = 0;
         }
       }
 
@@ -786,11 +837,13 @@ export class GameScene extends Phaser.Scene implements World {
   private killEnemy(e: Enemy): void {
     this.removeEnemy(e);
     this.kills++;
+    sfx('kill');
+    this.deathPop(e);
     const big = e.radius > 20;
-    this.burst(e.x, e.y, e.kind.startsWith('mold') || e.kind === 'elite' ? 0x76a83e : e.kind === 'knife' ? 0xdfe5ea : 0xb57a3c, big ? 18 : 4, big ? 60 : 22);
+    this.burst(e.x, e.y, e.kind.startsWith('mold') || e.kind === 'elite' ? 0x76a83e : e.kind === 'knife' ? 0xdfe5ea : 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
     if (e.kind === 'mold') {
       for (let i = 0; i < 2; i++) {
-        const m = this.spawnEnemy('moldling', e.x + (i ? 6 : -6), e.y, 1 + this.now / 120);
+        const m = this.spawnEnemy('moldling', e.x + (i ? 6 : -6), e.y, 1 + this.now / 180);
         if (m) {
           m.kx = (i ? 1 : -1) * 120;
         }
@@ -814,6 +867,27 @@ export class GameScene extends Phaser.Scene implements World {
       for (let i = 0; i < 4; i++) this.burst(e.x + (Math.random() - 0.5) * 60, e.y + (Math.random() - 0.5) * 60, 0xff7a2a, 16, 90);
       this.endRun(true);
     }
+  }
+
+  /** A white copy of the enemy that swells and fades where it died. */
+  private deathPop(e: Enemy): void {
+    if (this.particles > 140) return;
+    const im = this.img(e.sprite.texture.key, e.x, e.y, 39);
+    const sc = e.sprite.scaleX;
+    im.setScale(sc).setTintFill(0xffffff).setRotation(e.sprite.rotation).setFlipX(e.sprite.flipX);
+    this.particles++;
+    this.tweens.add({
+      targets: im,
+      scaleX: sc * 1.6,
+      scaleY: sc * 0.4,
+      alpha: 0,
+      duration: 140,
+      ease: 'Quad.Out',
+      onComplete: () => {
+        im.destroy();
+        this.particles--;
+      },
+    });
   }
 
   private burst(x: number, y: number, color: number, n: number, dist: number): void {
@@ -910,8 +984,18 @@ export class GameScene extends Phaser.Scene implements World {
     const p = this.player;
     if (DEBUG.god || this.paused || this.now < p.invulnUntil) return;
     p.hp -= d;
-    p.invulnUntil = this.now + 0.6;
-    this.cameras.main.shake(90, 0.004);
+    p.invulnUntil = this.now + 0.9;
+    this.cameras.main.shake(110, 0.005);
+    sfx('hurt');
+    // Shove nearby enemies away so there is room to escape.
+    this.query(p.x, p.y, 70, (e) => {
+      if (e.boss) return;
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const dl = Math.hypot(dx, dy) || 1;
+      e.kx += (dx / dl) * (320 / e.mass);
+      e.ky += (dy / dl) * (320 / e.mass);
+    });
     p.sprite.setTintFill(0xff5a4a);
     this.tweens.add({ targets: p.sprite, duration: 90, onComplete: () => p.sprite.clearTint() });
     if (p.hp <= 0) {
@@ -997,6 +1081,7 @@ export class GameScene extends Phaser.Scene implements World {
     switch (it.kind) {
       case 'xp':
         this.gainXp(it.value);
+        sfx('xp');
         break;
       case 'coin':
         this.coins += 1;
@@ -1098,6 +1183,7 @@ export class GameScene extends Phaser.Scene implements World {
   private setupInput(): void {
     this.input.addPointer(1);
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      unlockAudio();
       if (this.paused || over.length > 0 || this.joyId !== null) return;
       this.joyId = ptr.id;
       this.joyBase = { x: ptr.x, y: ptr.y };
@@ -1185,6 +1271,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   private openLevelUp(): void {
     this.setPaused('levelup');
+    sfx('level');
     const W = this.scale.width;
     const H = this.scale.height;
     const ins = safeInsets();
@@ -1277,6 +1364,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   private openChest(): void {
     this.setPaused('chest');
+    sfx('chest');
     const evo = this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
     let title: string;
     let line: string;
@@ -1349,8 +1437,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.ui(c);
     this.overlay = c;
     c.add(this.dim(0.7));
-    c.add(panel(this, W / 2, H / 2, Math.min(W - 40 * S, 320 * S), 330 * S));
-    c.add(txt(this, W / 2, H / 2 - 120 * S, 'PAUSED', 30, CSS.gold));
+    c.add(panel(this, W / 2, H / 2 + 25 * S, Math.min(W - 40 * S, 320 * S), 390 * S));
+    c.add(txt(this, W / 2, H / 2 - 120 * S, this.practice ? 'PAUSED (PRACTICE)' : 'PAUSED', 26, CSS.gold));
     const build = [
       ...this.weapons.map((w) => `${w.evolved ? w.def.evoName : w.def.name}${w.evolved ? ' ★' : ` Lv ${w.level}`}`),
       ...[...this.toppings].map(([id, lv]) => `${TOPPINGS[id].name} Lv ${lv}`),
@@ -1369,6 +1457,11 @@ export class GameScene extends Phaser.Scene implements World {
         this.endRun(false, true);
       }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 }),
     );
+    const snd = button(this, W / 2, H / 2 + 182 * S, 200 * S, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
+      setSound(!soundOn());
+      (snd.getData('label') as Phaser.GameObjects.Text).setText(`Sound: ${soundOn() ? 'On' : 'Off'}`);
+    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
+    c.add(snd);
   }
 
   // ---------------------------------------------------------------- End
@@ -1382,11 +1475,13 @@ export class GameScene extends Phaser.Scene implements World {
     let dough = Math.round(minutes * 10 + this.kills / 60 + this.coins);
     if (this.miniKilled) dough += 10;
     if (victory) dough += 40;
+    // Practice runs are for testing builds and bosses: no rewards or unlocks.
+    if (this.practice) dough = 0;
     save.dough += dough;
     save.totalKills += this.kills;
-    save.bestTime = Math.max(save.bestTime, Math.floor(this.now));
+    if (!this.practice) save.bestTime = Math.max(save.bestTime, Math.floor(this.now));
     let newUnlock = '';
-    if (victory) {
+    if (victory && !this.practice) {
       save.clears++;
       if (!save.unlocked.includes('everything')) {
         save.unlocked.push('everything');
@@ -1396,6 +1491,7 @@ export class GameScene extends Phaser.Scene implements World {
     persist();
     const result: RunResult = {
       victory,
+      practice: this.practice,
       time: this.now,
       level: this.level,
       kills: this.kills,

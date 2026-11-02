@@ -38,14 +38,14 @@ export class ResultsScene extends Phaser.Scene {
     const cy = Math.min(H / 2 - 40 * S, ins.top * S + 40 * S + ph / 2);
     panel(this, W / 2, cy, pw, ph);
     const top = cy - ph / 2;
-    txt(this, W / 2, top + 44 * S, r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE', 30, r.victory ? CSS.gold : CSS.red);
+    txt(this, W / 2, top + 44 * S, r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE', r.practice ? 24 : 30, r.victory ? CSS.gold : CSS.red);
     this.add.image(W / 2, top + 104 * S, r.bagel === 'everything' ? 'bagel_everything' : 'bagel_plain').setScale(2).setAngle(r.victory ? 0 : 160);
 
     const rows: [string, string][] = [
       ['Time', fmtTime(r.time)],
       ['Level', `${r.level}`],
       ['Crumbs defeated', `${r.kills}`],
-      ['Dough earned', `+${r.dough}`],
+      ['Dough earned', r.practice ? 'none (practice)' : `+${r.dough}`],
     ];
     rows.forEach(([k, v], i) => {
       const y = top + 160 * S + i * 34 * S;
@@ -55,6 +55,7 @@ export class ResultsScene extends Phaser.Scene {
 
     // What to chase next
     const notes: string[] = [];
+    if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newUnlock) notes.push(`NEW BAGEL UNLOCKED: ${r.newUnlock}!`);
     if (r.evolutions.length) notes.push(`Evolved: ${r.evolutions.join(', ')}`);
     if (!save.unlocked.includes('everything')) notes.push('Next goal: beat the Toaster Tyrant at 4:30 to unlock Everything Ed');
@@ -62,7 +63,7 @@ export class ResultsScene extends Phaser.Scene {
     txt(this, W / 2, top + 345 * S, notes.slice(0, 2).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
 
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
-    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel }), { size: 28 });
+    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, practice: r.practice }), { size: 28 });
     button(this, W / 2, by + 74 * S, Math.min(W - 60 * S, 260 * S), 50 * S, 'Menu', () => this.go('menu', {}), {
       color: COLORS.panelLight,
       textColor: CSS.cream,
