@@ -1,0 +1,16 @@
+{
+  "name": "Everything Bagel",
+  "short_name": "Bagel",
+  "description": "Survive the Stale for 5 minutes. A one-thumb bagel roguelite.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#2b2118",
+  "theme_color": "#2b2118",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
