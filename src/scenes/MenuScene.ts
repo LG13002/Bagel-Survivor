@@ -3,7 +3,7 @@ import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, TOPPINGS, WEAPONS, type WeaponId } from '../data';
 import { goalStatus } from '../progress';
 import { clearRun, loadRun } from '../runsave';
-import { load, persist } from '../save';
+import { getBest, load, persist } from '../save';
 import { makeTextures } from '../textures';
 import { button, panel, txt } from '../ui';
 import { setSound, soundOn, unlockAudio } from '../sfx';
@@ -69,7 +69,7 @@ export class MenuScene extends Phaser.Scene {
     const buttonsTop = bottom - 150 * S - 66 * S - (compact ? 36 : 40) * S; // top of the toggles row, with a gap
     const titleBottom = titleY + (86 * k + 14) * S;
     const hs = compact ? 2.6 : 3.4; // hero scale
-    const descOff = (compact ? 92 : 114) * S;
+    const descOff = (compact ? 112 : 138) * S;
     const by = Math.max(titleBottom + hs * 18 * S, Math.min(H * 0.47, buttonsTop - descOff - desc.height));
     desc.setY(by + descOff);
     const hero = this.add.image(W / 2, by, bagel.tex).setScale(hs);
@@ -77,6 +77,11 @@ export class MenuScene extends Phaser.Scene {
     c.add(hero);
     this.tweens.add({ targets: hero, y: by - 10 * k * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     c.add(txt(this, W / 2, by + (compact ? 72 : 92) * S, bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream));
+    if (!locked) {
+      const best = getBest(save, bagel.id);
+      const line = !best ? 'Stage 1 best: no runs yet' : best.cleared ? `♛ Stage 1 cleared  ·  ${best.kills} kills` : `Stage 1 best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
+      c.add(txt(this, W / 2, by + (compact ? 94 : 117) * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
+    }
     c.add(desc);
     const arrow = (dx: number, label: string, d: number) =>
       button(this, W / 2 + dx, by, 48 * S, 56 * S, label, () => {

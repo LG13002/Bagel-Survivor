@@ -36,12 +36,18 @@ export class ResultsScene extends Phaser.Scene {
     this.add.tileSprite(0, 0, W, H, 'floor').setOrigin(0).setAlpha(0.3);
 
     const pw = Math.min(W - 28 * S, 380 * S);
-    const ph = 480 * S;
-    const cy = Math.min(H / 2 - 40 * S, ins.top * S + 40 * S + ph / 2);
+    const compact = (H - (ins.top + ins.bottom) * S) / S < 720; // short screens: smaller panel, fewer notes
+    const ph = (compact ? 410 : 480) * S;
+    const cy = compact ? ins.top * S + 14 * S + ph / 2 : Math.min(H / 2 - 40 * S, ins.top * S + 40 * S + ph / 2);
     panel(this, W / 2, cy, pw, ph);
     const top = cy - ph / 2;
     txt(this, W / 2, top + 44 * S, r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE', r.practice ? 24 : 30, r.victory ? CSS.gold : CSS.red);
     this.add.image(W / 2, top + 104 * S, BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain').setScale(2).setAngle(r.victory ? 0 : 160);
+
+    if (r.newBest) {
+      const nb = txt(this, W / 2 + Math.min(pw / 2 - 64 * S, 110 * S), top + 96 * S, 'NEW BEST!', 17, CSS.gold).setAngle(-12);
+      this.tweens.add({ targets: nb, scale: 1.12, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    }
 
     const rows: [string, string][] = [
       ['Time', fmtTime(r.time)],
@@ -62,7 +68,7 @@ export class ResultsScene extends Phaser.Scene {
     if (r.evolutions.length) notes.push(`Evolved: ${r.evolutions.join(', ')}`);
     for (const g of nearestGoals(save, 2)) notes.push(`Unlock ${g.bagel.name}: ${g.bagel.goal!.text} (${g.status.progress})`);
     if (save.cookbook.length < 6) notes.push(`Cookbook ${save.cookbook.length}/6: max a weapon, own its topping, open a chest`);
-    txt(this, W / 2, top + 375 * S, notes.slice(0, 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
+    txt(this, W / 2, top + (compact ? 335 : 375) * S, notes.slice(0, compact ? 2 : 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
 
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
     button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, practice: r.practice }), { size: 28 });

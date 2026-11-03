@@ -15,7 +15,7 @@ import {
   type WeaponId,
 } from '../data';
 import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } from '../entities';
-import { load, persist } from '../save';
+import { load, persist, recordBest } from '../save';
 import { makeTextures } from '../textures';
 import { button, panel, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
@@ -39,6 +39,7 @@ export interface RunResult {
   dough: number;
   bagel: string;
   newUnlock: string;
+  newBest: boolean;
   evolutions: string[];
 }
 
@@ -1701,6 +1702,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (this.healsTaken === 0) save.noHealClear = true;
     }
     const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
+    const newBest = !this.practice && recordBest(save, this.bagel.id, { time: Math.floor(this.now), kills: this.kills, cleared: victory });
     persist();
     const result: RunResult = {
       victory,
@@ -1711,6 +1713,7 @@ export class GameScene extends Phaser.Scene implements World {
       dough,
       bagel: this.bagel.id,
       newUnlock,
+      newBest,
       evolutions: this.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),
     };
     const p = this.player.sprite;
