@@ -9,21 +9,21 @@ This is the history and the decisions behind the current game. The working rules
 | Live game | https://lg13002.github.io/Bagel-Survivor/ |
 | Playable preview (single-file, republished every step) | https://claude.ai/artifact/DCNqaxNKwwiiFz9dYn7A4f |
 | Game plan doc | https://claude.ai/artifact/3zMQXC7czm7Hi7xSGMgoZV |
-| Art style board (Luke picked A, Chunky Cartoon) | https://claude.ai/artifact/Ty1nx3F2sR41NswPpbA4SK |
+| Art style board (the owner picked A, Chunky Cartoon) | https://claude.ai/artifact/Ty1nx3F2sR41NswPpbA4SK |
 | Step 4 change list (UI) | https://claude.ai/artifact/TihnoSBgAaSqG2eSfnvnNt |
 | Step 5 change list (audio) | https://claude.ai/artifact/GCeSxYpSwhJvmNpfSPyG7i |
 | Step 6 change list (Quick Run) | https://claude.ai/artifact/RB5gLpu9s5Pzkd6yzgyvUk |
 | Step 7 change list (balance) | https://claude.ai/artifact/FwmMBhw9qqkBBukQ8mYQdT |
 
-## Luke's standing decisions
+## The owner's standing decisions
 
-- **Platform:** iPhone, played as a home-screen web app. Runs must stay short and pause or resume cleanly.
+- **Platform:** phones, played as a home-screen web app. Runs must stay short and pause or resume cleanly.
 - **Repo and hosting:** the repo is public with a noindex tag. GitHub Pages deploys from Actions.
 - **Difficulty:** a solid 6/10 for Stage 1. Later stages bring the challenge.
 - **Art:** Chunky Cartoon style. The Stage 1 floor is the giant countertop, and each stage gets its own floor (Stage 2 is the freezer). The world is zoomed 20% bigger.
 - **Chests:** a bread basket (normal) and a gold toaster (rare: always from the Croissant, 25% from elites; gives 3 upgrades and +15 Dough).
 - **Music:** made in code. No downloaded audio files.
-- **Process:** change list, then approval, then a PR with a preview. Luke merges after each step.
+- **Process:** change list, then approval, then a PR with a preview. The owner merges after each step.
 
 ## Changelog
 
@@ -80,7 +80,7 @@ This is the history and the decisions behind the current game. The working rules
 - Quick Runs keep separate bests (`stage1q`), and Quick clears count toward unlocks.
 
 ### Step 7: balance (PR #6, merged 11-04)
-From Luke's notes:
+From the owner's playtest notes:
 1. Getting every seed at once when the boss arrived was jarring.
 2. Make Stage 1 slightly harder.
 3. The Rolling Pin feels strongest.
@@ -114,4 +114,4 @@ Some of these were measured before step 7 (Storm, Lox and Coffee) and the rest a
 - **Pickups dropped at a boss's position** get collected instantly, because the boss is usually touching the player. That's why the bun drops on the far side.
 - **Level-up card positions** change with the layout, so bots should resolve overlays through `window.__game`, not by clicking.
 - **Quick Run code** must use `stageT` for anything on the schedule or anything that scales with time.
-- **Old version on Luke's phone after a deploy:** fully close and reopen the home-screen app.
+- **Old version on the owner's phone after a deploy:** fully close and reopen the home-screen app.

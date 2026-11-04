@@ -5,29 +5,30 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 ## What this is
 
 - **Game:** "Everything Bagel", an original one-thumb survivor roguelite for phones. You are a bagel defending the last bakery from the Stale.
-- **Owner:** Luke. He plays on an **iPhone** (home-screen PWA), between rounds of online matches. That's why runs are short, the game auto-pauses on app switch, and runs resume after iOS kills the app.
+- **Owner:** the repo owner (LG13002). The game is built for phones, played as a home-screen PWA in short sessions. That's why runs are short, the game auto-pauses on app switch, and runs resume after iOS kills the app.
 - **Live:** https://lg13002.github.io/Bagel-Survivor/. Pushes to `main` deploy through GitHub Actions to Pages.
-- **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (Luke's choice).
+- **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
 - **Status (2026-11-04):** Stage 1 and the prototype milestones M1 to M4 are complete. The next big piece is **Stage 2 (the freezer)**.
 
-## How to work with Luke (rules)
+## How to work with the owner (rules)
 
-1. **Change list first, then build.** For every step, write a change list as a Claude Doc and get Luke's "approve" before coding. His rough playtest notes get triaged into that list. Add your own suggestions and label them as yours.
-2. **One step = one branch = one PR.** Branch from the latest `main`, named like `m4-balance`. Luke plays the preview and **merges it himself**. He prefers merging after every step, and it costs nothing on a public repo. Never merge for him.
-3. **Always ship a playable preview** with the PR. See "Preview artifact" below. Luke tests on his phone from it before merging.
-4. **Luke is new to GitHub.** Explain things plainly, no jargon, and give him links.
+1. **Change list first, then build.** For every step, write a change list as a Claude Doc and get the owner's "approve" before coding. Their rough playtest notes get triaged into that list. Add your own suggestions and label them as yours.
+2. **One step = one branch = one PR.** Branch from the latest `main`, named like `m4-balance`. The owner plays the preview and **merges it themselves**. They prefer merging after every step, and it costs nothing on a public repo. Never merge for them.
+3. **Always ship a playable preview** with the PR. See "Preview artifact" below. The owner tests on their phone from it before merging.
+4. **The owner is new to GitHub.** Explain things plainly, no jargon, and give them links.
 5. **Difficulty target is "a solid 6/10" for Stage 1.** Don't raise it much. Harder content comes from later stages. Step 7 pushed it to about 6.5.
 6. **Design before polish.** Gameplay and readability come first. Something that hurts play, like a projectile you can't see or a misread card, counts as a design bug.
 7. **Measure balance claims.** Use the bot benchmark (`tools/bots/wbench.cjs`) and quote the numbers. If a result makes you deviate from the approved list, do it and say so plainly in the reply and the PR.
-8. **After a merge,** confirm the Pages deploy succeeded and tell Luke to close and reopen the app if he still sees the old version. The service worker is network-first.
+8. **After a merge,** confirm the Pages deploy succeeded and tell the owner to close and reopen the app if he still sees the old version. The service worker is network-first.
 9. **Commits and PRs:** descriptive titles like "Step 7: …". PR bodies have Summary and Testing sections.
+10. **Privacy: the repo is public.** Never write the owner's personal name or personal details in repo files, code comments, commit messages, PR titles or bodies, or PR comments. Say "the owner" instead.
 
 ## Original IP only
 
 Every character, enemy, item and name is original and bakery or breakfast themed: bagels, the Stale, Crusty Croissant, Toaster Tyrant, Sticky Bun, Dough currency, the Bakery shop. Keep it that way. Don't copy names, art or music from existing games.
 
-## Art style: "Chunky Cartoon" (Luke picked style A)
+## Art style: "Chunky Cartoon" (the owner picked style A)
 
 - **Look:** thick dark ink outlines (`INK = '#24160d'`, set with `ink(c, w)`), soft radial-gradient shading via `radial()`, big friendly eyes via `eye()`, and warm bakery colors. Pickups glow (`lootGlow`) so they never read as enemies.
 - **Where things live:**
@@ -45,7 +46,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 | File | What's in it |
 | --- | --- |
-| `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; Luke asked for +20%), colors, safe insets, `DEBUG` URL flags |
+| `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; the owner asked for +20%), colors, safe insets, `DEBUG` URL flags |
 | `src/data.ts` | **All tuning:** weapons, toppings, evolutions, bagels, Bakery upgrades, enemies, `RUN` pacing (incl. `hpBonus`), `xpNeeded` |
 | `src/weapons.ts` | The 6 weapon classes (normal and evolved behavior; damage numbers are inline here) |
 | `src/scenes/GameScene.ts` | The run: director/spawning, pickups, the Sticky Bun, chests, level-up, HUD, pause, audio state, Quick Run pacing, resume snapshot |
@@ -73,7 +74,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 - **Sticky Bun:** pickup kind `'bun'`. Touching it pulls every seed and coin to you.
   - Drops: the Croissant always drops one. In Full Runs only, the last Giant Mold before the boss drops a second.
   - It lands on the far side of the boss, never drifts toward you, gets an edge arrow, and is saved in the snapshot.
-  - **There is no automatic seed pull anywhere.** Luke found it jarring.
+  - **There is no automatic seed pull anywhere.** The owner found it jarring.
 - **Seeds:** once there are more than 300 on the floor, new ones merge into the nearest seed, so nothing is lost.
 - **Build limits:** 4 weapon slots and 4 topping slots, each up to level 5. A level 5 weapon plus its matching topping evolves from a chest.
 - **Bakery:** 4 permanent upgrades (Crust health, Oven damage, Rise speed, Sticky Seeds magnet), 5 ranks each.
@@ -86,11 +87,11 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 - Bot scripts are in `tools/bots/` (see its README). The preview server is `vite preview --port 4191`.
 - Take screenshots at 390×760 and deviceScaleFactor 2 (iPhone-like). Check compact heights too, because the menu has a compact layout.
 
-## Preview artifact (playable link for Luke)
+## Preview artifact (playable link for the owner)
 
 1. Run `npm run build`.
 2. Inline `dist/assets/index-*.js` into the single-file `everything-bagel.html`: replace the one `<script>` body, escaping `</script`.
-3. Republish it to the **same** artifact URL so Luke's link stays valid: https://claude.ai/artifact/DCNqaxNKwwiiFz9dYn7A4f (version 12 as of step 7).
+3. Republish it to the **same** artifact URL so the owner's link stays valid: https://claude.ai/artifact/DCNqaxNKwwiiFz9dYn7A4f (version 12 as of step 7).
 4. If the HTML file is gone (a new container), fetch the published file with the Artifact tool and reuse it as the template.
 
 ## Tooling notes for cloud sessions
@@ -104,5 +105,5 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 ## Ideas parked for later
 
 - **Stage 2, the freezer:** a new floor, enemies and boss, with harder content than Stage 1.
-- More tuning from Luke's phone runs. Easy dials: `RUN.hpBonus`, the weapon numbers in `weapons.ts`, and the `RUN` timings.
-- Sesame Shot is the weakest weapon at level 3 (on purpose for the starter). Buff it if Luke says it feels slow.
+- More tuning from the owner's phone runs. Easy dials: `RUN.hpBonus`, the weapon numbers in `weapons.ts`, and the `RUN` timings.
+- Sesame Shot is the weakest weapon at level 3 (on purpose for the starter). Buff it if the owner says it feels slow.
