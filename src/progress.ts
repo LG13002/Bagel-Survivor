@@ -52,9 +52,12 @@ export function nearestGoals(save: SaveData, n: number): { bagel: BagelDef; stat
     .slice(0, n);
 }
 
+/** Preview builds (VITE_PREVIEW=1, used for the playable preview link) open every stage so new ones can be tried right away. */
+const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
+
 /** A stage's goal is met: the stage before it has been cleared (Stage 1 is always open). */
 export function stageUnlocked(save: SaveData, st: StageDef): boolean {
-  return !st.unlockAfter || (save.stageClears?.[st.unlockAfter] ?? 0) > 0;
+  return PREVIEW || !st.unlockAfter || (save.stageClears?.[st.unlockAfter] ?? 0) > 0;
 }
 
 /** Unlocked and built, so it can be picked and played. */

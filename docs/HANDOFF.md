@@ -100,6 +100,17 @@ From the owner's playtest notes:
 - Save data gains `stage` and `stageClears`. Old saves count their clears as Stage 1 clears. Run snapshots gain `stage`.
 - Results show the stage name and a "NEW STAGE" note when a run opens one.
 
+### Phase 2, M6 part 1: the Freezer floor, hazards and regular enemies
+- Planning: the [M6 change list](https://claude.ai/artifact/Q8BSei2oMAEGsZLY63smet). The owner approved the extra ideas (enemies ignore ice, the mug's 5s frost immunity, Snowflake Sprinkles as the lines, Tyrant Jr.) and asked for a "Time to feel the burn" card when the Freezer Burn arrives (part 2).
+- Floor: pale-blue freezer tiles with ice trays, frozen peas, popsicle sticks, freezer bags and frost piles. Seeded ice patches (0 to 2 per chunk, never at the start point) make the bagel slide.
+- Frost: stand still 2s and a ring fills over 2s, then the bagel freezes (slowed, "Frozen! Keep moving to thaw."). Moving melts it.
+- Warm Mug: drops from elites and rarely from regulars, at most one on the floor. Heals 10, clears frost, 5s immunity.
+- Regulars: Frost Crumb, Ice Cube (charges after a shaking windup), Pea Pod (keeps distance, lobs peas), Popsicle (splits into halves), Freezer Mold (splits), Snowflake Sprinkles (lines).
+- Enemy behavior is now data: `ai`, `dash`, `split`, `burst` on `EnemyDef`. Stage 1 behaves the same (timeline bot and weapon benchmark match main).
+- Bot benchmark, level 3 weapons from 2:00: the Freezer deals about 20% more damage per minute than Stage 1 (422 vs 352). Part 2 tunes this to the 10 to 15% target once its elites and bosses are in.
+- `VITE_PREVIEW=1` builds open every built stage, for the preview link.
+- After the owner's first play: ice patches are bigger (radius 80 to 140px) with less grip (longer slides), thawing from fully frozen takes 3.5s of moving so the Warm Mug matters, the loose frozen-peas prop became a printed bag of peas (it read as XP seeds), and the Popsicle is about 5% bigger than the swarm crumbs.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

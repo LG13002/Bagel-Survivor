@@ -279,6 +279,239 @@ export function drawElite(c: Ctx, x: number, y: number, r: number): void {
   }
 }
 
+// ---------- Freezer enemies ----------
+// Icy, but still dark-outlined with red angry eyes, so they never read as blue XP seeds.
+
+/** A Stage 1 crumb with a snowy cap and frost specks. */
+export function drawFrostCrumb(c: Ctx, x: number, y: number, r: number): void {
+  drawCrumb(c, x, y, r);
+  const line = Math.max(1.5, r * 0.19);
+  c.beginPath();
+  c.moveTo(x - r * 0.8, y - r * 0.35);
+  c.quadraticCurveTo(x - r * 0.6, y - r * 1.05, x, y - r * 0.95);
+  c.quadraticCurveTo(x + r * 0.65, y - r * 1.05, x + r * 0.82, y - r * 0.32);
+  c.quadraticCurveTo(x + r * 0.4, y - r * 0.55, x + r * 0.1, y - r * 0.42);
+  c.quadraticCurveTo(x - r * 0.35, y - r * 0.6, x - r * 0.8, y - r * 0.35);
+  c.closePath();
+  c.fillStyle = '#f4fbff';
+  c.fill();
+  ink(c, line * 0.7);
+  angryEye(c, x - r * 0.33, y - r * 0.06, r * 0.21, -1, line);
+  angryEye(c, x + r * 0.33, y - r * 0.06, r * 0.21, 1, line);
+}
+
+/** A grumpy ice cube: translucent blue block with a white glint. */
+export function drawIceCube(c: Ctx, x: number, y: number, r: number): void {
+  const line = Math.max(1.6, r * 0.15);
+  rrect(c, x - r, y - r * 0.92, r * 2, r * 1.84, r * 0.38);
+  c.fillStyle = linear(c, x - r, y - r, x + r, y + r, [
+    [0, '#e4f6ff'],
+    [0.55, '#9fd3ee'],
+    [1, '#5f9fc4'],
+  ]);
+  c.fill();
+  ink(c, line);
+  c.beginPath();
+  c.moveTo(x - r * 0.62, y - r * 0.5);
+  c.lineTo(x - r * 0.62, y + r * 0.1);
+  c.moveTo(x - r * 0.62, y - r * 0.5);
+  c.lineTo(x - r * 0.1, y - r * 0.5);
+  c.strokeStyle = 'rgba(255,255,255,0.9)';
+  c.lineWidth = line * 0.9;
+  c.lineCap = 'round';
+  c.stroke();
+  angryEye(c, x - r * 0.3, y + r * 0.1, r * 0.2, -1, line);
+  angryEye(c, x + r * 0.34, y + r * 0.1, r * 0.2, 1, line);
+}
+
+/** A pea pod that shoots peas: green pod, peas showing, red eyes. */
+export function drawPeaPod(c: Ctx, x: number, y: number, r: number): void {
+  const line = Math.max(1.5, r * 0.15);
+  c.beginPath();
+  c.ellipse(x, y, r, r * 0.66, -0.25, 0, TAU);
+  c.fillStyle = radial(c, x - r * 0.3, y - r * 0.3, r * 1.3, [
+    [0, '#a8dc6a'],
+    [1, '#4f8f2a'],
+  ]);
+  c.fill();
+  ink(c, line);
+  for (const dx of [-0.5, 0, 0.5]) {
+    c.beginPath();
+    c.arc(x + dx * r, y + r * 0.22 - dx * r * 0.12, r * 0.2, 0, TAU);
+    c.fillStyle = '#c9ef8c';
+    c.fill();
+    ink(c, line * 0.6);
+  }
+  // Leafy stem.
+  c.beginPath();
+  c.moveTo(x + r * 0.85, y - r * 0.35);
+  c.quadraticCurveTo(x + r * 1.1, y - r * 0.85, x + r * 0.7, y - r * 0.95);
+  ink(c, line);
+  angryEye(c, x - r * 0.3, y - r * 0.2, r * 0.19, -1, line);
+  angryEye(c, x + r * 0.22, y - r * 0.28, r * 0.19, 1, line);
+}
+
+/** A cherry ice pop on a stick. half: the broken top or bottom piece. */
+export function drawPopsicle(c: Ctx, w: number, h: number, half: 0 | 1 | 2 = 0): void {
+  const line = 1.7;
+  const x = w / 2;
+  const top = half === 2 ? h * 0.1 : h * 0.06;
+  const bot = half === 1 ? h * 0.62 : h * 0.72;
+  if (half !== 1) {
+    rrect(c, x - w * 0.09, bot - h * 0.08, w * 0.18, h * 0.3, w * 0.08);
+    c.fillStyle = '#e2c590';
+    c.fill();
+    ink(c, line);
+  }
+  rrect(c, x - w * 0.36, top, w * 0.72, bot - top, [w * 0.34, w * 0.34, w * 0.12, w * 0.12]);
+  c.fillStyle = linear(c, 0, top, 0, bot, [
+    [0, '#ff9a86'],
+    [1, '#d8423a'],
+  ]);
+  c.fill();
+  ink(c, line);
+  c.fillStyle = 'rgba(255,255,255,0.65)';
+  rrect(c, x - w * 0.24, top + h * 0.08, w * 0.1, (bot - top) * 0.45, w * 0.05);
+  c.fill();
+  const ey = half === 2 ? top + (bot - top) * 0.35 : top + (bot - top) * 0.45;
+  angryEye(c, x - w * 0.14, ey, w * 0.1, -1, line);
+  angryEye(c, x + w * 0.14, ey, w * 0.1, 1, line);
+}
+
+/** A tiny fast snowflake sprinkle, ink-outlined with red eyes. */
+export function drawSprinkleFlake(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.save();
+  c.translate(m, m);
+  c.lineCap = 'round';
+  for (const [col, wdt] of [
+    [INK, 3.6],
+    ['#ffffff', 1.8],
+  ] as [string, number][]) {
+    c.strokeStyle = col;
+    c.lineWidth = wdt;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI;
+      c.beginPath();
+      c.moveTo(Math.cos(a) * m * 0.85, Math.sin(a) * m * 0.85);
+      c.lineTo(-Math.cos(a) * m * 0.85, -Math.sin(a) * m * 0.85);
+      c.stroke();
+    }
+  }
+  c.beginPath();
+  c.arc(0, 0, m * 0.42, 0, TAU);
+  c.fillStyle = '#eaf7ff';
+  c.fill();
+  ink(c, 1.1);
+  c.restore();
+  angryEye(c, m - m * 0.18, m, m * 0.13, -1, 0.9);
+  angryEye(c, m + m * 0.18, m, m * 0.13, 1, 0.9);
+}
+
+/** The Pea Pod's shot: a big bright pea with an ink ring, easy to see on the pale floor. */
+export function drawPea(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1.5, 0, TAU);
+  c.fillStyle = radial(c, m - 1.5, m - 1.5, m, [
+    [0, '#dcff9a'],
+    [1, '#4fae22'],
+  ]);
+  c.fill();
+  ink(c, 1.6);
+  c.beginPath();
+  c.arc(m - m * 0.3, m - m * 0.3, m * 0.22, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+}
+
+/** Warm Mug pickup: a steaming cocoa mug with a warm glow, so it reads as loot. */
+export function drawWarmMug(c: Ctx, s: number): void {
+  const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  g.addColorStop(0, 'rgba(255,170,80,0.55)');
+  g.addColorStop(1, 'rgba(255,170,80,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, s, s);
+  const x0 = s * 0.24;
+  const y0 = s * 0.38;
+  const w = s * 0.42;
+  const h = s * 0.42;
+  c.beginPath();
+  c.arc(x0 + w, y0 + h * 0.45, h * 0.24, -Math.PI / 2, Math.PI / 2);
+  ink(c, 2.6, '#c84a2e');
+  rrect(c, x0, y0, w, h, 3);
+  c.fillStyle = linear(c, 0, y0, 0, y0 + h, [
+    [0, '#ff8a5c'],
+    [1, '#d2462b'],
+  ]);
+  c.fill();
+  ink(c, 1.4);
+  c.fillStyle = '#6b3a1e';
+  c.fillRect(x0 + 2, y0 + 1.5, w - 4, 2.5);
+  c.fillStyle = '#fff3dc';
+  c.beginPath();
+  c.arc(x0 + w / 2, y0 + h * 0.6, h * 0.14, 0, TAU);
+  c.fill();
+  // Steam
+  c.strokeStyle = 'rgba(255,255,255,0.9)';
+  c.lineWidth = 1.4;
+  c.lineCap = 'round';
+  for (const dx of [0.3, 0.7]) {
+    c.beginPath();
+    c.moveTo(x0 + w * dx, y0 - 2);
+    c.quadraticCurveTo(x0 + w * dx - 3, y0 - 6, x0 + w * dx, y0 - 9);
+    c.quadraticCurveTo(x0 + w * dx + 3, y0 - 12, x0 + w * dx, y0 - 15);
+    c.stroke();
+  }
+}
+
+/** Slippery ice patch (drawn once, scaled per patch). Thick white outline and sparkles so it can't be missed. */
+export function drawIcePatch(c: Ctx, w: number, h: number): void {
+  const x = w / 2;
+  const y = h / 2;
+  const rx = w / 2 - 4;
+  const ry = h / 2 - 4;
+  c.beginPath();
+  c.ellipse(x, y, rx, ry, 0, 0, TAU);
+  c.fillStyle = linear(c, 0, 0, w, h, [
+    [0, 'rgba(235,250,255,0.95)'],
+    [0.5, 'rgba(150,215,245,0.9)'],
+    [1, 'rgba(110,185,230,0.9)'],
+  ]);
+  c.fill();
+  c.lineWidth = 5;
+  c.strokeStyle = '#ffffff';
+  c.stroke();
+  c.lineWidth = 1.5;
+  c.strokeStyle = 'rgba(70,130,170,0.6)';
+  c.beginPath();
+  c.ellipse(x, y, rx + 3, ry + 3, 0, 0, TAU);
+  c.stroke();
+  // Shine streaks
+  c.strokeStyle = 'rgba(255,255,255,0.85)';
+  c.lineWidth = 3;
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(x - rx * 0.55, y - ry * 0.15);
+  c.lineTo(x - rx * 0.15, y - ry * 0.5);
+  c.moveTo(x - rx * 0.3, y + ry * 0.15);
+  c.lineTo(x + rx * 0.05, y - ry * 0.2);
+  c.stroke();
+}
+
+/** Four-point twinkle that sits on ice patches. */
+export function drawTwinkle(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.moveTo(m, 0);
+  c.quadraticCurveTo(m, m, s, m);
+  c.quadraticCurveTo(m, m, m, s);
+  c.quadraticCurveTo(m, m, 0, m);
+  c.quadraticCurveTo(m, m, m, 0);
+  c.fillStyle = '#ffffff';
+  c.fill();
+}
+
 export function drawKnife(c: Ctx, w: number, h: number): void {
   const line = 1.6;
   const my = h / 2;

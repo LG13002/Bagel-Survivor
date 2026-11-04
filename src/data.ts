@@ -119,7 +119,11 @@ export interface StageDef {
   /** False until the stage's content exists: shown as "Coming soon" and can't be picked. */
   built: boolean;
   floor: string; // tiling texture, 256 × 256
-  props: 'counter';
+  props: 'counter' | 'freezer';
+  /** Freezer hazards: slippery ice patches on the floor, frost when standing still, Warm Mug drops. */
+  ice?: boolean;
+  frost?: boolean;
+  mug?: boolean;
   /** Dough multiplier for runs on this stage. */
   dough: number;
   // Difficulty dials
@@ -174,7 +178,7 @@ const BAKERY_STAGE: StageDef = {
   music: { run: 'run', boss: 'boss' },
 };
 
-// Stages 2 and 3 borrow Stage 1's cast and floor until their own content is built (M6 and M9).
+// Stage 3 borrows Stage 1's cast and floor until its own content is built (M9).
 // Their difficulty dials are first guesses, tuned with the bot benchmark when each stage is built.
 export const STAGES: StageDef[] = [
   BAKERY_STAGE,
@@ -188,9 +192,23 @@ export const STAGES: StageDef[] = [
     pips: 2,
     unlockAfter: 'stage1',
     unlockText: 'Beat the Toaster Tyrant',
-    built: false,
+    built: true,
+    floor: 'floor_stage2',
+    props: 'freezer',
+    ice: true,
+    frost: true,
+    mug: true,
     dough: 1.5,
     hpGrowth: 160,
+    mix: [
+      { until: 45, table: [['fcrumb', 1]] },
+      { until: 90, table: [['fcrumb', 65], ['popsicle', 35]] },
+      { until: 120, table: [['fcrumb', 45], ['popsicle', 25], ['icecube', 18], ['peapod', 12]] },
+      { until: Infinity, table: [['fcrumb', 36], ['popsicle', 22], ['icecube', 16], ['peapod', 12], ['fmold', 14]] },
+    ],
+    wave: { kinds: ['popsicle', 'fcrumb'], banner: 'The frost closes in!' },
+    lines: 'sprinkle',
+    // Part 2 of M6 gives the Freezer its own elites, mini-boss, boss and music. Until then Stage 1's stand in.
   },
   {
     ...BAKERY_STAGE,
@@ -329,7 +347,10 @@ export const BAKERY: UpgradeDef[] = [
   { id: 'magnet', icon: 'ic_bk_sticky', name: 'Sticky Seeds', blurb: '+15% pickup range per rank', costs: [15, 35, 70, 130, 210] },
 ];
 
-export type EnemyKind = 'crumb' | 'mold' | 'moldling' | 'knife' | 'ant' | 'elite' | 'croissant' | 'toaster';
+export type EnemyKind =
+  | 'crumb' | 'mold' | 'moldling' | 'knife' | 'ant' | 'elite' | 'croissant' | 'toaster'
+  // The Freezer
+  | 'fcrumb' | 'icecube' | 'peapod' | 'popsicle' | 'pophalf' | 'fmold' | 'fmoldling' | 'sprinkle';
 
 export interface EnemyDef {
   tex: string;
@@ -339,17 +360,34 @@ export interface EnemyDef {
   radius: number;
   xp: number;
   mass: number; // knockback resistance
+  /** How it moves: chase (default), 'line' (flies straight across, like ants), 'charge' (stops, shakes, dashes), 'shoot' (keeps its distance and fires). */
+  ai?: 'line' | 'charge' | 'shoot';
+  /** Dash speed for chargers. */
+  dash?: number;
+  /** Splits into these when beaten. */
+  split?: { kind: EnemyKind; n: number };
+  /** Colour of the crumbs it bursts into. */
+  burst?: number;
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   crumb: { tex: 'en_crumb', hp: 8, speed: 62, dmg: 5, radius: 9, xp: 1, mass: 1 },
-  mold: { tex: 'en_mold', hp: 22, speed: 40, dmg: 8, radius: 12, xp: 2, mass: 1.6 },
-  moldling: { tex: 'en_moldling', hp: 8, speed: 55, dmg: 5, radius: 8, xp: 1, mass: 1 },
-  knife: { tex: 'en_knife', hp: 26, speed: 50, dmg: 12, radius: 10, xp: 3, mass: 1.3 },
-  ant: { tex: 'en_ant', hp: 12, speed: 95, dmg: 6, radius: 7, xp: 1, mass: 0.8 },
-  elite: { tex: 'en_elite', hp: 260, speed: 46, dmg: 14, radius: 24, xp: 15, mass: 5 },
+  mold: { tex: 'en_mold', hp: 22, speed: 40, dmg: 8, radius: 12, xp: 2, mass: 1.6, split: { kind: 'moldling', n: 2 }, burst: 0x76a83e },
+  moldling: { tex: 'en_moldling', hp: 8, speed: 55, dmg: 5, radius: 8, xp: 1, mass: 1, burst: 0x76a83e },
+  knife: { tex: 'en_knife', hp: 26, speed: 50, dmg: 12, radius: 10, xp: 3, mass: 1.3, ai: 'charge', dash: 430, burst: 0xdfe5ea },
+  ant: { tex: 'en_ant', hp: 12, speed: 95, dmg: 6, radius: 7, xp: 1, mass: 0.8, ai: 'line' },
+  elite: { tex: 'en_elite', hp: 260, speed: 46, dmg: 14, radius: 24, xp: 15, mass: 5, burst: 0x76a83e },
   croissant: { tex: 'en_croissant', hp: 1300, speed: 72, dmg: 15, radius: 30, xp: 30, mass: 12 },
   toaster: { tex: 'en_toaster', hp: 5000, speed: 38, dmg: 25, radius: 36, xp: 0, mass: 40 },
+  // The Freezer
+  fcrumb: { tex: 'en_fcrumb', hp: 8, speed: 71, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0xcfe9f7 },
+  icecube: { tex: 'en_icecube', hp: 30, speed: 44, dmg: 13, radius: 12, xp: 3, mass: 2, ai: 'charge', dash: 380, burst: 0xbfe6fb },
+  peapod: { tex: 'en_peapod', hp: 20, speed: 50, dmg: 6, radius: 11, xp: 3, mass: 1.2, ai: 'shoot', burst: 0x7fc24a },
+  popsicle: { tex: 'en_popsicle', hp: 24, speed: 46, dmg: 8, radius: 11.5, xp: 2, mass: 1.4, split: { kind: 'pophalf', n: 2 }, burst: 0xf0705a },
+  pophalf: { tex: 'en_pophalf', hp: 9, speed: 60, dmg: 5, radius: 8, xp: 1, mass: 1, burst: 0xf0705a },
+  fmold: { tex: 'en_fmold', hp: 70, speed: 38, dmg: 10, radius: 16, xp: 5, mass: 3, split: { kind: 'fmoldling', n: 2 }, burst: 0x9cc7b8 },
+  fmoldling: { tex: 'en_fmoldling', hp: 10, speed: 52, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0x9cc7b8 },
+  sprinkle: { tex: 'en_sprinkle', hp: 10, speed: 105, dmg: 6, radius: 7, xp: 1, mass: 0.8, ai: 'line', burst: 0xffffff },
 };
 
 // Run pacing (seconds)

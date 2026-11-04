@@ -8,7 +8,7 @@ const LV = Number(process.argv[2] || 5);
     await p.evaluate(() => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'plain', practice: false }));
     await p.waitForTimeout(500);
     await p.evaluate(([wid, LV]) => { const g = window.__game.scene.getScene('game');
-      g.weapons.forEach(w => w.destroy()); g.weapons = []; g.addWeapon(wid); g.weapons[0].level = Math.min(LV,5); if (LV > 5) g.weapons[0].evolved = true; g.openChest = () => {}; g.levelUp = () => {};
+      g.weapons.forEach(w => w.destroy()); g.weapons = []; g.addWeapon(wid); g.weapons[0].level = Math.min(LV,5); if (LV > 5) g.weapons[0].evolved = true; g.openChest = () => {}; g.openLevelUp = () => { g.pendingLevels = 0; };
       g.gainXp = () => {}; g.__dmg = 0; g.__k0 = g.kills; g.__t0 = g.now;
       const h = g.hit.bind(g); g.hit = (e, d, ...r) => { const before = e.hp; const ok = h(e, d, ...r); if (ok) g.__dmg += Math.min(d, Math.max(0, before)); return ok; }; g.__hurt = 0; g.__inv = 0; const dp = g.damagePlayer.bind(g); g.damagePlayer = (d) => { if (g.now >= g.__inv && !g.paused) { g.__hurt += d; g.__inv = g.now + 0.9; } dp(d); };
     }, [wid, LV]);

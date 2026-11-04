@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, DEBUG, S, ZOOM, fmtTime, safeInsets } from '../config';
-import { COUNTER_PROPS, type PropDef } from '../floors';
+import { COUNTER_PROPS, FREEZER_PROPS, type PropDef } from '../floors';
 import { rng } from '../art';
 import {
   BAGELS,
@@ -53,8 +53,27 @@ export interface RunResult {
 }
 
 const CELL = 48;
-const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS };
-const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = { crumb: 'crunch', ant: 'crunch', mold: 'splat', moldling: 'splat', knife: 'clatter', elite: 'pop', croissant: 'pop', toaster: 'pop' };
+const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS, freezer: FREEZER_PROPS };
+/** Freezer frost: seconds standing still before frost starts, seconds to fill, slow when full. */
+const FROST_DELAY = 2;
+const FROST_FILL = 2;
+const FROST_SLOW = 0.7;
+/** Once frozen, it takes this many seconds of moving to thaw (a Warm Mug thaws at once). */
+const THAW_TIME = 3.5;
+/** How fast you steer on ice (lower = longer slides). */
+const ICE_GRIP = 1.2;
+const MUG_SAFE = 5;
+interface IcePatch {
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  imgs: Phaser.GameObjects.Image[];
+}
+const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = {
+  crumb: 'crunch', ant: 'crunch', mold: 'splat', moldling: 'splat', knife: 'clatter', elite: 'pop', croissant: 'pop', toaster: 'pop',
+  fcrumb: 'crunch', sprinkle: 'crunch', icecube: 'shatter', popsicle: 'shatter', pophalf: 'crunch', peapod: 'splat', fmold: 'splat', fmoldling: 'splat',
+};
 /** Practice runs start at 2:30 with a head start of level-ups. */
 const PRACTICE_START = 150;
 const PRACTICE_LEVELS = 12;
@@ -161,6 +180,16 @@ export class GameScene extends Phaser.Scene implements World {
   private auraImg: Phaser.GameObjects.Image | null = null;
   private auraT = 0;
   private snapT = 0;
+  // Freezer hazards
+  private iceChunks = new Map<string, IcePatch[]>();
+  private onIce = false;
+  private vel = { x: 0, y: 0 };
+  private stillT = 0;
+  /** 0..1 frost ring; at 1 the bagel is frozen (slowed) until it walks it off. */
+  private frost = 0;
+  private frozen = false;
+  private mugUntil = 0;
+  private frostGfx!: Phaser.GameObjects.Graphics;
 
   /** Where we are on the full run's schedule (the clock the director and music follow). */
   private get stageT(): number {
@@ -185,6 +214,13 @@ export class GameScene extends Phaser.Scene implements World {
     this.auraImg = null;
     this.auraT = 0;
     this.snapT = 0;
+    this.iceChunks = new Map();
+    this.onIce = false;
+    this.vel = { x: 0, y: 0 };
+    this.stillT = 0;
+    this.frost = 0;
+    this.frozen = false;
+    this.mugUntil = 0;
     this.player = new Player();
     this.now = (this.practice ? PRACTICE_START : DEBUG.start) / this.pace;
     this.enemies = [];
@@ -246,6 +282,8 @@ export class GameScene extends Phaser.Scene implements World {
     // Soft contact shadows under everything that stands on the floor, redrawn each frame.
     this.shadowGfx = this.add.graphics().setDepth(2);
     this.worldLayer.add(this.shadowGfx);
+    this.frostGfx = this.add.graphics().setDepth(53);
+    this.worldLayer.add(this.frostGfx);
 
     this.player.sprite = this.img(this.bagel.tex, 0, 0, 50);
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
@@ -698,8 +736,86 @@ export class GameScene extends Phaser.Scene implements World {
       p.faceX = mx / l;
       p.faceY = my / l;
     }
-    p.x += mx * this.stats.speed * dt;
-    p.y += my * this.stats.speed * dt;
+    const st = this.stage;
+    if (!st.ice && !st.frost) {
+      p.x += mx * this.stats.speed * dt;
+      p.y += my * this.stats.speed * dt;
+      return;
+    }
+    // Freezer: frost slows you, and on ice you keep sliding for a moment when you change direction.
+    const sp = this.stats.speed * (this.frozen ? FROST_SLOW : 1);
+    const tx = mx * sp;
+    const ty = my * sp;
+    const ice = st.ice ? this.iceAt(p.x, p.y) : false;
+    if (ice && !this.onIce) sfx('ice');
+    this.onIce = ice;
+    if (ice) {
+      const k = 1 - Math.exp(-ICE_GRIP * dt);
+      this.vel.x += (tx - this.vel.x) * k;
+      this.vel.y += (ty - this.vel.y) * k;
+    } else {
+      this.vel.x = tx;
+      this.vel.y = ty;
+    }
+    p.x += this.vel.x * dt;
+    p.y += this.vel.y * dt;
+    if (st.frost) this.updateFrost(dt, len > 0.1 || Math.hypot(this.vel.x, this.vel.y) > 20);
+  }
+
+  /** Frost builds while you stand still and melts while you move. */
+  private updateFrost(dt: number, moving: boolean): void {
+    if (this.now < this.mugUntil) {
+      this.frost = 0;
+      this.frozen = false;
+      this.stillT = 0;
+      return;
+    }
+    if (moving) {
+      this.stillT = 0;
+      this.frost = Math.max(0, this.frost - dt / (this.frozen ? THAW_TIME : 1));
+      if (this.frost === 0 && this.frozen) {
+        this.frozen = false;
+        this.player.sprite.clearTint();
+      }
+      return;
+    }
+    this.stillT += dt;
+    if (this.stillT < FROST_DELAY) return;
+    if (this.frost === 0) sfx('frost');
+    this.frost = Math.min(1, this.frost + dt / FROST_FILL);
+    if (this.frost >= 1 && !this.frozen) {
+      this.frozen = true;
+      sfx('frost');
+      this.banner('Frozen! Keep moving, or grab a Warm Mug.', '#bfe6fb', 16);
+    }
+  }
+
+  /** Is this point on an ice patch? Only patches near the camera exist. */
+  private iceAt(x: number, y: number): boolean {
+    for (const list of this.iceChunks.values())
+      for (const ip of list) {
+        const dx = (x - ip.x) / ip.rx;
+        const dy = (y - ip.y) / ip.ry;
+        if (dx * dx + dy * dy < 1) return true;
+      }
+    return false;
+  }
+
+  private drawFrost(): void {
+    const g = this.frostGfx;
+    g.clear();
+    if (!this.stage.frost) return;
+    const p = this.player;
+    if (this.frozen) p.sprite.setTint(0xa8dcff);
+    if (this.frost <= 0) return;
+    const r = 21;
+    g.lineStyle(5, 0x24160d, 0.9).strokeCircle(p.x, p.y, r);
+    g.lineStyle(3, 0x3d6f8f, 0.6).strokeCircle(p.x, p.y, r);
+    g.lineStyle(3.4, this.frozen ? 0xffffff : 0xbfe6fb, 1);
+    g.beginPath();
+    g.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.frost, false);
+    g.strokePath();
+    if (this.frozen) g.fillStyle(0xbfe6fb, 0.25).fillCircle(p.x, p.y, r);
   }
 
   private render2(): void {
@@ -718,6 +834,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.drawArrows();
     this.drawShadows();
     this.updateProps();
+    this.drawFrost();
   }
 
   /** Scatter countertop props in 384px world chunks. Each chunk is seeded by its coordinates,
@@ -764,12 +881,42 @@ export class GameScene extends Phaser.Scene implements World {
           list.push(im);
         }
         this.propChunks.set(key, list);
+        if (this.stage.ice) this.iceChunks.set(key, this.makeIce(cx, cy, C));
       }
     for (const [key, list] of this.propChunks)
       if (!keep.has(key)) {
         for (const im of list) im.destroy();
         this.propChunks.delete(key);
+        for (const ip of this.iceChunks.get(key) ?? []) ip.imgs.forEach((im) => im.destroy());
+        this.iceChunks.delete(key);
       }
+  }
+
+  /** Seeded ice patches for one floor chunk: 0 to 2, never near where a run starts. */
+  private makeIce(cx: number, cy: number, C: number): IcePatch[] {
+    const h = (Math.imul(cx, 83492791) ^ Math.imul(cy, 2971215073)) >>> 0;
+    const rand = rng((h % 2147483646) + 1);
+    rand();
+    const n = rand() < 0.45 ? 1 : rand() < 0.3 ? 2 : 0;
+    const out: IcePatch[] = [];
+    for (let i = 0; i < n; i++) {
+      const rx = 80 + rand() * 60;
+      const ry = rx * (0.6 + rand() * 0.2);
+      const x = (cx + 0.2 + rand() * 0.6) * C;
+      const y = (cy + 0.2 + rand() * 0.6) * C;
+      if (Math.hypot(x, y) < 170 + rx) continue;
+      const base = this.img('ice_patch', x, y, 1.5);
+      base.setScale((rx * 2) / 200 / S, (ry * 2) / 120 / S);
+      const imgs = [base];
+      for (let k = 0; k < 3; k++) {
+        const tw = this.img('twinkle', x + (rand() - 0.5) * rx * 1.2, y + (rand() - 0.5) * ry * 1.1, 1.6);
+        tw.setScale(0.2 / S);
+        this.tweens.add({ targets: tw, scale: { from: 0.2 / S, to: 1.1 / S }, alpha: { from: 0.3, to: 1 }, duration: 700 + k * 230, yoyo: true, repeat: -1, delay: k * 300, ease: 'Sine.InOut' });
+        imgs.push(tw);
+      }
+      out.push({ x, y, rx, ry, imgs });
+    }
+    return out;
   }
 
   private drawShadows(): void {
@@ -980,26 +1127,36 @@ export class GameScene extends Phaser.Scene implements World {
       let mvx = (dx / dist) * e.speed * slow;
       let mvy = (dy / dist) * e.speed * slow;
 
-      switch (e.kind) {
-        case 'ant':
+      const ai = ENEMIES[e.kind].ai;
+      switch (ai === 'line' ? 'line' : ai === 'charge' ? 'charge' : ai === 'shoot' ? 'shoot' : e.kind) {
+        case 'line':
           mvx = e.vx * slow;
           mvy = e.vy * slow;
-          e.sprite.setRotation(Math.atan2(e.vy, e.vx));
+          e.sprite.setRotation(e.kind === 'sprinkle' ? t * 8 : Math.atan2(e.vy, e.vx));
           break;
-        case 'knife':
+        case 'charge': {
+          // Knives and ice cubes: close in, stop and wind up (flash), dash in a straight line, recover.
+          const knife = e.kind === 'knife';
+          const dash = ENEMIES[e.kind].dash ?? 430;
           e.stateT -= dt;
           if (e.state === 0) {
-            e.sprite.setRotation(Math.atan2(dy, dx));
+            if (knife) e.sprite.setRotation(Math.atan2(dy, dx));
+            else {
+              if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
+              e.sprite.setRotation(Math.sin(t * 9 + e.phase) * 0.08);
+            }
             if (dist < 190) {
               e.state = 1;
-              e.stateT = 0.55;
-              e.vx = (dx / dist) * 430;
-              e.vy = (dy / dist) * 430;
+              e.stateT = knife ? 0.55 : 0.6;
+              e.vx = (dx / dist) * dash;
+              e.vy = (dy / dist) * dash;
             }
           } else if (e.state === 1) {
             mvx = mvy = 0;
-            e.sprite.setRotation(Math.atan2(e.vy, e.vx) + Math.sin(t * 60) * 0.12);
-            e.sprite.setTint(0xff8a7a);
+            if (knife) e.sprite.setRotation(Math.atan2(e.vy, e.vx) + Math.sin(t * 60) * 0.12);
+            else e.sprite.setRotation(Math.sin(t * 60) * 0.14);
+            e.sprite.setTint(knife ? 0xff8a7a : 0xffffff);
+            if (!knife && Math.floor(t * 16) % 2) e.sprite.setTintFill(0xffffff);
             if (e.stateT <= 0) {
               e.state = 2;
               e.stateT = 0.5;
@@ -1016,6 +1173,27 @@ export class GameScene extends Phaser.Scene implements World {
             mvx *= 0.3;
             mvy *= 0.3;
             if (e.stateT <= 0) e.state = 0;
+          }
+          break;
+        }
+        case 'shoot':
+          // Pea Pod: keeps its distance and lobs one big, slow pea.
+          if (dist < 170) {
+            mvx = -mvx * 0.6;
+            mvy = -mvy * 0.6;
+          } else if (dist < 230) {
+            mvx *= 0.15;
+            mvy *= 0.15;
+          }
+          if (Math.abs(dx) > 1) e.sprite.setFlipX(dx < 0);
+          e.sprite.setRotation(Math.sin(t * 6 + e.phase) * 0.1);
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = 2.5;
+            if (dist < 300) {
+              sfx('pea');
+              this.fireShot('pea', e.x, e.y, Math.atan2(dy, dx), 120, 8, 7);
+            }
           }
           break;
         case 'croissant':
@@ -1093,7 +1271,7 @@ export class GameScene extends Phaser.Scene implements World {
         const rx = e.x - p.x;
         const ry = e.y - p.y;
         if (Math.abs(rx) > farX || Math.abs(ry) > farY) {
-          if (e.kind === 'ant') {
+          if (ENEMIES[e.kind].ai === 'line') {
             this.removeEnemy(e);
             continue;
           }
@@ -1154,10 +1332,11 @@ export class GameScene extends Phaser.Scene implements World {
     sfx(KILL_SFX[e.kind] ?? 'kill');
     this.deathPop(e);
     const big = e.radius > 20;
-    this.burst(e.x, e.y, e.kind.startsWith('mold') || e.kind === 'elite' ? 0x76a83e : e.kind === 'knife' ? 0xdfe5ea : 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
-    if (e.kind === 'mold') {
-      for (let i = 0; i < 2; i++) {
-        const m = this.spawnEnemy('moldling', e.x + (i ? 6 : -6), e.y, this.hpMult(this.stageT));
+    const def = ENEMIES[e.kind];
+    this.burst(e.x, e.y, def.burst ?? 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
+    if (def.split) {
+      for (let i = 0; i < def.split.n; i++) {
+        const m = this.spawnEnemy(def.split.kind, e.x + (i ? 6 : -6), e.y, this.hpMult(this.stageT));
         if (m) {
           m.kx = (i ? 1 : -1) * 120;
         }
@@ -1171,6 +1350,11 @@ export class GameScene extends Phaser.Scene implements World {
       const ba = Math.atan2(e.y - this.player.y, e.x - this.player.x);
       this.dropPickup('bun', e.x + Math.cos(ba) * (e.radius + 30), e.y + Math.sin(ba) * (e.radius + 30), 1);
       this.banner('A Sticky Bun dropped!', '#f0a24a', 18);
+    }
+    // Freezer: every elite drops a Warm Mug, regular enemies now and then (one on the floor at a time).
+    if (this.stage.mug) {
+      if (e.kind === this.stage.elite.kind) this.dropPickup('mug', e.x - 14, e.y, 1);
+      else if (!e.dropsChest && Math.random() < 0.006 && !this.pickups.some((it) => it.kind === 'mug')) this.dropPickup('mug', e.x, e.y - 6, 1);
     }
     const r = Math.random();
     if (r < 0.01) this.dropPickup('coin', e.x + 6, e.y, 1);
@@ -1354,12 +1538,12 @@ export class GameScene extends Phaser.Scene implements World {
 
   private dropPickup(kind: Pickup['kind'], x: number, y: number, value: number): void {
     const tex = kind === 'xp' ? this.gemTex(value) : kind;
-    const isChest = kind === 'chest' || kind === 'goldchest' || kind === 'bun';
+    const isChest = kind === 'chest' || kind === 'goldchest' || kind === 'bun' || kind === 'mug';
     const sprite = this.img(tex, x, y, isChest ? 12 : 10);
     if (isChest) {
       this.tweens.add({ targets: sprite, y: y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
-    if (kind === 'bun') {
+    if (kind === 'bun' || kind === 'mug') {
       const base = sprite.scaleX;
       this.tweens.add({ targets: sprite, scale: base * 1.15, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
@@ -1422,6 +1606,17 @@ export class GameScene extends Phaser.Scene implements World {
         break;
       case 'goldchest':
         this.openChest(true);
+        break;
+      case 'mug':
+        // Warms you up: clears frost, a small heal (not counted as a heal for unlock goals), a few seconds frost-free.
+        this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 10);
+        this.frost = 0;
+        this.frozen = false;
+        this.stillT = 0;
+        this.player.sprite.clearTint();
+        this.mugUntil = this.now + MUG_SAFE;
+        sfx('sip');
+        this.burst(this.player.x, this.player.y, 0xff9a5c, 10, 40);
         break;
       case 'bun':
         this.vacuum();
