@@ -4,6 +4,7 @@ export interface RunSnapshot {
   savedAt: number;
   bagel: string;
   practice: boolean;
+  quick?: boolean;
   now: number;
   level: number;
   xp: number;

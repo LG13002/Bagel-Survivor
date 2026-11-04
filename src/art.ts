@@ -999,6 +999,17 @@ export const UI_ICONS: Record<string, (c: Ctx) => void> = {
     c.fillStyle = '#f2b84b';
     c.fill('evenodd');
   },
+  ic_bolt: (c) => {
+    c.beginPath();
+    c.moveTo(21, 3);
+    c.lineTo(8, 20);
+    c.lineTo(17, 20);
+    c.lineTo(14, 33);
+    c.lineTo(28, 15);
+    c.lineTo(19, 15);
+    c.closePath();
+    fillInk(c, linear(c, 0, 3, 0, 33, [[0, '#fff3a0'], [1, '#f2a516']]), 2);
+  },
   ic_star: (c) => {
     c.beginPath();
     for (let i = 0; i < 10; i++) {

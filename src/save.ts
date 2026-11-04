@@ -9,6 +9,8 @@ export interface SaveData {
   clears: number;
   sound?: boolean;
   music?: boolean;
+  /** Last chosen run length: true = Quick Run (3:00). */
+  quick?: boolean;
   practice?: boolean;
   noHealClear?: boolean;
   /** Per bagel, per stage best runs, keyed 'stage:bagel'. */
@@ -62,6 +64,8 @@ export interface BestScore {
 }
 
 export const STAGE = 'stage1';
+/** High scores for Quick Runs of stage 1 are kept separately. */
+export const QUICK_STAGE = 'stage1q';
 
 function bestKey(stage: string, bagel: string): string {
   return `${stage}:${bagel}`;

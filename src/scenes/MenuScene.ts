@@ -3,7 +3,7 @@ import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, TOPPINGS, WEAPONS, type WeaponId } from '../data';
 import { goalStatus } from '../progress';
 import { clearRun, loadRun } from '../runsave';
-import { getBest, load, persist } from '../save';
+import { QUICK_STAGE, STAGE, getBest, load, persist } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { musicOn, setMusic, setSound, sfx, soundOn, unlockAudio } from '../sfx';
@@ -62,7 +62,8 @@ export class MenuScene extends Phaser.Scene {
     const titleY = top + (compact ? 70 * S : Math.max(96 * S, H * 0.13));
     c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40 * k, CSS.gold));
     c.add(txt(this, W / 2, titleY + 44 * k * S, 'BAGEL', 54 * k, CSS.cream));
-    c.add(txt(this, W / 2, titleY + 86 * k * S, 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
+    // Short screens skip the tagline to make room for the bagel.
+    if (!compact) c.add(txt(this, W / 2, titleY + 86 * k * S, save.quick ? 'Survive the Stale for 3 minutes' : 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
 
     // Bagel picker
     const bagel = BAGELS[this.idx];
@@ -74,8 +75,8 @@ export class MenuScene extends Phaser.Scene {
       bold: false,
     }).setOrigin(0.5, 0);
     const extraBelow = gs ? 26 * S : 0; // progress bar under a locked bagel's goal
-    const buttonsTop = bottom - 150 * S - 66 * S - (compact ? 30 : 36) * S; // top of the toggles row, with a gap
-    const titleBottom = titleY + (86 * k + 16) * S;
+    const buttonsTop = bottom - 150 * S - 66 * S - 48 * S - (compact ? 26 : 32) * S; // top of the mode switch, with a gap
+    const titleBottom = titleY + (compact ? 64 * k + 8 : 86 * k + 16) * S;
     // Below the bagel: dots, name, best line, then the description.
     const sp = compact ? 0.84 : 1; // tighter spacing under the bagel on short screens
     const belowBagel = 94 * sp * S + desc.height + extraBelow;
@@ -103,8 +104,9 @@ export class MenuScene extends Phaser.Scene {
     c.add(nameT);
     slide.push(nameT);
     if (!locked) {
-      const best = getBest(save, bagel.id);
-      const line = !best ? 'Stage 1 best: no runs yet' : best.cleared ? `♛ Stage 1 cleared  ·  ${best.kills} kills` : `Stage 1 best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
+      const best = getBest(save, bagel.id, save.quick ? QUICK_STAGE : STAGE);
+      const label = save.quick ? 'Quick Run' : 'Stage 1';
+      const line = !best ? `${label} best: no runs yet` : best.cleared ? `♛ ${label} cleared  ·  ${best.kills} kills` : `${label} best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
       c.add(txt(this, W / 2, by + R + 72 * sp * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
     }
     c.add(desc);
@@ -179,7 +181,7 @@ export class MenuScene extends Phaser.Scene {
     const saved = loadRun();
     if (saved) {
       const name = BAGELS.find((b) => b.id === saved.bagel)?.name ?? 'run';
-      const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 280 * S), 44 * S, `Resume ${name} at ${fmtTime(saved.now)}`, () => {
+      const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 280 * S), 44 * S, `Resume ${saved.quick ? 'Quick ' : ''}${name} at ${fmtTime(saved.now)}`, () => {
         unlockAudio();
         this.cameras.main.fadeOut(200, 18, 12, 8);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { resume: true }));
@@ -193,12 +195,43 @@ export class MenuScene extends Phaser.Scene {
       toggle(W / 2, () => `Music: ${musicOn() ? 'On' : 'Off'}`, () => setMusic(!musicOn()));
       toggle(W / 2 + tw + 8 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
     }
+    // Full / Quick switch: a two-part pill above the toggles. Remembers the last choice.
+    {
+      const sw = Math.min(W - 60 * S, 300 * S);
+      const sh = 38 * S;
+      const y = playY - 66 * S - 52 * S;
+      const g = this.add.graphics();
+      g.fillStyle(0x24160d, 1).fillRoundedRect(W / 2 - sw / 2 - 2.5 * S, y - sh / 2 - 2.5 * S, sw + 5 * S, sh + 5 * S, sh / 2 + 2.5 * S);
+      g.fillStyle(0x1d140d, 1).fillRoundedRect(W / 2 - sw / 2, y - sh / 2, sw, sh, sh / 2);
+      const x0 = save.quick ? W / 2 : W / 2 - sw / 2;
+      g.fillStyle(COLORS.gold, 1).fillRoundedRect(x0 + 3 * S, y - sh / 2 + 3 * S, sw / 2 - 6 * S, sh - 6 * S, sh / 2 - 3 * S);
+      g.fillStyle(0xffffff, 0.22).fillRoundedRect(x0 + 10 * S, y - sh / 2 + 6 * S, sw / 2 - 20 * S, 8 * S, 4 * S);
+      c.add(g);
+      const half = (quick: boolean, label: string) => {
+        const on = !!save.quick === quick;
+        const cx = W / 2 + (quick ? sw / 4 : -sw / 4);
+        const t = txt(this, cx + (quick ? 9 * S : 0), y, label, 15, on ? CSS.dark : CSS.muted, { stroke: false });
+        c.add(t);
+        if (quick) c.add(this.add.image(t.x - t.width / 2 - 11 * S, y, 'ic_bolt').setScale(0.55).setAlpha(on ? 1 : 0.6));
+        const z = this.add.zone(cx, y, sw / 2, sh + 8 * S).setInteractive();
+        z.on('pointerup', () => {
+          if (on) return;
+          sfx('click');
+          save.quick = quick;
+          persist();
+          this.build();
+        });
+        c.add(z);
+      };
+      half(false, 'Full 5:00');
+      half(true, 'Quick 3:00');
+    }
     const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
       if (locked) return;
       unlockAudio();
       clearRun();
       this.cameras.main.fadeOut(200, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, practice: !!save.practice }));
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, practice: !!save.practice, quick: !!save.quick }));
     }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
     c.add(play);
     if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
