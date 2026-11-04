@@ -13,7 +13,7 @@ export interface World {
   img(tex: string, x: number, y: number, depth: number): Phaser.GameObjects.Image;
   tweens: Phaser.Tweens.TweenManager;
   shake(ms: number, intensity: number): void;
-  playSfx(name: 'pin' | 'splash'): void;
+  playSfx(name: 'pin' | 'splash' | 'shoot' | 'lox' | 'storm'): void;
 }
 
 export abstract class Weapon {
@@ -67,6 +67,7 @@ class SesameShot extends Weapon {
     const lv = this.level;
     const cd = (this.evolved ? 0.1 : lv >= 5 ? 0.55 : 0.68) * s.cooldown;
     if (this.tick(dt, cd)) {
+      this.w.playSfx('shoot');
       const dir = this.aim(440);
       const base = Math.atan2(dir.y, dir.x);
       if (this.evolved) {
@@ -133,6 +134,7 @@ class SeedStorm extends Weapon {
       for (let i = 0; i < total; i++) this.orbs.push(this.w.img(this.evolved ? 'seed_fire' : 'orb', 0, 0, 21));
     }
     this.angle += dt;
+    this.w.playSfx('storm'); // throttled to an occasional shimmer
     const dmg = (this.evolved ? 16 : 8 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     const p = this.w.player;
     let k = 0;
@@ -272,6 +274,7 @@ class LoxBoomerang extends Weapon {
       }
     } else if (this.tick(dt, 1.9 * s.cooldown)) {
       const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
+      this.w.playSfx('lox');
       const dir = this.aim(320);
       const base = Math.atan2(dir.y, dir.x);
       for (let i = 0; i < count; i++) {

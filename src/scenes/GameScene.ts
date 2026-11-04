@@ -22,7 +22,8 @@ import { load, persist, recordBest } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
-import { setSound, sfx, soundOn, unlockAudio } from '../sfx';
+import { muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
+import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks } from '../progress';
 import { clearRun, loadRun, saveRun, type RunSnapshot } from '../runsave';
 
@@ -47,6 +48,7 @@ export interface RunResult {
 }
 
 const CELL = 48;
+const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = { crumb: 'crunch', ant: 'crunch', mold: 'splat', moldling: 'splat', knife: 'clatter', elite: 'pop', croissant: 'pop', toaster: 'pop' };
 /** Practice runs start at 2:30 with a head start of level-ups. */
 const PRACTICE_START = 150;
 const PRACTICE_LEVELS = 12;
@@ -270,7 +272,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.cameras.main.shake(ms, intensity);
   }
 
-  playSfx(name: 'pin' | 'splash'): void {
+  playSfx(name: 'pin' | 'splash' | 'shoot' | 'lox' | 'storm'): void {
     sfx(name);
   }
 
@@ -482,6 +484,17 @@ export class GameScene extends Phaser.Scene implements World {
     const steps = DEBUG.speed;
     for (let i = 0; i < steps && !this.paused; i++) this.step(dt);
     this.render2();
+    this.updateAudio();
+  }
+
+  /** Pick the music for the moment and play the low-health heartbeat. */
+  private updateAudio(): void {
+    if (this.paused === 'over') return;
+    const boss = this.bigs.some((e) => e.alive && (e.kind === 'croissant' || e.kind === 'toaster'));
+    playMusic(boss ? 'boss' : 'run');
+    // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
+    setRunIntensity(this.now >= 120 ? 2 : this.now >= 60 ? 1 : 0, this.now >= 180 ? 1.08 : 1);
+    if (this.player.hp > 0 && this.player.hp / this.stats.maxHp < 0.25) sfx('heart');
   }
 
   private step(dt: number): void {
@@ -973,12 +986,15 @@ export class GameScene extends Phaser.Scene implements World {
           e.attackT -= dt;
           if (e.attackT <= 0) {
             e.attackT = 1.7;
+            sfx('flakes');
             const off = Math.random() * Math.PI;
             for (let i = 0; i < 10; i++) this.fireShot('flake', e.x, e.y, off + (i / 10) * Math.PI * 2, 130, 10, 6);
           }
           break;
         case 'toaster':
           e.sprite.setRotation(Math.sin(t * 6) * 0.06);
+          // A toaster "ding" just before it fires, so you can react.
+          if (e.attackT > 0.45 && e.attackT - dt <= 0.45) sfx('ding');
           e.attackT -= dt;
           e.attack2T -= dt;
           if (e.attackT <= 0) {
@@ -1098,7 +1114,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.raisinKills = 0;
       this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 1);
     }
-    sfx('kill');
+    sfx(KILL_SFX[e.kind] ?? 'kill');
     this.deathPop(e);
     const big = e.radius > 20;
     this.burst(e.x, e.y, e.kind.startsWith('mold') || e.kind === 'elite' ? 0x76a83e : e.kind === 'knife' ? 0xdfe5ea : 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
@@ -1626,6 +1642,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   private setPaused(r: PauseReason): void {
     this.paused = r;
+    muffleMusic(r === 'levelup' || r === 'pause' || r === 'chest');
     if (r) {
       this.releaseJoystick();
       this.tweens.pauseAll();
@@ -1770,8 +1787,8 @@ export class GameScene extends Phaser.Scene implements World {
   /** Bread basket: an evolution, or 1 upgrade and +5 Dough. Gold toaster: an evolution plus 2 upgrades, or 3 upgrades and +15 Dough. */
   private openChest(gold: boolean): void {
     this.setPaused('chest');
-    sfx('chest');
     const evo = this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
+    sfx(evo ? 'evolve' : gold ? 'gold' : 'basket');
     let title: string;
     const lines: string[] = [];
     let icon = 'ic_heal';
@@ -1916,11 +1933,16 @@ export class GameScene extends Phaser.Scene implements World {
       this.endRun(false, true);
     }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
     c.add(quit);
-    const snd = button(this, W / 2, top + 420 * S, 200 * S, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
+    const half = 96 * S;
+    const mus = button(this, W / 2 - half / 2 - 4 * S, top + 420 * S, half, 44 * S, `Music: ${musicOn() ? 'On' : 'Off'}`, () => {
+      setMusic(!musicOn());
+      (mus.getData('label') as Phaser.GameObjects.Text).setText(`Music: ${musicOn() ? 'On' : 'Off'}`);
+    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 14 });
+    const snd = button(this, W / 2 + half / 2 + 4 * S, top + 420 * S, half, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
       setSound(!soundOn());
       (snd.getData('label') as Phaser.GameObjects.Text).setText(`Sound: ${soundOn() ? 'On' : 'Off'}`);
-    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
-    c.add(snd);
+    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 14 });
+    c.add([mus, snd]);
   }
 
   /** Dough this run is worth so far (the same formula endRun pays out). */
@@ -1936,6 +1958,8 @@ export class GameScene extends Phaser.Scene implements World {
   private endRun(victory: boolean, quit = false): void {
     if (this.paused === 'over') return;
     this.setPaused('over');
+    if (quit) stopMusic();
+    else playJingle(victory ? 'win' : 'stale');
     this.tweens.resumeAll();
     const save = load();
     let dough = this.runDough(victory);
