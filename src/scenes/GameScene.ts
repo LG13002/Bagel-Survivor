@@ -20,7 +20,7 @@ import {
 import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } from '../entities';
 import { load, persist, recordBest } from '../save';
 import { makeTextures } from '../textures';
-import { button, panel, txt } from '../ui';
+import { button, drawPips, panel, pill, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
 import { setSound, sfx, soundOn, unlockAudio } from '../sfx';
 import { checkUnlocks } from '../progress';
@@ -102,16 +102,20 @@ export class GameScene extends Phaser.Scene implements World {
 
   // HUD
   private hud!: {
-    xpBg: Phaser.GameObjects.Rectangle;
-    xpFill: Phaser.GameObjects.Rectangle;
+    xpBar: Phaser.GameObjects.Graphics;
+    badge: Phaser.GameObjects.Graphics;
     level: Phaser.GameObjects.Text;
     timer: Phaser.GameObjects.Text;
-    kills: Phaser.GameObjects.Text;
+    kills: Phaser.GameObjects.Container;
     pause: Phaser.GameObjects.Container;
+    build: Phaser.GameObjects.Container;
     bossName: Phaser.GameObjects.Text;
     bossBg: Phaser.GameObjects.Rectangle;
     bossFill: Phaser.GameObjects.Rectangle;
   };
+  private buildSig = '';
+  private xpShown = 0;
+  private xpBarW = 0;
   private overlay: Phaser.GameObjects.Container | null = null;
   private lastTimerSec = -1;
   private hitstop = 0;
@@ -1372,16 +1376,19 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- HUD
 
   private buildHud(): void {
-    const xpBg = this.ui(this.add.rectangle(0, 0, 10, 10, 0x1d140d).setOrigin(0, 0));
-    const xpFill = this.ui(this.add.rectangle(0, 0, 10, 10, COLORS.xp).setOrigin(0, 0));
-    const level = this.ui(txt(this, 0, 0, 'Lv 1', 15).setOrigin(0, 0.5));
+    const xpBar = this.ui(this.add.graphics());
+    const badge = this.ui(this.add.graphics());
+    const level = this.ui(txt(this, 0, 0, '1', 17, CSS.dark, { stroke: false }));
     const timer = this.ui(txt(this, 0, 0, '0:00', 26));
-    const kills = this.ui(txt(this, 0, 0, '0', 13, CSS.muted).setOrigin(0, 0.5));
-    const pause = this.ui(button(this, 0, 0, 40 * S, 40 * S, 'II', () => this.openPause(), { color: COLORS.panelLight, textColor: CSS.cream, size: 18, radius: 12 }));
+    const kills = this.ui(pill(this, 0, 0, 'en_crumb', '0', { size: 14, h: 28 }));
+    const pause = this.ui(button(this, 0, 0, 36 * S, 36 * S, 'II', () => this.openPause(), { color: COLORS.panelLight, textColor: CSS.cream, size: 16, radius: 11 }));
+    const build = this.ui(this.add.container(0, 0));
     const bossName = this.ui(txt(this, 0, 0, '', 14, CSS.gold).setVisible(false));
     const bossBg = this.ui(this.add.rectangle(0, 0, 10, 10, 0x1d140d).setVisible(false));
     const bossFill = this.ui(this.add.rectangle(0, 0, 10, 10, COLORS.red).setOrigin(0, 0.5).setVisible(false));
-    this.hud = { xpBg, xpFill, level, timer, kills, pause, bossName, bossBg, bossFill };
+    this.hud = { xpBar, badge, level, timer, kills, pause, build, bossName, bossBg, bossFill };
+    this.buildSig = '';
+    this.xpShown = 0;
   }
 
   private onResize(): void {
@@ -1393,30 +1400,92 @@ export class GameScene extends Phaser.Scene implements World {
     const top = safeInsets().top * S;
     const h = this.hud;
     const pad = 12 * S;
-    h.xpBg.setPosition(0, top).setSize(W, 8 * S);
-    h.xpFill.setPosition(0, top).setSize(W * (this.xp / this.xpNext), 8 * S);
-    h.level.setPosition(pad, top + 28 * S);
-    h.kills.setPosition(pad, top + 48 * S);
-    h.timer.setPosition(W / 2, top + 32 * S);
-    h.pause.setPosition(W - pad - 20 * S, top + 34 * S);
-    h.bossName.setPosition(W / 2, top + 62 * S);
+    const row1 = top + 24 * S;
+    h.badge.setPosition(pad + 20 * S, row1);
+    h.badge.clear();
+    h.badge.fillStyle(0x24160d, 1).fillCircle(0, 0, 20 * S);
+    h.badge.fillStyle(COLORS.xp, 1).fillCircle(0, 0, 17 * S);
+    h.badge.fillStyle(0xffffff, 0.3).fillEllipse(-4 * S, -7 * S, 18 * S, 8 * S);
+    h.level.setPosition(pad + 20 * S, row1 + 1 * S);
+    h.pause.setPosition(W - pad - 18 * S, row1);
+    this.xpBarW = W - (pad + 34 * S) - (pad + 46 * S);
+    h.xpBar.setPosition(pad + 34 * S, row1);
+    this.drawXpBar();
+    h.timer.setPosition(W / 2, top + 60 * S);
+    h.kills.setPosition(pad + h.kills.width / 2, top + 60 * S);
+    h.build.setPosition(pad, top + 90 * S);
+    h.bossName.setPosition(W / 2, top + 140 * S);
     const bw = Math.min(W - 40 * S, 320 * S);
-    h.bossBg.setPosition(W / 2, top + 80 * S).setSize(bw, 10 * S);
-    h.bossFill.setPosition(W / 2 - bw / 2 + 2 * S, top + 80 * S).setSize(bw - 4 * S, 6 * S);
+    h.bossBg.setPosition(W / 2, top + 158 * S).setSize(bw, 10 * S);
+    h.bossFill.setPosition(W / 2 - bw / 2 + 2 * S, top + 158 * S).setSize(bw - 4 * S, 6 * S);
     h.bossBg.setData('w', bw - 4 * S);
+  }
+
+  /** Chunky XP bar: ink outline, fill, and a shine; drawn behind the level badge. */
+  private drawXpBar(): void {
+    const g = this.hud.xpBar;
+    const w = this.xpBarW;
+    const hh = 14 * S;
+    g.clear();
+    g.fillStyle(0x24160d, 1).fillRoundedRect(-8 * S, -hh / 2 - 2.5 * S, w + 10.5 * S, hh + 5 * S, hh / 2 + 2.5 * S);
+    g.fillStyle(0x1d140d, 1).fillRoundedRect(-6 * S, -hh / 2, w + 6 * S, hh, hh / 2);
+    const fw = Math.max(0, Math.min(1, this.xpShown)) * (w + 6 * S);
+    if (fw > 2 * S) {
+      g.fillStyle(COLORS.xp, 1).fillRoundedRect(-6 * S, -hh / 2, Math.max(fw, hh), hh, hh / 2);
+      g.fillStyle(0xffffff, 0.35).fillRoundedRect(-2 * S, -hh / 2 + 2.5 * S, Math.max(fw - 8 * S, 4 * S), hh * 0.28, 2 * S);
+    }
+  }
+
+  /** Small icons of the current weapons (top row) and toppings (bottom row) with their levels. */
+  private drawBuildRow(): void {
+    const sig = this.weapons.map((w) => `${w.def.id}${w.level}${w.evolved ? '*' : ''}`).join(',') + '|' + [...this.toppings].map(([id, lv]) => `${id}${lv}`).join(',');
+    if (sig === this.buildSig) return;
+    this.buildSig = sig;
+    const c = this.hud.build;
+    c.removeAll(true);
+    const sz = 24 * S;
+    const step = 28 * S;
+    const slot = (x: number, y: number, icon: string | null, lv: string, evolved: boolean) => {
+      const g = this.add.graphics();
+      g.fillStyle(0x1d140d, icon ? 0.85 : 0.45).fillRoundedRect(x, y, sz, sz, 6 * S);
+      g.lineStyle(1.5 * S, evolved ? COLORS.gold : COLORS.panelLight, icon ? 1 : 0.5).strokeRoundedRect(x, y, sz, sz, 6 * S);
+      c.add(g);
+      if (!icon) return;
+      c.add(this.add.image(x + sz / 2, y + sz / 2, icon).setScale((sz * 0.82) / (36 * S)));
+      const t = txt(this, x + sz - 1 * S, y + sz - 2 * S, lv, 10, evolved ? CSS.gold : CSS.cream).setOrigin(1, 1);
+      c.add(t);
+    };
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const w = this.weapons[i];
+      slot(i * step, 0, w ? w.def.icon : null, w ? (w.evolved ? '★' : `${w.level}`) : '', !!w?.evolved);
+    }
+    const tops = [...this.toppings];
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const tp = tops[i];
+      slot(i * step, step, tp ? TOPPINGS[tp[0]].icon : null, tp ? `${tp[1]}` : '', false);
+    }
   }
 
   private updateHud(): void {
     const h = this.hud;
-    const W = this.scale.width;
-    h.xpFill.setSize(W * Math.min(1, this.xp / this.xpNext), 8 * S);
+    const target = Math.min(1, this.xp / this.xpNext);
+    // Ease the bar toward its value; snap down after a level-up.
+    const nx = target < this.xpShown ? target : this.xpShown + (target - this.xpShown) * 0.25;
+    if (Math.abs(nx - this.xpShown) > 0.001) {
+      this.xpShown = nx;
+      this.drawXpBar();
+    }
     const sec = Math.floor(this.now);
     if (sec !== this.lastTimerSec) {
       this.lastTimerSec = sec;
       h.timer.setText(fmtTime(sec));
-      h.level.setText(`Lv ${this.level}`);
+      h.level.setText(`${this.level}`);
+      h.level.setFontSize(Math.round((this.level >= 10 ? 15 : 17) * S));
     }
-    h.kills.setText(`${this.kills} crumbs`);
+    const kt = h.kills.getData('label') as Phaser.GameObjects.Text;
+    const ks = `${this.kills}`;
+    if (kt.text !== ks) kt.setText(ks);
+    this.drawBuildRow();
     const b = this.boss ?? this.mini;
     const show = !!b && b.alive;
     h.bossName.setVisible(show);
@@ -1437,7 +1506,7 @@ export class GameScene extends Phaser.Scene implements World {
     const p = this.player;
     const ins = safeInsets();
     const m = 26 * S;
-    const top = (ins.top + 96) * S;
+    const top = (ins.top + 152) * S;
     const bottom = H - (ins.bottom + 26) * S;
     const targets: { x: number; y: number; color: number }[] = [];
     for (const e of this.bigs) {
@@ -1476,7 +1545,7 @@ export class GameScene extends Phaser.Scene implements World {
     const W = this.scale.width;
     const top = safeInsets().top * S;
     const slot = this.banners++;
-    const t = this.ui(txt(this, W / 2, top + (120 + slot * 40) * S, text, size, color, { wrap: W / S - 40 }));
+    const t = this.ui(txt(this, W / 2, top + (190 + slot * 40) * S, text, size, color, { wrap: W / S - 40 }));
     t.setAlpha(0).setScale(0.6);
     this.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 220, ease: 'Back.Out' });
     this.tweens.add({ targets: t, alpha: 0, y: t.y - 30 * S, delay: 1600, duration: 500, onComplete: () => {
@@ -1607,20 +1676,49 @@ export class GameScene extends Phaser.Scene implements World {
       const combo = this.isCombo(choice);
       const card = this.add.container(W / 2, y);
       const g = this.add.graphics();
+      const kind = choice.kind;
+      // Color by type so a card reads before its text does.
+      const col = combo ? COLORS.gold : kind === 'wnew' || kind === 'wup' ? 0xf08a3c : kind === 'tnew' || kind === 'tup' ? 0x5aa9e6 : COLORS.green;
+      const tile = Phaser.Display.Color.ValueToColor(col).darken(35).color;
       const draw = (pressed: boolean) => {
+        const dy = pressed ? 3 * S : 0;
         g.clear();
         g.fillStyle(0x1d140d).fillRoundedRect(-cw / 2, -ch / 2 + 5 * S, cw, ch, 16 * S);
-        g.fillStyle(pressed ? COLORS.panelLight : COLORS.panel).fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 16 * S);
-        g.lineStyle(3 * S, combo ? COLORS.gold : COLORS.panelLight).strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 16 * S);
-        g.fillStyle(0x1d140d, 0.6).fillRoundedRect(-cw / 2 + 12 * S, -30 * S, 60 * S, 60 * S, 12 * S);
+        g.fillStyle(pressed ? COLORS.panelLight : COLORS.panel).fillRoundedRect(-cw / 2, -ch / 2 + dy, cw, ch, 16 * S);
+        g.lineStyle(3.5 * S, col).strokeRoundedRect(-cw / 2, -ch / 2 + dy, cw, ch, 16 * S);
+        g.fillStyle(tile, 1).fillRoundedRect(-cw / 2 + 12 * S, -30 * S + dy, 60 * S, 60 * S, 12 * S);
+        g.lineStyle(2 * S, 0x24160d, 1).strokeRoundedRect(-cw / 2 + 12 * S, -30 * S + dy, 60 * S, 60 * S, 12 * S);
+        g.fillStyle(0xffffff, 0.12).fillRoundedRect(-cw / 2 + 16 * S, -26 * S + dy, 52 * S, 18 * S, 8 * S);
       };
       draw(false);
       const icon = this.add.image(-cw / 2 + 42 * S, 0, info.icon).setScale(1.4);
       const tx = -cw / 2 + 86 * S;
+      // Ribbon on the top-right corner holds the tag, so long names never run into it.
+      const label = combo ? '★ COMBO' : kind === 'wup' ? 'WEAPON' : kind === 'tup' ? 'TOPPING' : info.tag;
+      const tag = txt(this, 0, 0, label, 11, kind === 'heal' || kind === 'coin' || combo ? CSS.dark : '#ffffff', { stroke: false });
+      const rw = tag.width + 16 * S;
+      const rib = this.add.graphics();
+      rib.fillStyle(col, 1).fillRoundedRect(cw / 2 - rw - 10 * S, -ch / 2 - 9 * S, rw, 20 * S, 10 * S);
+      rib.lineStyle(2 * S, 0x24160d, 1).strokeRoundedRect(cw / 2 - rw - 10 * S, -ch / 2 - 9 * S, rw, 20 * S, 10 * S);
+      tag.setPosition(cw / 2 - rw / 2 - 10 * S, -ch / 2 + 1 * S);
       const name = txt(this, tx, -18 * S, info.name, 18, CSS.cream).setOrigin(0, 0.5);
-      const tag = txt(this, cw / 2 - 14 * S, -18 * S, combo ? '★ COMBO' : info.tag, 12, combo ? CSS.gold : CSS.muted).setOrigin(1, 0.5);
-      const desc = txt(this, tx, 12 * S, info.desc, 14, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0.5);
-      card.add([g, icon, name, tag, desc]);
+      const maxName = cw - 100 * S;
+      if (name.width > maxName) name.setScale(maxName / name.width);
+      const desc = txt(this, tx, 6 * S, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0.5);
+      card.add([g, icon, name, desc, rib, tag]);
+      // Level pips: current level filled, the level you'd get glowing.
+      const lvl = kind === 'wup' ? this.weaponOf(choice.id!)!.level : kind === 'tup' ? (this.toppings.get(choice.id as ToppingId) ?? 0) : kind === 'wnew' || kind === 'tnew' ? 0 : -1;
+      if (lvl >= 0) {
+        const pg = this.add.graphics();
+        drawPips(pg, tx + 5 * S, 27 * S, MAX_LEVEL, lvl, true, col, 3.6 * S, 12 * S);
+        card.add(pg);
+        desc.setY(4 * S);
+      }
+      if (combo) {
+        const sp = this.add.image(-cw / 2 + 66 * S, -24 * S, 'ic_star').setScale(0.55);
+        card.add(sp);
+        this.tweens.add({ targets: sp, angle: 360, duration: 2400, repeat: -1 });
+      }
       card.setSize(cw, ch);
       card.setInteractive(new Phaser.Geom.Rectangle(0, 0, cw, ch), Phaser.Geom.Rectangle.Contains);
       let armed = false;
@@ -1644,8 +1742,8 @@ export class GameScene extends Phaser.Scene implements World {
         else this.setPaused('');
       });
       card.setAlpha(0);
-      card.x = W / 2 + 40 * S;
-      this.tweens.add({ targets: card, alpha: 1, x: W / 2, delay: 60 * i, duration: 200, ease: 'Cubic.Out' });
+      card.y = y + 60 * S;
+      this.tweens.add({ targets: card, alpha: 1, y, delay: 70 * i, duration: 240, ease: 'Back.Out' });
       c.add(card);
     });
 
@@ -1753,31 +1851,84 @@ export class GameScene extends Phaser.Scene implements World {
     this.ui(c);
     this.overlay = c;
     c.add(this.dim(0.7));
-    c.add(panel(this, W / 2, H / 2 + 25 * S, Math.min(W - 40 * S, 320 * S), 390 * S));
-    c.add(txt(this, W / 2, H / 2 - 120 * S, this.practice ? 'PAUSED (PRACTICE)' : 'PAUSED', 26, CSS.gold));
-    const build = [
-      ...this.weapons.map((w) => `${w.evolved ? w.def.evoName : w.def.name}${w.evolved ? ' ★' : ` Lv ${w.level}`}`),
-      ...[...this.toppings].map(([id, lv]) => `${TOPPINGS[id].name} Lv ${lv}`),
-    ].join('\n');
-    c.add(txt(this, W / 2, H / 2 - 30 * S, build, 13, '#e8d8c0', { bold: false, stroke: false }));
+    const pw = Math.min(W - 32 * S, 340 * S);
+    const ph = 470 * S;
+    const top = H / 2 - ph / 2;
+    c.add(panel(this, W / 2, H / 2, pw, ph));
+    c.add(txt(this, W / 2, top + 36 * S, this.practice ? 'PAUSED (PRACTICE)' : 'PAUSED', 26, CSS.gold));
+
+    // Run so far
+    const stats = [
+      pill(this, 0, top + 74 * S, 'ic_clock', fmtTime(this.now), { size: 14, h: 28 }),
+      pill(this, 0, top + 74 * S, 'en_crumb', `${this.kills}`, { size: 14, h: 28 }),
+      pill(this, 0, top + 74 * S, 'coin', `+${this.practice ? 0 : this.runDough(false)}`, { size: 14, h: 28, color: CSS.gold }),
+    ];
+    const gap = 8 * S;
+    let x = W / 2 - (stats.reduce((a, p) => a + p.width, 0) + gap * 2) / 2;
+    for (const p of stats) {
+      p.x = x + p.width / 2;
+      x += p.width + gap;
+      c.add(p);
+    }
+
+    // Your build: weapons on top, toppings below, each with level pips.
+    const cell = Math.min(70 * S, (pw - 30 * S) / MAX_SLOTS);
+    const gx = W / 2 - (cell * MAX_SLOTS) / 2;
+    const row = (y: number, label: string, items: { icon: string; lv: number; evolved: boolean }[], col: number) => {
+      c.add(txt(this, gx + 4 * S, y - 12 * S, label, 12, CSS.muted, { bold: true, stroke: false }).setOrigin(0, 0.5));
+      for (let i = 0; i < MAX_SLOTS; i++) {
+        const it = items[i];
+        const cx = gx + cell * i + cell / 2;
+        const g = this.add.graphics();
+        const t = 48 * S;
+        g.fillStyle(it ? Phaser.Display.Color.ValueToColor(col).darken(35).color : 0x1d140d, it ? 1 : 0.5).fillRoundedRect(cx - t / 2, y, t, t, 10 * S);
+        g.lineStyle(2 * S, it?.evolved ? COLORS.gold : 0x24160d, 1).strokeRoundedRect(cx - t / 2, y, t, t, 10 * S);
+        c.add(g);
+        if (!it) continue;
+        c.add(this.add.image(cx, y + t / 2, it.icon).setScale(1.1));
+        if (it.evolved) c.add(this.add.image(cx + t / 2 - 4 * S, y + 4 * S, 'ic_star').setScale(0.5));
+        else {
+          const pg = this.add.graphics();
+          drawPips(pg, cx - 2 * 8 * S, y + t + 9 * S, MAX_LEVEL, it.lv, false, col, 2.8 * S, 8 * S);
+          c.add(pg);
+        }
+      }
+    };
+    row(top + 116 * S, 'WEAPONS', this.weapons.map((w) => ({ icon: w.def.icon, lv: w.level, evolved: w.evolved })), 0xf08a3c);
+    row(top + 196 * S, 'TOPPINGS', [...this.toppings].map(([id, lv]) => ({ icon: TOPPINGS[id].icon, lv, evolved: false })), 0x5aa9e6);
+
     c.add(
-      button(this, W / 2, H / 2 + 60 * S, 200 * S, 52 * S, 'Resume', () => {
+      button(this, W / 2, top + 300 * S, 200 * S, 52 * S, 'Resume', () => {
         this.closeOverlay();
         this.setPaused('');
       }),
     );
-    c.add(
-      button(this, W / 2, H / 2 + 125 * S, 200 * S, 44 * S, 'Quit run', () => {
-        this.closeOverlay();
-        this.paused = '';
-        this.endRun(false, true);
-      }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 }),
-    );
-    const snd = button(this, W / 2, H / 2 + 182 * S, 200 * S, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
+    let confirm = false;
+    const quit = button(this, W / 2, top + 364 * S, 200 * S, 44 * S, 'Quit run', () => {
+      // Ask once, so a stray tap can't end a good run.
+      if (!confirm) {
+        confirm = true;
+        (quit.getData('label') as Phaser.GameObjects.Text).setText('Tap again to quit');
+        return;
+      }
+      this.closeOverlay();
+      this.paused = '';
+      this.endRun(false, true);
+    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
+    c.add(quit);
+    const snd = button(this, W / 2, top + 420 * S, 200 * S, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
       setSound(!soundOn());
       (snd.getData('label') as Phaser.GameObjects.Text).setText(`Sound: ${soundOn() ? 'On' : 'Off'}`);
     }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
     c.add(snd);
+  }
+
+  /** Dough this run is worth so far (the same formula endRun pays out). */
+  private runDough(victory: boolean): number {
+    let dough = Math.round((this.now / 60) * 10 + this.kills / 60 + this.coins);
+    if (this.miniKilled) dough += 10;
+    if (victory) dough += 40;
+    return dough;
   }
 
   // ---------------------------------------------------------------- End
@@ -1787,10 +1938,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.setPaused('over');
     this.tweens.resumeAll();
     const save = load();
-    const minutes = this.now / 60;
-    let dough = Math.round(minutes * 10 + this.kills / 60 + this.coins);
-    if (this.miniKilled) dough += 10;
-    if (victory) dough += 40;
+    let dough = this.runDough(victory);
     // Practice runs are for testing builds and bosses: no rewards or unlocks.
     if (this.practice) dough = 0;
     save.dough += dough;

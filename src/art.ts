@@ -835,6 +835,183 @@ export const ICONS: Record<string, (c: Ctx) => void> = {
   },
 };
 
+// ---------- Bakery upgrades and small UI glyphs (36×36, same style as the upgrade icons) ----------
+export const UI_ICONS: Record<string, (c: Ctx) => void> = {
+  // Thicker Crust: a bread slice with an extra-thick crust.
+  ic_bk_crust: (c) => {
+    c.beginPath();
+    c.moveTo(7, 31);
+    c.lineTo(7, 15);
+    c.bezierCurveTo(2, 13, 3, 4, 11, 4);
+    c.bezierCurveTo(14, 2, 22, 2, 25, 4);
+    c.bezierCurveTo(33, 4, 34, 13, 29, 15);
+    c.lineTo(29, 31);
+    c.closePath();
+    fillInk(c, linear(c, 0, 2, 0, 31, [[0, '#c9772f'], [1, '#8c4a1c']]));
+    c.beginPath();
+    c.moveTo(11.5, 28);
+    c.lineTo(11.5, 15.5);
+    c.bezierCurveTo(8, 13.5, 9, 8.5, 13, 8.5);
+    c.bezierCurveTo(15.5, 7, 20.5, 7, 23, 8.5);
+    c.bezierCurveTo(27, 8.5, 28, 13.5, 24.5, 15.5);
+    c.lineTo(24.5, 28);
+    c.closePath();
+    c.fillStyle = linear(c, 0, 7, 0, 28, [[0, '#fff1d0'], [1, '#f1d29a']]);
+    c.fill();
+    c.beginPath();
+    c.ellipse(15, 13, 3, 1.6, -0.3, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.85)';
+    c.fill();
+  },
+  // Hotter Oven: an oven door with a glowing window.
+  ic_bk_oven: (c) => {
+    rrect(c, 4, 6, 28, 26, 5);
+    fillInk(c, linear(c, 0, 6, 0, 32, [[0, '#9aa6b0'], [1, '#5d6973']]));
+    for (const x of [10, 18, 26]) {
+      c.beginPath();
+      c.arc(x, 10.5, 2, 0, TAU);
+      c.fillStyle = '#2f3840';
+      c.fill();
+    }
+    rrect(c, 8, 15, 20, 13, 3);
+    fillInk(c, radial(c, 18, 22, 12, [[0, '#ffe066'], [0.6, '#ff8a2a'], [1, '#c8381c']]), 1.6);
+    c.beginPath();
+    c.moveTo(14, 26);
+    c.quadraticCurveTo(13, 21, 16, 18.5);
+    c.quadraticCurveTo(16.5, 22, 18.5, 22.5);
+    c.quadraticCurveTo(20, 20, 20, 18);
+    c.quadraticCurveTo(24, 22, 22, 26);
+    c.closePath();
+    c.fillStyle = '#fff4c2';
+    c.fill();
+  },
+  // Quick Rise: a dough ball lifting off with speed lines.
+  ic_bk_rise: (c) => {
+    c.strokeStyle = 'rgba(255,244,214,0.8)';
+    c.lineWidth = 2.2;
+    for (const [x, l] of [[11, 7], [18, 9], [25, 7]] as const) {
+      c.beginPath();
+      c.moveTo(x, 27);
+      c.lineTo(x, 27 + l * 0.6);
+      c.stroke();
+    }
+    c.beginPath();
+    c.moveTo(5, 24);
+    c.bezierCurveTo(4, 10, 12, 4, 18, 4);
+    c.bezierCurveTo(24, 4, 32, 10, 31, 24);
+    c.quadraticCurveTo(18, 28, 5, 24);
+    fillInk(c, radial(c, 18, 16, 14, [[0, '#fff4df'], [1, '#e2c798']]));
+    c.beginPath();
+    c.ellipse(13, 11, 4, 2.2, -0.5, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.85)';
+    c.fill();
+    c.beginPath();
+    c.moveTo(18, 9);
+    c.lineTo(23, 15);
+    c.lineTo(20, 15);
+    c.lineTo(20, 20);
+    c.lineTo(16, 20);
+    c.lineTo(16, 15);
+    c.lineTo(13, 15);
+    c.closePath();
+    fillInk(c, '#7fbf4d', 1.4);
+  },
+  // Sticky Seeds: a sesame seed dripping honey.
+  ic_bk_sticky: (c) => {
+    c.save();
+    c.translate(17, 13);
+    c.rotate(-0.5);
+    c.beginPath();
+    c.ellipse(0, 0, 11, 7, 0, 0, TAU);
+    fillInk(c, radial(c, 0, 0, 11, [[0, '#fffaf0'], [1, '#e9d9b4']]));
+    c.restore();
+    c.beginPath();
+    c.moveTo(9, 15);
+    c.bezierCurveTo(12, 20, 19, 21, 25, 15);
+    c.bezierCurveTo(26, 19, 24, 21, 23, 24);
+    c.bezierCurveTo(22, 30, 18, 30, 18, 25);
+    c.bezierCurveTo(18, 22, 14, 23, 13, 26);
+    c.bezierCurveTo(11, 29, 8, 26, 9, 22);
+    c.closePath();
+    fillInk(c, linear(c, 0, 14, 0, 30, [[0, '#ffcf4a'], [1, '#e58a12']]), 1.6);
+    c.beginPath();
+    c.ellipse(21.5, 26.5, 1.2, 1.8, 0, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    c.fill();
+  },
+  ic_lock: (c) => {
+    c.beginPath();
+    c.arc(18, 15, 7.5, Math.PI, 0);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.lineWidth = 3;
+    c.strokeStyle = '#c9d2d9';
+    c.stroke();
+    rrect(c, 7, 15, 22, 17, 4);
+    fillInk(c, linear(c, 0, 15, 0, 32, [[0, '#ffd45a'], [1, '#d69416']]));
+    c.beginPath();
+    c.arc(18, 22, 2.6, 0, TAU);
+    c.rect(17, 22, 2, 5);
+    c.fillStyle = INK;
+    c.fill();
+  },
+  ic_clock: (c) => {
+    c.beginPath();
+    c.arc(18, 19, 13, 0, TAU);
+    fillInk(c, radial(c, 18, 19, 13, [[0, '#ffffff'], [1, '#e6dccb']]));
+    c.beginPath();
+    c.moveTo(18, 19);
+    c.lineTo(18, 11);
+    c.moveTo(18, 19);
+    c.lineTo(23.5, 22);
+    ink(c, 2.6);
+    rrect(c, 15, 2.5, 6, 4, 1.5);
+    fillInk(c, '#e0533d', 1.4);
+  },
+  ic_crown: (c) => {
+    c.beginPath();
+    c.moveTo(5, 28);
+    c.lineTo(4, 11);
+    c.lineTo(12, 18);
+    c.lineTo(18, 7);
+    c.lineTo(24, 18);
+    c.lineTo(32, 11);
+    c.lineTo(31, 28);
+    c.closePath();
+    fillInk(c, linear(c, 0, 7, 0, 28, [[0, '#fff0a0'], [0.5, '#ffc93a'], [1, '#d08a10']]));
+    for (const [x, y] of [[4, 11], [18, 7], [32, 11]] as const) {
+      c.beginPath();
+      c.arc(x, y, 2.6, 0, TAU);
+      fillInk(c, '#ff6b6b', 1.3);
+    }
+  },
+  ic_book: (c) => {
+    rrect(c, 6, 5, 24, 27, 3);
+    fillInk(c, linear(c, 6, 0, 30, 0, [[0, '#d65a4a'], [1, '#a83a2e']]));
+    rrect(c, 9, 27, 21, 3.5, 1);
+    c.fillStyle = '#fff3dc';
+    c.fill();
+    c.beginPath();
+    c.arc(19.5, 16, 5.5, 0, TAU);
+    c.moveTo(21.5, 16);
+    c.arc(19.5, 16, 2, 0, TAU, true);
+    c.fillStyle = '#f2b84b';
+    c.fill('evenodd');
+  },
+  ic_star: (c) => {
+    c.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU - Math.PI / 2;
+      const r = i % 2 ? 6.5 : 15;
+      if (i) c.lineTo(18 + Math.cos(a) * r, 19 + Math.sin(a) * r);
+      else c.moveTo(18 + Math.cos(a) * r, 19 + Math.sin(a) * r);
+    }
+    c.closePath();
+    fillInk(c, linear(c, 0, 4, 0, 34, [[0, '#fff3a0'], [1, '#f0a818']]));
+  },
+};
+
 // ---------- Chests ----------
 function lootGlow(c: Ctx, x: number, y: number, r: number, col: string): void {
   const g = c.createRadialGradient(x, y, 0, x, y, r);

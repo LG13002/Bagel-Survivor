@@ -206,16 +206,17 @@ export const BAGELS: BagelDef[] = [
 
 export interface UpgradeDef {
   id: string;
+  icon: string;
   name: string;
   blurb: string;
   costs: number[];
 }
 
 export const BAKERY: UpgradeDef[] = [
-  { id: 'hp', name: 'Thicker Crust', blurb: '+10 max health per rank', costs: [20, 45, 90, 160, 260] },
-  { id: 'dmg', name: 'Hotter Oven', blurb: '+6% damage per rank', costs: [25, 55, 110, 190, 300] },
-  { id: 'speed', name: 'Quick Rise', blurb: '+4% move speed per rank', costs: [15, 35, 70, 130, 210] },
-  { id: 'magnet', name: 'Sticky Seeds', blurb: '+15% pickup range per rank', costs: [15, 35, 70, 130, 210] },
+  { id: 'hp', icon: 'ic_bk_crust', name: 'Thicker Crust', blurb: '+10 max health per rank', costs: [20, 45, 90, 160, 260] },
+  { id: 'dmg', icon: 'ic_bk_oven', name: 'Hotter Oven', blurb: '+6% damage per rank', costs: [25, 55, 110, 190, 300] },
+  { id: 'speed', icon: 'ic_bk_rise', name: 'Quick Rise', blurb: '+4% move speed per rank', costs: [15, 35, 70, 130, 210] },
+  { id: 'magnet', icon: 'ic_bk_sticky', name: 'Sticky Seeds', blurb: '+15% pickup range per rank', costs: [15, 35, 70, 130, 210] },
 ];
 
 export type EnemyKind = 'crumb' | 'mold' | 'moldling' | 'knife' | 'ant' | 'elite' | 'croissant' | 'toaster';

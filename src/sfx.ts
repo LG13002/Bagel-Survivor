@@ -1,12 +1,12 @@
 // Tiny synthesized sound effects (no audio files). Throttled so swarms don't turn into noise.
 import { load, persist } from './save';
 
-type Sfx = 'hit' | 'kill' | 'xp' | 'level' | 'chest' | 'hurt' | 'boss' | 'pin' | 'splash';
+type Sfx = 'hit' | 'kill' | 'xp' | 'level' | 'chest' | 'hurt' | 'boss' | 'pin' | 'splash' | 'click' | 'buy';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 const last: Partial<Record<Sfx, number>> = {};
-const minGap: Record<Sfx, number> = { hit: 0.045, kill: 0.04, xp: 0.035, level: 0.2, chest: 0.3, hurt: 0.15, boss: 1, pin: 0.1, splash: 0.1 };
+const minGap: Record<Sfx, number> = { hit: 0.045, kill: 0.04, xp: 0.035, level: 0.2, chest: 0.3, hurt: 0.15, boss: 1, pin: 0.1, splash: 0.1, click: 0.03, buy: 0.15 };
 let xpPitch = 0;
 let xpPitchAt = 0;
 
@@ -110,6 +110,12 @@ export function sfx(name: Sfx): void {
       break;
     case 'splash':
       noise(0.14, 0.18, 3000);
+      break;
+    case 'click':
+      tone('triangle', 900, 600, 0.04, 0.12);
+      break;
+    case 'buy':
+      [660, 880, 1320].forEach((f, i) => tone('triangle', f, f, 0.1, 0.16, i * 0.05));
       break;
   }
 }

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
 import { COUNTER_PROPS, drawButcherBlock } from './floors';
-import { ICONS, ctex, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -18,7 +18,15 @@ function tex(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G
 export function makeTextures(scene: Phaser.Scene): void {
   // Bagels (Chunky Cartoon, drawn in art.ts)
   const golden = { base: '#e3a24c', crust: '#b0642a', hi: '#f8d38c' };
-  const bagelTex = (key: string, look: BagelLook) => ctex(scene, key, 40, 40, (c) => drawBagel(c, 20, 20, 15.5, look));
+  const bagelTex = (key: string, look: BagelLook) => {
+    ctex(scene, key, 40, 40, (c) => drawBagel(c, 20, 20, 15.5, look));
+    // Large version for the menu's hero bagel, so it stays sharp when shown big.
+    ctex(scene, `${key}_big`, 160, 160, (c) => {
+      c.translate(80, 80);
+      c.scale(4, 4);
+      drawBagel(c, 0, 0, 15.5, look);
+    });
+  };
   bagelTex('bagel_plain', golden);
   bagelTex('bagel_everything', { ...golden, seeds: ['#2a1f1a', '#fbf3dc', '#6b4422', '#f0dca2'], seedCount: 34 });
   bagelTex('bagel_poppy', { ...golden, seeds: ['#1b1f2e', '#323a55'], seedCount: 80, seedSize: 0.75 });
@@ -74,4 +82,5 @@ export function makeTextures(scene: Phaser.Scene): void {
 
   // Upgrade icons (36×36)
   for (const [key, draw] of Object.entries(ICONS)) ctex(scene, key, 36, 36, draw);
+  for (const [key, draw] of Object.entries(UI_ICONS)) ctex(scene, key, 36, 36, draw);
 }
