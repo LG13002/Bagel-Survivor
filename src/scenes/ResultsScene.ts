@@ -42,7 +42,7 @@ export class ResultsScene extends Phaser.Scene {
     panel(this, W / 2, cy, pw, ph);
     const top = cy - ph / 2;
     txt(this, W / 2, top + 44 * S, r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE', r.practice ? 24 : 30, r.victory ? CSS.gold : CSS.red);
-    this.add.image(W / 2, top + 104 * S, BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain').setScale(2).setAngle(r.victory ? 0 : 160);
+    this.add.image(W / 2, top + 104 * S, (BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain') + '_big').setScale(0.5).setAngle(r.victory ? 0 : 160);
 
     if (r.newBest) {
       const nb = txt(this, W / 2 + Math.min(pw / 2 - 64 * S, 110 * S), top + 96 * S, 'NEW BEST!', 17, CSS.gold).setAngle(-12);

@@ -5,13 +5,15 @@ import { goalStatus } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { getBest, load, persist } from '../save';
 import { makeTextures } from '../textures';
-import { button, panel, txt } from '../ui';
-import { setSound, soundOn, unlockAudio } from '../sfx';
+import { button, drawPips, panel, pill, txt } from '../ui';
+import { setSound, sfx, soundOn, unlockAudio } from '../sfx';
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
   private root!: Phaser.GameObjects.Container;
   private bakery: Phaser.GameObjects.Container | null = null;
+  private doughPill: Phaser.GameObjects.Container | null = null;
+  private slideFrom = 0;
 
   constructor() {
     super('menu');
@@ -46,14 +48,16 @@ export class MenuScene extends Phaser.Scene {
     this.tweens.add({ targets: floor, tilePositionY: -128 * S, duration: 8000, repeat: -1 });
 
     // Dough counter
-    c.add(this.add.image(24 * S, top + 30 * S, 'coin').setScale(1.3));
-    c.add(txt(this, 40 * S, top + 30 * S, `${save.dough} Dough`, 17, CSS.gold).setOrigin(0, 0.5));
+    const dp = pill(this, 0, top + 28 * S, 'coin', `${save.dough} Dough`, { size: 16, color: CSS.gold, h: 32 });
+    dp.x = 14 * S + dp.width / 2;
+    c.add(dp);
+    this.doughPill = dp;
 
     // Title
     // Short screens (e.g. iPhone mini, or the in-app preview with its top bar) get a compact layout.
     const compact = (bottom - top) / S < 720;
     const k = compact ? 0.78 : 1;
-    const titleY = top + (compact ? 66 * S : Math.max(90 * S, H * 0.13));
+    const titleY = top + (compact ? 70 * S : Math.max(96 * S, H * 0.13));
     c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40 * k, CSS.gold));
     c.add(txt(this, W / 2, titleY + 44 * k * S, 'BAGEL', 54 * k, CSS.cream));
     c.add(txt(this, W / 2, titleY + 86 * k * S, 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
@@ -61,47 +65,101 @@ export class MenuScene extends Phaser.Scene {
     // Bagel picker
     const bagel = BAGELS[this.idx];
     const locked = !save.unlocked.includes(bagel.id);
-    // Description first, so the picker can be placed to fit above the buttons on any screen height.
-    const desc = txt(this, W / 2, 0, locked && bagel.goal ? `Locked: ${bagel.goal.text}\n(${goalStatus(save, bagel).progress})` : bagel.quirk, 14, locked ? CSS.red : '#e8d8c0', {
+    const gs = locked && bagel.goal ? goalStatus(save, bagel) : null;
+    // Description first, so the picker can be sized to fit above the buttons on any screen height.
+    const desc = txt(this, W / 2, 0, gs ? `Unlock: ${bagel.goal!.text}` : bagel.quirk, 14, '#e8d8c0', {
       wrap: Math.min(W / S - 60, 320),
       bold: false,
     }).setOrigin(0.5, 0);
-    const buttonsTop = bottom - 150 * S - 66 * S - (compact ? 36 : 40) * S; // top of the toggles row, with a gap
-    const titleBottom = titleY + (86 * k + 14) * S;
-    const hs = compact ? 2.6 : 3.4; // hero scale
-    const descOff = (compact ? 112 : 138) * S;
-    const by = Math.max(titleBottom + hs * 18 * S, Math.min(H * 0.47, buttonsTop - descOff - desc.height));
-    desc.setY(by + descOff);
-    const hero = this.add.image(W / 2, by, bagel.tex).setScale(hs);
+    const extraBelow = gs ? 26 * S : 0; // progress bar under a locked bagel's goal
+    const buttonsTop = bottom - 150 * S - 66 * S - (compact ? 30 : 36) * S; // top of the toggles row, with a gap
+    const titleBottom = titleY + (86 * k + 16) * S;
+    // Below the bagel: dots, name, best line, then the description.
+    const sp = compact ? 0.84 : 1; // tighter spacing under the bagel on short screens
+    const belowBagel = 94 * sp * S + desc.height + extraBelow;
+    const avail = buttonsTop - titleBottom;
+    const R = Math.max(30 * S, Math.min((compact ? 58 : 74) * S, (avail - belowBagel - (compact ? 10 : 24) * S) / 2)); // on-screen bagel radius
+    const hs = R / (62 * S); // hero texture scale (bagel radius is 62 in the 160 '_big' texture)
+    const by = titleBottom + Math.max(12 * S, (avail - (2 * R + belowBagel)) / 2) + R;
+    const dotsY = by + R + 22 * sp * S;
+    desc.setY(by + R + 90 * sp * S);
+
+    const shadow = this.add.ellipse(W / 2, by + R * 1.02, R * 1.7, R * 0.34, 0x120c08, 0.45);
+    c.add(shadow);
+    const hero = this.add.image(W / 2, by, `${bagel.tex}_big`).setScale(hs);
     if (locked) hero.setTint(0x222222);
     c.add(hero);
     this.tweens.add({ targets: hero, y: by - 10 * k * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    c.add(txt(this, W / 2, by + (compact ? 72 : 92) * S, bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream));
+    this.tweens.add({ targets: shadow, scaleX: 0.85, alpha: 0.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    const slide: Phaser.GameObjects.GameObject[] = [hero, shadow];
+    if (locked) {
+      const lock = this.add.image(W / 2, by + R * 0.1, 'ic_lock').setScale(Math.max(1.3, hs * 1.8));
+      c.add(lock);
+      slide.push(lock);
+    }
+    const nameT = txt(this, W / 2, by + R + 48 * sp * S, bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream);
+    c.add(nameT);
+    slide.push(nameT);
     if (!locked) {
       const best = getBest(save, bagel.id);
       const line = !best ? 'Stage 1 best: no runs yet' : best.cleared ? `♛ Stage 1 cleared  ·  ${best.kills} kills` : `Stage 1 best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
-      c.add(txt(this, W / 2, by + (compact ? 94 : 117) * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
+      c.add(txt(this, W / 2, by + R + 72 * sp * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
     }
     c.add(desc);
-    const arrow = (dx: number, label: string, d: number) =>
-      button(this, W / 2 + dx, by, 48 * S, 56 * S, label, () => {
-        this.idx = (this.idx + d + BAGELS.length) % BAGELS.length;
-        if (save.unlocked.includes(BAGELS[this.idx].id)) {
-          save.selected = BAGELS[this.idx].id;
-          persist();
-        }
-        this.build();
-      }, { color: COLORS.panelLight, textColor: CSS.cream, size: 24 });
+    if (gs) {
+      const bw = Math.min(W - 100 * S, 240 * S);
+      const y = desc.y + desc.height + 14 * S;
+      const g = this.add.graphics();
+      g.fillStyle(0x24160d, 1).fillRoundedRect(W / 2 - bw / 2 - 2 * S, y - 7 * S, bw + 4 * S, 14 * S, 7 * S);
+      g.fillStyle(0x3d2e22, 1).fillRoundedRect(W / 2 - bw / 2, y - 5 * S, bw, 10 * S, 5 * S);
+      if (gs.frac > 0) g.fillStyle(COLORS.gold, 1).fillRoundedRect(W / 2 - bw / 2, y - 5 * S, Math.max(10 * S, bw * gs.frac), 10 * S, 5 * S);
+      c.add(g);
+      c.add(txt(this, W / 2, y + 17 * S, gs.progress, 12, CSS.muted, { bold: false, stroke: false }));
+    }
+    const go = (d: number) => {
+      this.idx = (this.idx + d + BAGELS.length) % BAGELS.length;
+      if (save.unlocked.includes(BAGELS[this.idx].id)) {
+        save.selected = BAGELS[this.idx].id;
+        persist();
+      }
+      this.slideFrom = d;
+      this.build();
+    };
     const dots = this.add.graphics();
     BAGELS.forEach((b, i) => {
       const x = W / 2 + (i - (BAGELS.length - 1) / 2) * 14 * S;
       const on = i === this.idx;
-      dots.fillStyle(on ? COLORS.gold : save.unlocked.includes(b.id) ? COLORS.panelLight : 0x1d140d).fillCircle(x, by + (compact ? 52 : 66) * S, (on ? 4 : 3) * S);
+      dots.fillStyle(on ? COLORS.gold : save.unlocked.includes(b.id) ? COLORS.panelLight : 0x1d140d).fillCircle(x, dotsY, (on ? 4 : 3) * S);
     });
     c.add(dots);
-    const ax = Math.min(W / 2 - 34 * S, 140 * S);
-    c.add(arrow(-ax, '<', -1));
-    c.add(arrow(ax, '>', 1));
+    const ad = 50 * S;
+    const ax = Math.min(W / 2 - 36 * S, R + 70 * S);
+    c.add(button(this, W / 2 - ax, by, ad, ad, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 25 }));
+    c.add(button(this, W / 2 + ax, by, ad, ad, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 25 }));
+    // Swipe on the bagel to switch.
+    const zone = this.add.zone(W / 2, by, Math.max(2 * R + 40 * S, W - 2 * ax - ad), 2 * R + 40 * S).setInteractive();
+    c.add(zone);
+    let sx: number | null = null;
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => (sx = p.x));
+    const onUp = (p: Phaser.Input.Pointer) => {
+      if (sx === null) return;
+      const dx = p.x - sx;
+      sx = null;
+      if (Math.abs(dx) > 40 * S) go(dx < 0 ? 1 : -1);
+    };
+    this.input.on('pointerup', onUp);
+    c.once(Phaser.GameObjects.Events.DESTROY, () => this.input.off('pointerup', onUp));
+    // Slide the new bagel in from the side it came from.
+    if (this.slideFrom) {
+      const off = this.slideFrom * 130 * S;
+      for (const o of slide as (Phaser.GameObjects.Components.Transform & Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.GameObject)[]) {
+        const x0 = o.x;
+        o.x = x0 + off;
+        o.alpha = 0;
+        this.tweens.add({ targets: o, x: x0, alpha: (o as unknown) === shadow ? 0.45 : 1, duration: 220, ease: 'Cubic.Out' });
+      }
+      this.slideFrom = 0;
+    }
 
     // Buttons
     const playY = bottom - 150 * S;
@@ -154,11 +212,18 @@ export class MenuScene extends Phaser.Scene {
         size: 19,
       }),
     );
-    c.add(
-      txt(this, W / 2, bottom - 22 * S, `Best ${fmtTime(save.bestTime)}  ·  Clears ${save.clears}  ·  Cookbook ${save.cookbook.length}/6`, 13, CSS.muted, {
-        bold: false,
-      }),
-    );
+    const stats = [
+      pill(this, 0, bottom - 24 * S, 'ic_clock', `Best ${fmtTime(save.bestTime)}`, { size: 13, h: 26 }),
+      pill(this, 0, bottom - 24 * S, 'ic_crown', `${save.clears} clears`, { size: 13, h: 26 }),
+      pill(this, 0, bottom - 24 * S, 'ic_book', `${save.cookbook.length}/6`, { size: 13, h: 26 }),
+    ];
+    const gap = 8 * S;
+    let x = W / 2 - (stats.reduce((a, p) => a + p.width, 0) + gap * (stats.length - 1)) / 2;
+    for (const p of stats) {
+      p.x = x + p.width / 2;
+      x += p.width + gap;
+      c.add(p);
+    }
   }
 
   private openCookbook(): void {
@@ -220,41 +285,92 @@ export class MenuScene extends Phaser.Scene {
     const dim = this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive();
     c.add(dim);
     const pw = Math.min(W - 24 * S, 400 * S);
-    const rowH = 78 * S;
-    const ph = 150 * S + BAKERY.length * rowH;
+    const cardH = 78 * S;
+    const gap = 10 * S;
+    const ph = 168 * S + BAKERY.length * (cardH + gap);
     c.add(panel(this, W / 2, H / 2, pw, ph));
     const top = H / 2 - ph / 2;
     c.add(txt(this, W / 2, top + 36 * S, 'THE BAKERY', 28, CSS.gold));
-    c.add(txt(this, W / 2, top + 66 * S, `${save.dough} Dough to spend`, 15, CSS.cream, { bold: false }));
+    const wallet = pill(this, W / 2, top + 70 * S, 'coin', `${save.dough} Dough to spend`, { size: 15, color: CSS.gold, h: 30 });
+    c.add(wallet);
+    let shown = save.dough;
+    const setWallet = (v: number) => {
+      (wallet.getData('label') as Phaser.GameObjects.Text).setText(`${v} Dough to spend`);
+      if (this.doughPill) (this.doughPill.getData('label') as Phaser.GameObjects.Text).setText(`${v} Dough`);
+    };
+    const cw = pw - 28 * S;
+    const refreshers: (() => void)[] = [];
     BAKERY.forEach((u, i) => {
-      const y = top + 112 * S + i * rowH;
-      const rank = save.upgrades[u.id] ?? 0;
-      const maxed = rank >= u.costs.length;
-      const cost = maxed ? 0 : u.costs[rank];
-      const lx = W / 2 - pw / 2 + 18 * S;
-      c.add(txt(this, lx, y - 14 * S, u.name, 17, CSS.cream).setOrigin(0, 0.5));
-      c.add(txt(this, lx, y + 8 * S, u.blurb, 12, CSS.muted, { bold: false, stroke: false }).setOrigin(0, 0.5));
+      const y = top + 104 * S + cardH / 2 + i * (cardH + gap);
+      const row = this.add.container(W / 2, y);
+      c.add(row);
+      const bg = this.add.graphics();
+      const lx = -cw / 2;
       const pips = this.add.graphics();
-      for (let k = 0; k < u.costs.length; k++) {
-        pips.fillStyle(k < rank ? COLORS.gold : 0x1d140d).fillRoundedRect(lx + k * 18 * S, y + 22 * S, 14 * S, 6 * S, 3 * S);
-      }
-      c.add(pips);
-      const afford = !maxed && save.dough >= cost;
-      c.add(
-        button(this, W / 2 + pw / 2 - 62 * S, y, 96 * S, 44 * S, maxed ? 'MAX' : `${cost}`, () => {
-          if (!afford) return;
-          save.dough -= cost;
-          save.upgrades[u.id] = rank + 1;
-          persist();
-          this.build();
-          this.openBakery();
-        }, { color: afford ? COLORS.gold : COLORS.panelLight, textColor: afford ? CSS.dark : CSS.muted, size: 18 }),
-      );
+      const nameT = txt(this, lx + 74 * S, -18 * S, u.name, 17, CSS.cream).setOrigin(0, 0.5);
+      const blurb = txt(this, lx + 74 * S, 4 * S, u.blurb, 12, CSS.muted, { bold: false, stroke: false }).setOrigin(0, 0.5);
+      const icon = this.add.image(lx + 38 * S, 0, u.icon).setScale(1.25);
+      row.add([bg, icon, nameT, blurb, pips]);
+      let btn: Phaser.GameObjects.Container | null = null;
+      const draw = () => {
+        const rank = save.upgrades[u.id] ?? 0;
+        const maxed = rank >= u.costs.length;
+        const cost = maxed ? 0 : u.costs[rank];
+        const afford = !maxed && save.dough >= cost;
+        bg.clear();
+        bg.fillStyle(0x1d140d, 1).fillRoundedRect(-cw / 2, -cardH / 2 + 4 * S, cw, cardH, 14 * S);
+        bg.fillStyle(0x4a3828, 1).fillRoundedRect(-cw / 2, -cardH / 2, cw, cardH, 14 * S);
+        bg.lineStyle(2.5 * S, maxed ? COLORS.gold : 0x24160d, 1).strokeRoundedRect(-cw / 2, -cardH / 2, cw, cardH, 14 * S);
+        bg.fillStyle(0x7a4f2c, 1).fillRoundedRect(lx + 10 * S, -26 * S, 56 * S, 52 * S, 12 * S);
+        bg.lineStyle(2 * S, 0x24160d, 1).strokeRoundedRect(lx + 10 * S, -26 * S, 56 * S, 52 * S, 12 * S);
+        pips.clear();
+        drawPips(pips, lx + 80 * S, 24 * S, u.costs.length, rank, false, COLORS.gold, 4 * S, 13 * S);
+        btn?.destroy();
+        btn = null;
+        if (maxed) {
+          const badge = this.add.container(cw / 2 - 52 * S, 0);
+          const bgm = this.add.graphics();
+          bgm.fillStyle(0x24160d, 1).fillRoundedRect(-38 * S, -17 * S, 76 * S, 34 * S, 17 * S);
+          bgm.fillStyle(COLORS.gold, 1).fillRoundedRect(-36 * S, -15 * S, 72 * S, 30 * S, 15 * S);
+          badge.add([bgm, txt(this, 0, 0, 'MAX', 17, CSS.dark, { stroke: false })]);
+          btn = badge;
+        } else {
+          btn = button(this, cw / 2 - 54 * S, -3 * S, 92 * S, 42 * S, `${cost}`, () => {
+            if (save.dough < cost) {
+              this.tweens.add({ targets: row, x: { from: W / 2 - 6 * S, to: W / 2 }, duration: 260, ease: 'Elastic.Out' });
+              return;
+            }
+            sfx('buy');
+            const from = save.dough;
+            save.dough -= cost;
+            save.upgrades[u.id] = rank + 1;
+            persist();
+            // Pop the new pip and count the Dough down, without redrawing the whole screen.
+            const pop = this.add.circle(W / 2 + lx + 80 * S + rank * 13 * S, y + 24 * S, 7 * S, COLORS.gold);
+            c.add(pop);
+            this.tweens.add({ targets: pop, scale: { from: 2.2, to: 0.6 }, alpha: { from: 1, to: 0 }, duration: 380, ease: 'Cubic.Out', onComplete: () => pop.destroy() });
+            this.tweens.addCounter({
+              from,
+              to: save.dough,
+              duration: 400,
+              onUpdate: (tw) => {
+                shown = Math.round(tw.getValue() ?? save.dough);
+                setWallet(shown);
+              },
+            });
+            for (const r of refreshers) r();
+          }, { size: 18, icon: 'coin', muted: !afford });
+        }
+        row.add(btn);
+      };
+      draw();
+      refreshers.push(draw);
     });
     c.add(
-      button(this, W / 2, top + ph - 40 * S, 160 * S, 46 * S, 'Done', () => {
+      button(this, W / 2, top + ph - 38 * S, 160 * S, 46 * S, 'Done', () => {
         c.destroy();
         this.bakery = null;
+        this.build();
       }, { size: 20 }),
     );
   }
