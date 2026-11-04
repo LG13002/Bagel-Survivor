@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
 import { COUNTER_PROPS, drawButcherBlock } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -72,6 +72,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'heal', 18, 18, (c) => drawHeal(c, 18));
   ctex(scene, 'chest', 30, 26, (c) => drawBasket(c, 30, 26));
   ctex(scene, 'goldchest', 30, 28, (c) => drawGoldToaster(c, 30, 28));
+  ctex(scene, 'bun', 38, 38, (c) => drawStickyBun(c, 38));
   tex(scene, 'dot', 8, 8, (g) => {
     g.fillStyle(0xffffff).fillCircle(4, 4, 4);
   });

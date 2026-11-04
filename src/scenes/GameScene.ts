@@ -609,6 +609,7 @@ export class GameScene extends Phaser.Scene implements World {
       bossHp: this.boss?.alive ? this.boss.hp : 0,
       evolutions: this.evolutionsThisRun,
       healsTaken: this.healsTaken,
+      buns: this.pickups.filter((it) => it.kind === 'bun').length,
     };
     saveRun(snap);
   }
@@ -639,6 +640,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.bossSpawned = s.bossSpawned;
     this.evolutionsThisRun = s.evolutions;
     this.healsTaken = s.healsTaken;
+    for (let i = 0; i < (s.buns ?? 0); i++) this.dropPickup('bun', this.player.x + 60 + i * 30, this.player.y, 1);
     this.recomputeStats();
     this.player.hp = Math.min(this.stats.maxHp, s.hp);
     if (s.miniHp > 0) {
@@ -647,6 +649,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (e) {
         e.hp = s.miniHp;
         e.dropsChest = true;
+        e.dropsBun = true;
         this.mini = e;
       }
     }
@@ -773,7 +776,7 @@ export class GameScene extends Phaser.Scene implements World {
       g.fillEllipse(e.x, e.y + r * 0.85, r * 2, r * 0.6);
     }
     for (const it of this.pickups) {
-      if (it.kind !== 'chest' && it.kind !== 'goldchest') continue;
+      if (it.kind !== 'chest' && it.kind !== 'goldchest' && it.kind !== 'bun') continue;
       g.fillEllipse(it.x, it.y + 12, 24, 6);
     }
   }
@@ -823,7 +826,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   private director(dt: number): void {
     const t = this.stageT;
-    const hpMult = 1 + t / 180;
+    const hpMult = RUN.hpBonus * (1 + t / 180);
     let interval = Math.max(0.1, 0.7 - t * 0.0018);
     if (this.boss) interval *= 4;
     // Gentler through 3:00, then the swarm ramps up toward the boss.
@@ -869,7 +872,11 @@ export class GameScene extends Phaser.Scene implements World {
       this.nextElite += RUN.eliteEvery;
       const sp = this.spawnPoint();
       const e = this.spawnEnemy('elite', sp.x, sp.y, 1);
-      if (e) e.dropsChest = true;
+      if (e) {
+        e.dropsChest = true;
+        // Full runs: the last Giant Mold before the boss carries the second Sticky Bun.
+        if (!this.quick && t >= RUN.bossAt - RUN.eliteEvery) e.dropsBun = true;
+      }
       this.banner('A Giant Mold appears!', '#9fd36a', 20);
     }
     if (!this.miniSpawned && t >= RUN.miniBossAt) {
@@ -878,6 +885,7 @@ export class GameScene extends Phaser.Scene implements World {
       const e = this.spawnEnemy('croissant', sp.x, sp.y, 1);
       if (e) {
         e.dropsChest = true;
+        e.dropsBun = true;
         this.mini = e;
       }
       this.banner('Crusty Croissant!', CSS.gold, 26);
@@ -893,7 +901,6 @@ export class GameScene extends Phaser.Scene implements World {
       }
       this.banner('THE TOASTER TYRANT', CSS.red, 30);
       sfx('boss');
-      this.vacuum();
       this.cameras.main.shake(400, 0.006);
     }
   }
@@ -924,6 +931,7 @@ export class GameScene extends Phaser.Scene implements World {
     e.alive = true;
     e.boss = false;
     e.dropsChest = false;
+    e.dropsBun = false;
     e.state = 0;
     e.stateT = 0;
     e.attackT = 1.5;
@@ -1138,7 +1146,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.burst(e.x, e.y, e.kind.startsWith('mold') || e.kind === 'elite' ? 0x76a83e : e.kind === 'knife' ? 0xdfe5ea : 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
     if (e.kind === 'mold') {
       for (let i = 0; i < 2; i++) {
-        const m = this.spawnEnemy('moldling', e.x + (i ? 6 : -6), e.y, 1 + this.now / 180);
+        const m = this.spawnEnemy('moldling', e.x + (i ? 6 : -6), e.y, RUN.hpBonus * (1 + this.stageT / 180));
         if (m) {
           m.kx = (i ? 1 : -1) * 120;
         }
@@ -1147,13 +1155,18 @@ export class GameScene extends Phaser.Scene implements World {
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
     // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
     if (e.dropsChest) this.dropPickup(e.kind === 'croissant' || Math.random() < 0.25 ? 'goldchest' : 'chest', e.x, e.y, 1);
+    if (e.dropsBun) {
+      // Land on the far side of the boss so it isn't grabbed by accident at the kill.
+      const ba = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+      this.dropPickup('bun', e.x + Math.cos(ba) * (e.radius + 30), e.y + Math.sin(ba) * (e.radius + 30), 1);
+      this.banner('A Sticky Bun dropped!', '#f0a24a', 18);
+    }
     const r = Math.random();
     if (r < 0.01) this.dropPickup('coin', e.x + 6, e.y, 1);
     else if (r < 0.015) this.dropPickup('heal', e.x, e.y + 6, 30);
     if (e === this.mini) {
       this.mini = null;
       this.miniKilled = true;
-      this.vacuum();
       this.cameras.main.shake(250, 0.006);
     }
     if (e === this.boss) {
@@ -1330,10 +1343,14 @@ export class GameScene extends Phaser.Scene implements World {
 
   private dropPickup(kind: Pickup['kind'], x: number, y: number, value: number): void {
     const tex = kind === 'xp' ? this.gemTex(value) : kind;
-    const isChest = kind === 'chest' || kind === 'goldchest';
+    const isChest = kind === 'chest' || kind === 'goldchest' || kind === 'bun';
     const sprite = this.img(tex, x, y, isChest ? 12 : 10);
     if (isChest) {
       this.tweens.add({ targets: sprite, y: y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    }
+    if (kind === 'bun') {
+      const base = sprite.scaleX;
+      this.tweens.add({ targets: sprite, scale: base * 1.15, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
     this.pickups.push({ sprite, x, y, kind, value, magnet: false, alive: true });
   }
@@ -1351,8 +1368,9 @@ export class GameScene extends Phaser.Scene implements World {
       const dx = p.x - it.x;
       const dy = p.y - it.y;
       const d = Math.hypot(dx, dy) || 1;
-      if (it.kind === 'chest' || it.kind === 'goldchest') {
-        if (d < 70) {
+      if (it.kind === 'chest' || it.kind === 'goldchest' || it.kind === 'bun') {
+        // Chests drift to you; the Sticky Bun waits until you walk onto it.
+        if (d < 70 && it.kind !== 'bun') {
           it.x += (dx / d) * 200 * dt;
           it.y += (dy / d) * 200 * dt;
           it.sprite.x = it.x;
@@ -1393,6 +1411,12 @@ export class GameScene extends Phaser.Scene implements World {
         break;
       case 'goldchest':
         this.openChest(true);
+        break;
+      case 'bun':
+        this.vacuum();
+        sfx('swoosh');
+        sfx('coin');
+        this.burst(this.player.x, this.player.y, 0xf0a24a, 14, 60);
         break;
     }
   }
@@ -1552,6 +1576,7 @@ export class GameScene extends Phaser.Scene implements World {
     for (const it of this.pickups) {
       if (it.kind === 'chest') targets.push({ x: it.x, y: it.y, color: 0xf3d9a0 });
       else if (it.kind === 'goldchest') targets.push({ x: it.x, y: it.y, color: 0xffc21f });
+      else if (it.kind === 'bun') targets.push({ x: it.x, y: it.y, color: 0xf0a24a });
     }
     const pulse = 1 + 0.12 * Math.sin(this.now * 8);
     for (const t of targets) {
