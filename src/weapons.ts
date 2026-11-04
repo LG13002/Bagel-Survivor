@@ -71,7 +71,7 @@ class SesameShot extends Weapon {
       const dir = this.aim(440);
       const base = Math.atan2(dir.y, dir.x);
       if (this.evolved) {
-        this.fire(base + (Math.random() - 0.5) * 0.16, 9, 3, 'seed_fire');
+        this.fire(base + (Math.random() - 0.5) * 0.16, 13, 3, 'seed_fire');
       } else {
         const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
         const dmg = 12 * (lv >= 3 ? 1.5 : 1);
@@ -386,8 +386,8 @@ class RollingPinW extends Weapon {
     const lv = this.level;
     const p = this.w.player;
     const size = (lv >= 5 || this.evolved ? 1.5 : 1) * s.area;
-    const dmg = (this.evolved ? 40 : 28 * (lv >= 3 ? 1.5 : 1)) * s.damage;
-    if (this.tick(dt, (this.evolved ? 3.2 : 3) * s.cooldown)) {
+    const dmg = (this.evolved ? 34 : 26 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    if (this.tick(dt, (this.evolved ? 3.8 : 3) * s.cooldown)) {
       // Roll toward the nearest enemy (falls back to the direction of travel).
       const aim = this.aim(420);
       const base = Math.atan2(aim.y, aim.x);
@@ -421,7 +421,7 @@ class RollingPinW extends Weapon {
         const lateral = Math.abs(-rx * pin.dy + ry * pin.dx);
         if (along < 8 * pin.size + e.radius && lateral < 28 * pin.size + e.radius) {
           pin.hit.add(e);
-          this.w.hit(e, dmg, pin.dx * 380, pin.dy * 380, '', 0);
+          this.w.hit(e, dmg, pin.dx * 250, pin.dy * 250, '', 0);
         }
       });
       if (pin.life <= 0) {

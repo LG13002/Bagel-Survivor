@@ -253,6 +253,7 @@ export const RUN = {
   antsEvery: 20,
   maxEnemies: 260,
   earlyMaxEnemies: 180, // cap before 3:00
+  hpBonus: 1.1, // extra health on regular enemies (bosses and elites excluded)
 };
 
 /** XP needed to go from level `lvl` to `lvl + 1`. */

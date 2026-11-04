@@ -5,6 +5,7 @@ export interface RunSnapshot {
   bagel: string;
   practice: boolean;
   quick?: boolean;
+  buns?: number;
   now: number;
   level: number;
   xp: number;

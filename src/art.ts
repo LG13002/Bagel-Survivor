@@ -1154,3 +1154,47 @@ export function drawGoldToaster(c: Ctx, w: number, h: number): void {
   sparkle(c, 25, 7, 2.6);
   sparkle(c, 4.5, 9, 1.8);
 }
+
+/** Sticky Bun: a glazed cinnamon swirl that pulls every seed on the floor to you. */
+export function drawStickyBun(c: Ctx, s: number): void {
+  const m = s / 2;
+  lootGlow(c, m, m, m, '#ffd23f');
+  lootGlow(c, m, m, m * 0.8, '#fff3b0');
+  const r = m * 0.56;
+  // Bun body
+  c.beginPath();
+  c.arc(m, m + 1, r, 0, TAU);
+  c.fillStyle = radial(c, m - r * 0.3, m - r * 0.3, r * 1.3, [[0, '#f2b469'], [0.6, '#c87a35'], [1, '#8f4f1f']]);
+  c.fill();
+  ink(c, 1.6);
+  c.beginPath();
+  c.arc(m, m + 1, r + 2.2, 0, TAU);
+  c.strokeStyle = '#fff3b0';
+  c.lineWidth = 1.4;
+  c.stroke();
+  // Cinnamon swirl
+  c.beginPath();
+  for (let i = 0; i <= 60; i++) {
+    const a = (i / 60) * TAU * 2.3;
+    const rr = r * 0.85 * (1 - i / 66);
+    const x = m + Math.cos(a) * rr;
+    const y = m + 1 + Math.sin(a) * rr;
+    if (i === 0) c.moveTo(x, y);
+    else c.lineTo(x, y);
+  }
+  c.strokeStyle = '#6b3414';
+  c.lineWidth = 1.6;
+  c.lineCap = 'round';
+  c.stroke();
+  // Glaze drips
+  c.fillStyle = '#fff6e0';
+  c.beginPath();
+  c.ellipse(m - r * 0.25, m - r * 0.35, r * 0.42, r * 0.22, -0.4, 0, TAU);
+  c.fill();
+  c.beginPath();
+  c.ellipse(m + r * 0.35, m + r * 0.2, r * 0.2, r * 0.13, 0.5, 0, TAU);
+  c.fill();
+  c.beginPath();
+  c.arc(m - r * 0.55, m - r * 0.05, r * 0.09, 0, TAU);
+  c.fill();
+}
