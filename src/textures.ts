@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
-import { ICONS, ctex, drawBakeryFloor, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
+import { COUNTER_PROPS, drawButcherBlock } from './floors';
+import { ICONS, ctex, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -27,8 +28,10 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'mine', 10, 10, (c) => drawMine(c, 10));
 
   // Stage floors (256 × 256, seamless). 'floor' is used behind the menus.
-  ctex(scene, 'floor_stage1', 256, 256, (c) => drawBakeryFloor(c, 256));
-  ctex(scene, 'floor', 256, 256, (c) => drawBakeryFloor(c, 256));
+  ctex(scene, 'floor_stage1', 256, 256, (c) => drawButcherBlock(c, 256));
+  ctex(scene, 'floor', 256, 256, (c) => drawButcherBlock(c, 256));
+  // Countertop props, scattered over the floor by GameScene.
+  for (const p of COUNTER_PROPS) ctex(scene, p.key, p.w, p.h, (c) => p.draw(c, p.w, p.h));
 
   // Enemies: dark bodies with red eyes so they never read as loot.
   ctex(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));

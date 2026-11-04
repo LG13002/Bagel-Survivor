@@ -2,6 +2,9 @@
 // World and UI code work in CSS pixels; the world camera zooms by S and UI sizes are multiplied by S.
 export const S = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
 
+/** Extra world-camera zoom so characters read bigger on a phone (Luke asked for +20%). */
+export const ZOOM = 1.2;
+
 export const FONT = '"Trebuchet MS", "Arial Rounded MT Bold", system-ui, sans-serif';
 
 export const COLORS = {

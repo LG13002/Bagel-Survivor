@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { COLORS, CSS, DEBUG, S, fmtTime, safeInsets } from '../config';
+import { COLORS, CSS, DEBUG, S, ZOOM, fmtTime, safeInsets } from '../config';
+import { COUNTER_PROPS } from '../floors';
+import { rng } from '../art';
 import {
   BAGELS,
   ENEMIES,
@@ -51,7 +53,7 @@ const PRACTICE_LEVELS = 12;
 
 export class GameScene extends Phaser.Scene implements World {
   player = new Player();
-  stats: Stats = { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 55, maxHp: 100 };
+  stats: Stats = { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100 };
   now = 0;
 
   private bagel!: BagelDef;
@@ -92,6 +94,9 @@ export class GameScene extends Phaser.Scene implements World {
   private uiLayer!: Phaser.GameObjects.Layer;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
   private floor!: Phaser.GameObjects.TileSprite;
+  /** Countertop props by chunk key, created near the camera and dropped when far away. */
+  private propCenter = '';
+  private propChunks = new Map<string, Phaser.GameObjects.Image[]>();
   private hpBg!: Phaser.GameObjects.Rectangle;
   private hpFill!: Phaser.GameObjects.Rectangle;
 
@@ -161,6 +166,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.hazards = [];
     this.weapons = [];
     this.toppings = new Map();
+    this.propChunks = new Map();
+    this.propCenter = '';
     this.particles = 0;
     this.level = 1;
     this.xp = 0;
@@ -196,7 +203,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.uiLayer = this.add.layer();
     this.uiLayer.setDepth(1000);
     const cam = this.cameras.main;
-    cam.setZoom(S);
+    cam.setZoom(S * ZOOM);
     cam.setBackgroundColor(COLORS.bg);
     this.uiCam = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     cam.ignore(this.uiLayer);
@@ -349,7 +356,7 @@ export class GameScene extends Phaser.Scene implements World {
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
-      magnet: 55 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
+      magnet: 62 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
       maxHp: Math.round((b.hp + 10 * (up.hp ?? 0)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
     };
     if (this.stats.maxHp > prevMax && this.player.hp > 0) this.player.hp += this.stats.maxHp - prevMax;
@@ -662,14 +669,66 @@ export class GameScene extends Phaser.Scene implements World {
     this.updateHud();
     this.drawArrows();
     this.drawShadows();
+    this.updateProps();
+  }
+
+  /** Scatter countertop props in 384px world chunks. Each chunk is seeded by its coordinates,
+   *  so the same spot always shows the same props and nothing repeats on a grid. */
+  private updateProps(): void {
+    const C = 384;
+    const p = this.player;
+    const rx = Math.ceil((this.viewW() / 2 + 160) / C);
+    const ry = Math.ceil((this.viewH() / 2 + 160) / C);
+    const pcx = Math.floor(p.x / C);
+    const pcy = Math.floor(p.y / C);
+    const key0 = `${pcx},${pcy}`;
+    if (this.propCenter === key0) return;
+    this.propCenter = key0;
+    const keep = new Set<string>();
+    const total = COUNTER_PROPS.reduce((a, d) => a + d.weight, 0);
+    for (let cx = pcx - rx; cx <= pcx + rx; cx++)
+      for (let cy = pcy - ry; cy <= pcy + ry; cy++) {
+        const key = `${cx},${cy}`;
+        keep.add(key);
+        if (this.propChunks.has(key)) continue;
+        const h = (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663)) >>> 0;
+        const rand = rng((h % 2147483646) + 1);
+        rand();
+        rand();
+        const n = rand() < 0.35 ? 2 : 3;
+        const list: Phaser.GameObjects.Image[] = [];
+        for (let i = 0; i < n; i++) {
+          let r = rand() * total;
+          let def = COUNTER_PROPS[0];
+          for (const d of COUNTER_PROPS) {
+            r -= d.weight;
+            if (r <= 0) {
+              def = d;
+              break;
+            }
+          }
+          // Each prop gets its own horizontal band of the chunk so they rarely overlap.
+          const x = (cx + 0.15 + rand() * 0.7) * C;
+          const y = (cy + (i + 0.2 + rand() * 0.6) / n) * C;
+          const im = this.img(def.key, x, y, 1);
+          im.setRotation(def.spin ? rand() * Math.PI * 2 : (rand() - 0.5) * 0.4);
+          list.push(im);
+        }
+        this.propChunks.set(key, list);
+      }
+    for (const [key, list] of this.propChunks)
+      if (!keep.has(key)) {
+        for (const im of list) im.destroy();
+        this.propChunks.delete(key);
+      }
   }
 
   private drawShadows(): void {
     const g = this.shadowGfx;
     g.clear();
     const p = this.player;
-    const hw = this.scale.width / S / 2 + 60;
-    const hh = this.scale.height / S / 2 + 60;
+    const hw = this.viewW() / 2 + 60;
+    const hh = this.viewH() / 2 + 60;
     g.fillStyle(0x1a0f08, 0.28);
     g.fillEllipse(p.x, p.y + 15, 28, 8);
     for (const e of this.enemies) {
@@ -687,10 +746,10 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- Director
 
   private viewW(): number {
-    return this.scale.width / S;
+    return this.scale.width / S / ZOOM;
   }
   private viewH(): number {
-    return this.scale.height / S;
+    return this.scale.height / S / ZOOM;
   }
 
   /**
@@ -1329,7 +1388,7 @@ export class GameScene extends Phaser.Scene implements World {
     const W = this.scale.width;
     const H = this.scale.height;
     this.uiCam?.setSize(W, H);
-    this.floor?.setSize(W / S + 640, H / S + 640);
+    this.floor?.setSize(W / S / ZOOM + 640, H / S / ZOOM + 640);
     if (!this.hud) return;
     const top = safeInsets().top * S;
     const h = this.hud;
@@ -1391,8 +1450,8 @@ export class GameScene extends Phaser.Scene implements World {
     }
     const pulse = 1 + 0.12 * Math.sin(this.now * 8);
     for (const t of targets) {
-      const sx = W / 2 + (t.x - p.x) * S;
-      const sy = H / 2 + (t.y - p.y) * S;
+      const sx = W / 2 + (t.x - p.x) * S * ZOOM;
+      const sy = H / 2 + (t.y - p.y) * S * ZOOM;
       if (sx > 0 && sx < W && sy > 0 && sy < H) continue;
       const dx = sx - W / 2;
       const dy = sy - H / 2;
