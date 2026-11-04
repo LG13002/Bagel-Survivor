@@ -1019,7 +1019,8 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
-    if (e.dropsChest) this.dropPickup('chest', e.x, e.y, 1);
+    // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
+    if (e.dropsChest) this.dropPickup(e.kind === 'croissant' || Math.random() < 0.25 ? 'goldchest' : 'chest', e.x, e.y, 1);
     const r = Math.random();
     if (r < 0.01) this.dropPickup('coin', e.x + 6, e.y, 1);
     else if (r < 0.015) this.dropPickup('heal', e.x, e.y + 6, 30);
@@ -1203,8 +1204,9 @@ export class GameScene extends Phaser.Scene implements World {
 
   private dropPickup(kind: Pickup['kind'], x: number, y: number, value: number): void {
     const tex = kind === 'xp' ? this.gemTex(value) : kind;
-    const sprite = this.img(tex, x, y, kind === 'chest' ? 12 : 10);
-    if (kind === 'chest') {
+    const isChest = kind === 'chest' || kind === 'goldchest';
+    const sprite = this.img(tex, x, y, isChest ? 12 : 10);
+    if (isChest) {
       this.tweens.add({ targets: sprite, y: y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
     this.pickups.push({ sprite, x, y, kind, value, magnet: false, alive: true });
@@ -1223,7 +1225,7 @@ export class GameScene extends Phaser.Scene implements World {
       const dx = p.x - it.x;
       const dy = p.y - it.y;
       const d = Math.hypot(dx, dy) || 1;
-      if (it.kind === 'chest') {
+      if (it.kind === 'chest' || it.kind === 'goldchest') {
         if (d < 70) {
           it.x += (dx / d) * 200 * dt;
           it.y += (dy / d) * 200 * dt;
@@ -1261,7 +1263,10 @@ export class GameScene extends Phaser.Scene implements World {
         this.burst(this.player.x, this.player.y, 0x7fbf4d, 8, 30);
         break;
       case 'chest':
-        this.openChest();
+        this.openChest(false);
+        break;
+      case 'goldchest':
+        this.openChest(true);
         break;
     }
   }
@@ -1351,7 +1356,10 @@ export class GameScene extends Phaser.Scene implements World {
       if (!e.alive) continue;
       targets.push({ x: e.x, y: e.y, color: e.boss ? COLORS.red : e.kind === 'croissant' ? COLORS.gold : COLORS.green });
     }
-    for (const it of this.pickups) if (it.kind === 'chest') targets.push({ x: it.x, y: it.y, color: 0xfff0a0 });
+    for (const it of this.pickups) {
+      if (it.kind === 'chest') targets.push({ x: it.x, y: it.y, color: 0xf3d9a0 });
+      else if (it.kind === 'goldchest') targets.push({ x: it.x, y: it.y, color: 0xffc21f });
+    }
     const pulse = 1 + 0.12 * Math.sin(this.now * 8);
     for (const t of targets) {
       const sx = W / 2 + (t.x - p.x) * S;
@@ -1573,39 +1581,46 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  private openChest(): void {
+  /** Bread basket: an evolution, or 1 upgrade and +5 Dough. Gold toaster: an evolution plus 2 upgrades, or 3 upgrades and +15 Dough. */
+  private openChest(gold: boolean): void {
     this.setPaused('chest');
     sfx('chest');
     const evo = this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
     let title: string;
-    let line: string;
-    let icon: string;
+    const lines: string[] = [];
+    let icon = 'ic_heal';
     if (evo) {
       evo.evolved = true;
       title = 'EVOLUTION!';
-      line = `${evo.def.name} became ${evo.def.evoName}\n${evo.def.evoBlurb}`;
+      lines.push(`${evo.def.name} became ${evo.def.evoName}`);
+      if (!gold) lines.push(evo.def.evoBlurb);
       icon = evo.def.icon;
       this.evolutionsThisRun.push(evo.def.id);
       const save = load();
       if (!save.cookbook.includes(evo.def.id)) save.cookbook.push(evo.def.id);
       persist();
     } else {
+      title = gold ? 'GOLDEN TOASTER!' : 'BREAD BASKET';
+      const dough = gold ? 15 : 5;
+      this.coins += dough;
+      lines.push(`+${dough} Dough`);
+    }
+    const ups = evo ? (gold ? 2 : 0) : gold ? 3 : 1;
+    const got: string[] = [];
+    for (let i = 0; i < ups; i++) {
       const opts = this.choices().filter((c) => c.kind !== 'heal' && c.kind !== 'coin');
       const pick = opts.find((c) => c.kind === 'wup') ?? opts[0];
-      this.coins += 5;
-      if (pick) {
-        const info = this.describe(pick);
-        this.applyChoice(pick);
-        title = 'TOASTER CHEST';
-        line = `${info.name} ${info.tag.startsWith('LV') ? info.tag.replace('LV', 'Lv') : '(new)'}\n+5 Dough`;
-        icon = info.icon;
-      } else {
-        this.player.hp = this.stats.maxHp;
-        title = 'TOASTER CHEST';
-        line = 'Fully healed!\n+5 Dough';
-        icon = 'ic_heal';
-      }
+      if (!pick) break;
+      const info = this.describe(pick);
+      this.applyChoice(pick);
+      got.push(`${info.name} ${info.tag.startsWith('LV') ? info.tag.replace('LV', 'Lv') : '(new)'}`);
+      if (!evo && i === 0) icon = info.icon;
     }
+    if (!evo && !got.length) {
+      this.player.hp = this.stats.maxHp;
+      got.push('Fully healed!');
+    }
+    const line = [...got, ...lines].join('\n');
     const W = this.scale.width;
     const H = this.scale.height;
     const c = this.add.container(0, 0);
@@ -1613,11 +1628,12 @@ export class GameScene extends Phaser.Scene implements World {
     this.overlay = c;
     const dim = this.dim(0.7);
     c.add(dim);
-    c.add(panel(this, W / 2, H / 2, Math.min(W - 40 * S, 340 * S), 250 * S));
+    const extra = Math.max(0, line.split('\n').length - 2) * 20 * S;
+    c.add(panel(this, W / 2, H / 2 + extra / 2, Math.min(W - 40 * S, 340 * S), 250 * S + extra));
     const im = this.add.image(W / 2, H / 2 - 60 * S, icon).setScale(2.2);
-    const t1 = txt(this, W / 2, H / 2 + 6 * S, title, evo ? 30 : 24, evo ? CSS.gold : CSS.cream);
-    const t2 = txt(this, W / 2, H / 2 + 56 * S, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
-    const t3 = txt(this, W / 2, H / 2 + 100 * S, 'Tap to continue', 13, CSS.muted).setAlpha(0);
+    const t1 = txt(this, W / 2, H / 2 + 6 * S, title, evo || gold ? 28 : 24, evo || gold ? CSS.gold : CSS.cream);
+    const t2 = txt(this, W / 2, H / 2 + 56 * S + extra / 2, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
+    const t3 = txt(this, W / 2, H / 2 + 100 * S + extra, 'Tap to continue', 13, CSS.muted).setAlpha(0);
     c.add([im, t1, t2, t3]);
     this.tweens.resumeAll();
     im.setScale(0.5);

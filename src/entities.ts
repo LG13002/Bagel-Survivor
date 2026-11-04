@@ -48,7 +48,7 @@ export interface Pickup {
   sprite: Phaser.GameObjects.Image;
   x: number;
   y: number;
-  kind: 'xp' | 'coin' | 'heal' | 'chest';
+  kind: 'xp' | 'coin' | 'heal' | 'chest' | 'goldchest';
   value: number;
   magnet: boolean;
   alive: boolean;
