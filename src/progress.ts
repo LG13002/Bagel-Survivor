@@ -1,0 +1,53 @@
+import { BAGELS, type BagelDef } from './data';
+import { fmtTime } from './config';
+import type { SaveData } from './save';
+
+export interface GoalStatus {
+  done: boolean;
+  /** 0..1 */
+  frac: number;
+  /** e.g. "best 2:12 of 3:00" */
+  progress: string;
+}
+
+export function goalStatus(save: SaveData, b: BagelDef): GoalStatus {
+  const g = b.goal;
+  if (!g) return { done: true, frac: 1, progress: '' };
+  switch (g.kind) {
+    case 'clear':
+      return { done: save.clears >= g.target, frac: Math.min(1, save.clears / g.target), progress: save.clears ? 'cleared' : 'not cleared yet' };
+    case 'time':
+      return { done: save.bestTime >= g.target, frac: Math.min(1, save.bestTime / g.target), progress: `best ${fmtTime(save.bestTime)} of ${fmtTime(g.target)}` };
+    case 'kills':
+      return {
+        done: save.totalKills >= g.target,
+        frac: Math.min(1, save.totalKills / g.target),
+        progress: `${Math.min(save.totalKills, g.target).toLocaleString()} of ${g.target.toLocaleString()}`,
+      };
+    case 'noheal':
+      return { done: !!save.noHealClear, frac: save.noHealClear ? 1 : 0, progress: save.noHealClear ? 'done' : 'not yet' };
+    case 'cookbook':
+      return { done: save.cookbook.length >= g.target, frac: Math.min(1, save.cookbook.length / g.target), progress: `${save.cookbook.length} of ${g.target}` };
+  }
+}
+
+/** Unlock any bagels whose goals are now met. Returns the names of new unlocks. */
+export function checkUnlocks(save: SaveData): string[] {
+  const out: string[] = [];
+  for (const b of BAGELS) {
+    if (save.unlocked.includes(b.id)) continue;
+    if (goalStatus(save, b).done) {
+      save.unlocked.push(b.id);
+      out.push(b.name);
+    }
+  }
+  return out;
+}
+
+/** The locked bagels closest to unlocking, nearest first. */
+export function nearestGoals(save: SaveData, n: number): { bagel: BagelDef; status: GoalStatus }[] {
+  return BAGELS.filter((b) => !save.unlocked.includes(b.id) && b.goal)
+    .map((bagel) => ({ bagel, status: goalStatus(save, bagel) }))
+    .sort((a, b) => b.status.frac - a.status.frac)
+    .slice(0, n);
+}
