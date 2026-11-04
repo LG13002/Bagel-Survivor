@@ -340,3 +340,151 @@ export function drawStageThumb(c: Ctx, id: string, w: number, h: number): void {
   c.lineWidth = 3;
   c.stroke();
 }
+
+// ---------- Stage 2: the Freezer ----------
+// Frosted freezer-floor tiles. Kept pale and soft so blue XP seeds and icy enemies (which have
+// thick ink outlines and red eyes) both stand out against it.
+
+/** Seamless frosted tile floor, size × size. */
+export function drawFreezerFloor(c: Ctx, size: number): void {
+  const rand = rng(21);
+  const t = 64;
+  for (let x = 0; x < size; x += t)
+    for (let y = 0; y < size; y += t) {
+      const k = 0.97 + rand() * 0.05;
+      c.fillStyle = `rgb(${(188 * k) | 0},${(214 * k) | 0},${(228 * k) | 0})`;
+      c.fillRect(x, y, t, t);
+      // Soft top-left sheen on each tile.
+      c.fillStyle = linear(c, x, y, x + t, y + t, [
+        [0, 'rgba(255,255,255,0.22)'],
+        [0.6, 'rgba(255,255,255,0)'],
+      ]);
+      c.fillRect(x, y, t, t);
+    }
+  // Grout lines.
+  c.fillStyle = 'rgba(110,150,175,0.35)';
+  for (let x = 0; x < size; x += t) c.fillRect(x, 0, 2, size);
+  for (let y = 0; y < size; y += t) c.fillRect(0, y, size, 2);
+  // Frost streaks and specks.
+  c.strokeStyle = 'rgba(255,255,255,0.35)';
+  c.lineWidth = 1.2;
+  for (let i = 0; i < 9; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const a = rand() * Math.PI;
+    const l = 14 + rand() * 30;
+    wrapped(size, x, y, l, (px, py) => {
+      c.beginPath();
+      c.moveTo(px, py);
+      c.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l);
+      c.stroke();
+    });
+  }
+  c.fillStyle = 'rgba(255,255,255,0.55)';
+  for (let i = 0; i < 40; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 0.6 + rand() * 1.2;
+    wrapped(size, x, y, r, (px, py) => {
+      c.beginPath();
+      c.arc(px, py, r, 0, TAU);
+      c.fill();
+    });
+  }
+}
+
+function iceTray(c: Ctx, w: number, h: number): void {
+  const x0 = w / 2 - 70;
+  const y0 = h / 2 - 30;
+  softShadow(c, w / 2 + 4, h / 2 + 8, 80, 26, 0.18);
+  rrect(c, x0, y0, 140, 60, 10);
+  c.fillStyle = 'rgba(235,246,252,0.9)';
+  c.fill();
+  c.strokeStyle = 'rgba(120,160,185,0.6)';
+  c.lineWidth = 2;
+  c.stroke();
+  for (let i = 0; i < 6; i++)
+    for (let j = 0; j < 2; j++) {
+      rrect(c, x0 + 7 + i * 22, y0 + 7 + j * 24, 18, 20, 4);
+      c.fillStyle = 'rgba(170,215,240,0.75)';
+      c.fill();
+      c.fillStyle = 'rgba(255,255,255,0.7)';
+      c.fillRect(x0 + 10 + i * 22, y0 + 10 + j * 24, 5, 3);
+    }
+}
+
+function frozenPeas(c: Ctx, w: number, h: number): void {
+  const rand = rng(33);
+  softShadow(c, w / 2, h / 2 + 6, 46, 16, 0.12);
+  for (let i = 0; i < 16; i++) {
+    const a = rand() * TAU;
+    const d = rand() * 34;
+    const x = w / 2 + Math.cos(a) * d;
+    const y = h / 2 + Math.sin(a) * d * 0.6;
+    c.beginPath();
+    c.arc(x, y, 5, 0, TAU);
+    c.fillStyle = '#8fc07a';
+    c.fill();
+    c.beginPath();
+    c.arc(x - 1.5, y - 1.5, 1.8, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.fill();
+  }
+}
+
+function popsicleStick(c: Ctx, w: number, h: number): void {
+  softShadow(c, w / 2 + 3, h / 2 + 5, 52, 10, 0.16);
+  rrect(c, w / 2 - 50, h / 2 - 7, 100, 14, 7);
+  c.fillStyle = '#e2c590';
+  c.fill();
+  c.strokeStyle = 'rgba(150,115,60,0.45)';
+  c.lineWidth = 1.5;
+  c.stroke();
+}
+
+function freezerBag(c: Ctx, w: number, h: number): void {
+  const x0 = w / 2 - 55;
+  const y0 = h / 2 - 40;
+  softShadow(c, w / 2 + 4, h / 2 + 8, 62, 30, 0.16);
+  rrect(c, x0, y0, 110, 80, 8);
+  c.fillStyle = 'rgba(230,242,250,0.75)';
+  c.fill();
+  c.strokeStyle = 'rgba(120,160,185,0.55)';
+  c.lineWidth = 2;
+  c.stroke();
+  // Zip strip.
+  c.fillStyle = 'rgba(90,150,210,0.55)';
+  c.fillRect(x0 + 4, y0 + 8, 102, 5);
+  // Frozen berries inside.
+  const rand = rng(41);
+  for (let i = 0; i < 7; i++) {
+    c.beginPath();
+    c.arc(x0 + 20 + rand() * 70, y0 + 30 + rand() * 40, 6 + rand() * 3, 0, TAU);
+    c.fillStyle = 'rgba(150,80,130,0.55)';
+    c.fill();
+  }
+}
+
+function frostPile(c: Ctx, w: number, h: number): void {
+  const rand = rng(57);
+  for (let j = 0; j < 12; j++) {
+    const ox = w / 2 + (rand() - 0.5) * 70;
+    const oy = h / 2 + (rand() - 0.5) * 34;
+    const r = 10 + rand() * 14;
+    const g = c.createRadialGradient(ox, oy, 0, ox, oy, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.75)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(ox, oy, r, 0, TAU);
+    c.fill();
+  }
+}
+
+export const FREEZER_PROPS: PropDef[] = [
+  { key: 'prop_icetray', w: 160, h: 80, weight: 1, spin: true, draw: iceTray },
+  { key: 'prop_peas', w: 100, h: 80, weight: 1.1, spin: true, draw: frozenPeas },
+  { key: 'prop_stick', w: 120, h: 30, weight: 0.9, spin: true, draw: popsicleStick },
+  { key: 'prop_bag', w: 130, h: 100, weight: 0.8, spin: true, draw: freezerBag },
+  { key: 'prop_frost', w: 120, h: 70, weight: 1.3, spin: false, draw: frostPile },
+];

@@ -9,7 +9,7 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 - **Live:** https://lg13002.github.io/Bagel-Survivor/. Pushes to `main` deploy through GitHub Actions to Pages.
 - **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
-- **Status (2026-11-04):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker) is the current step; M6 is the Freezer.
+- **Status (2026-11-04):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker) is merged. M6 (the Freezer) is in two parts: part 1 adds its floor, hazards, Warm Mug and regular enemies; part 2 adds its elites, mini-boss, boss, music and balance.
 
 ## How to work with the owner (rules)
 
@@ -71,7 +71,9 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - Separate bests (`stage1q`, `stage2q`, …). Quick clears count toward unlocks.
   - **Always schedule by `this.stageT`, never `this.now`.**
 - **Enemy health** = base × `stage.hpBonus` (1.1 in Stage 1) × (1 + stageT / `stage.hpGrowth` (180 in Stage 1)). Elites and bosses use flat health. Other per-stage dials: `spawnRate`, `dmg`, `dough`.
-- **Stages:** `GameScene` reads everything stage-specific from `this.stage` (a `StageDef`). A stage with `built: false` shows on the stage picker as "Coming soon" and can't be picked. Stages 2 and 3 borrow Stage 1's cast until M6 and M9 build them. A stage unlocks when the one in `unlockAfter` has been cleared (`progress.ts`).
+- **Stages:** `GameScene` reads everything stage-specific from `this.stage` (a `StageDef`). A stage with `built: false` shows on the stage picker as "Coming soon" and can't be picked. Stage 3 borrows Stage 1's cast until M9 builds it. Until M6 part 2, the Freezer borrows Stage 1's elite, mini-boss, boss and music. A stage unlocks when the one in `unlockAfter` has been cleared (`progress.ts`). Builds made with `VITE_PREVIEW=1` (the preview artifact) open every built stage; the live build does not.
+- **Freezer hazards** (stage flags `ice`, `frost`, `mug`): ice patches are seeded per floor chunk and make the bagel slide (velocity smoothing). Standing still for 2s builds frost over 2s, then the bagel is frozen (slowed) until it moves. Enemies ignore ice. The Warm Mug pickup heals 10, clears frost and gives 5s immunity.
+- **Enemy behavior** comes from `ai` on the enemy's def (`line`, `charge`, `shoot`), plus `split` and `burst` for death effects, so new stage casts reuse it without new code.
 - **Sticky Bun:** pickup kind `'bun'`. Touching it pulls every seed and coin to you.
   - Drops: the Croissant always drops one. In Full Runs only, the last Giant Mold before the boss drops a second.
   - It lands on the far side of the boss, never drifts toward you, gets an edge arrow, and is saved in the snapshot.
@@ -90,7 +92,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 ## Preview artifact (playable link for the owner)
 
-1. Run `npm run build`.
+1. Run `VITE_PREVIEW=1 npm run build` (opens every built stage for testing).
 2. Inline `dist/assets/index-*.js` into the single-file `everything-bagel.html`: replace the one `<script>` body, escaping `</script`.
 3. Republish it to the **same** artifact URL so the owner's link stays valid: https://claude.ai/artifact/DCNqaxNKwwiiFz9dYn7A4f (version 12 as of step 7).
 4. If the HTML file is gone (a new container), fetch the published file with the Artifact tool and reuse it as the template.

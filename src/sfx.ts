@@ -6,7 +6,8 @@ import { load, persist } from './save';
 export type Sfx =
   | 'hit' | 'kill' | 'xp' | 'level' | 'chest' | 'hurt' | 'boss' | 'pin' | 'splash' | 'click' | 'buy'
   | 'shoot' | 'lox' | 'storm' | 'crunch' | 'splat' | 'clatter' | 'pop' | 'basket' | 'gold' | 'evolve'
-  | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin';
+  | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin'
+  | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -19,6 +20,7 @@ const minGap: Record<Sfx, number> = {
   hit: 0.045, kill: 0.04, xp: 0.035, level: 0.2, chest: 0.3, hurt: 0.15, boss: 1, pin: 0.1, splash: 0.1, click: 0.03, buy: 0.15,
   shoot: 0.09, lox: 0.25, storm: 2.6, crunch: 0.05, splat: 0.06, clatter: 0.07, pop: 0.12, basket: 0.3, gold: 0.3, evolve: 1,
   heart: 0.85, ding: 0.5, flakes: 0.5, swoosh: 0.12, lock: 0.2, coin: 0.08,
+  ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06,
 };
 /** Sounds that may be dropped when too many play at once. */
 const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true };
@@ -255,6 +257,25 @@ export function sfx(name: Sfx): void {
       break;
     case 'swoosh':
       noise(0.16, 0.14, 600, { type: 'bandpass', freq1: 3000 });
+      break;
+    case 'ice': // stepping onto ice: a soft crunch and a glassy tick
+      noise(0.09, 0.18, 4200, { type: 'bandpass' });
+      tone('sine', 2400, 2900, 0.06, 0.05, 0.02);
+      break;
+    case 'frost': // frost creeping in: a crackle
+      for (let i = 0; i < 6; i++) noise(0.03, 0.12, 5000 + Math.random() * 3000, { type: 'highpass', delay: i * 0.05 });
+      tone('sine', 1760, 1320, 0.3, 0.04);
+      break;
+    case 'sip': // Warm Mug
+      tone('sine', 300, 520, 0.16, 0.2);
+      tone('triangle', 660, 990, 0.2, 0.1, 0.1);
+      break;
+    case 'pea': // Pea Pod shot: a little pop
+      tone('sine', 700, 260, 0.08, 0.16);
+      break;
+    case 'shatter': // ice cubes and popsicles breaking
+      noise(0.1, 0.22, 5200, { type: 'highpass' });
+      tone('triangle', 2200 + Math.random() * 400, 1400, 0.07, 0.07);
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);

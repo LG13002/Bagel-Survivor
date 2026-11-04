@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
-import { COUNTER_PROPS, drawButcherBlock, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
+import { COUNTER_PROPS, FREEZER_PROPS, drawButcherBlock, drawFreezerFloor, drawStageThumb } from './floors';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -37,13 +37,17 @@ export function makeTextures(scene: Phaser.Scene): void {
 
   // Stage floors (256 × 256, seamless). 'floor' is used behind the menus.
   ctex(scene, 'floor_stage1', 256, 256, (c) => drawButcherBlock(c, 256));
+  ctex(scene, 'floor_stage2', 256, 256, (c) => drawFreezerFloor(c, 256));
   ctex(scene, 'floor', 256, 256, (c) => drawButcherBlock(c, 256));
+  ctex(scene, 'ice_patch', 200, 120, (c) => drawIcePatch(c, 200, 120));
+  ctex(scene, 'twinkle', 12, 12, (c) => drawTwinkle(c, 12));
   // Stage pictures for the stage cards (big) and the menu's stage button (small).
   for (const id of ['stage1', 'stage2', 'stage3']) {
     ctex(scene, `thumb_${id}`, 120, 76, (c) => drawStageThumb(c, id, 120, 76));
     ctex(scene, `thumb_${id}_sm`, 40, 30, (c) => drawStageThumb(c, id, 40, 30));
   }
   // Countertop props, scattered over the floor by GameScene.
+  for (const p of FREEZER_PROPS) ctex(scene, p.key, p.w, p.h, (c) => p.draw(c, p.w, p.h));
   for (const p of COUNTER_PROPS) ctex(scene, p.key, p.w, p.h, (c) => p.draw(c, p.w, p.h));
 
   // Enemies: dark bodies with red eyes so they never read as loot.
@@ -55,6 +59,15 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'en_ant', 20, 14, (c) => drawAnt(c, 20, 14));
   ctex(scene, 'en_croissant', 72, 56, (c) => drawCroissant(c, 72, 56));
   ctex(scene, 'en_toaster', 84, 76, (c) => drawToaster(c, 84, 76));
+  // Freezer enemies
+  ctex(scene, 'en_fcrumb', 24, 26, (c) => drawFrostCrumb(c, 12, 14, 10));
+  ctex(scene, 'en_icecube', 30, 30, (c) => drawIceCube(c, 15, 15, 12.5));
+  ctex(scene, 'en_peapod', 30, 26, (c) => drawPeaPod(c, 14, 14, 11.5));
+  ctex(scene, 'en_popsicle', 24, 34, (c) => drawPopsicle(c, 24, 34));
+  ctex(scene, 'en_pophalf', 20, 22, (c) => drawPopsicle(c, 20, 22, 1));
+  ctex(scene, 'en_fmold', 40, 40, (c) => drawMold(c, 20, 20, 17, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
+  ctex(scene, 'en_fmoldling', 24, 24, (c) => drawMold(c, 12, 12, 10, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
+  ctex(scene, 'en_sprinkle', 18, 18, (c) => drawSprinkleFlake(c, 18));
 
   // Player projectiles
   ctex(scene, 'seed', 10, 10, (c) => drawSesame(c, 5, 5, 3.9, 2.5));
@@ -68,6 +81,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   // Enemy projectiles
   ctex(scene, 'flake', 12, 12, (c) => drawFlake(c, 12));
   ctex(scene, 'toast', 18, 18, (c) => drawToast(c, 18));
+  ctex(scene, 'pea', 16, 16, (c) => drawPea(c, 16));
 
   // Pickups: bright and glowing so they never read as enemies.
   ctex(scene, 'gem1', 16, 16, (c) => drawGem(c, 16, 8, '#45d9f3', '#e6fbff', '#1b6f86'));
@@ -78,6 +92,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'chest', 30, 26, (c) => drawBasket(c, 30, 26));
   ctex(scene, 'goldchest', 30, 28, (c) => drawGoldToaster(c, 30, 28));
   ctex(scene, 'bun', 38, 38, (c) => drawStickyBun(c, 38));
+  ctex(scene, 'mug', 36, 36, (c) => drawWarmMug(c, 36));
   tex(scene, 'dot', 8, 8, (g) => {
     g.fillStyle(0xffffff).fillCircle(4, 4, 4);
   });
