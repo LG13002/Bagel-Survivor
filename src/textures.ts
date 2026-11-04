@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { S } from './config';
+import { drawBakingSheet, drawCountertop, drawKitchenFloor } from './floors';
 import { ICONS, ctex, drawBakeryFloor, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
@@ -29,6 +30,9 @@ export function makeTextures(scene: Phaser.Scene): void {
   // Stage floors (256 × 256, seamless). 'floor' is used behind the menus.
   ctex(scene, 'floor_stage1', 256, 256, (c) => drawBakeryFloor(c, 256));
   ctex(scene, 'floor', 256, 256, (c) => drawBakeryFloor(c, 256));
+  ctex(scene, 'floor_counter', 512, 512, (c) => drawCountertop(c, 512));
+  ctex(scene, 'floor_kitchen', 512, 512, (c) => drawKitchenFloor(c, 512));
+  ctex(scene, 'floor_tray', 512, 512, (c) => drawBakingSheet(c, 512));
 
   // Enemies: dark bodies with red eyes so they never read as loot.
   ctex(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));

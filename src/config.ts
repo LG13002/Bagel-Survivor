@@ -38,6 +38,8 @@ export const DEBUG = {
   speed: Math.max(1, Math.min(20, Number(params.get('speed')) || 1)),
   god: params.has('god'),
   start: Number(params.get('t')) || 0,
+  /** Preview a candidate stage background, e.g. ?floor=counter */
+  floor: params.get('floor'),
 };
 
 export function fmtTime(sec: number): string {

@@ -202,7 +202,7 @@ export class GameScene extends Phaser.Scene implements World {
     cam.ignore(this.uiLayer);
     this.uiCam.ignore(this.worldLayer);
 
-    this.floor = this.add.tileSprite(0, 0, 10, 10, STAGES[0].floor);
+    this.floor = this.add.tileSprite(0, 0, 10, 10, DEBUG.floor ? `floor_${DEBUG.floor}` : STAGES[0].floor);
     this.floor.setTileScale(1 / S).setDepth(0);
     this.worldLayer.add(this.floor);
     // Soft contact shadows under everything that stands on the floor, redrawn each frame.
@@ -658,7 +658,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.hpBg.setPosition(p.x, p.y + 22);
     this.hpFill.setPosition(p.x - 15, p.y + 22).setSize(30 * Math.max(0, p.hp / p.maxHp), 4);
     this.cameras.main.centerOn(p.x, p.y);
-    this.floor.setPosition(Math.round(p.x / 256) * 256, Math.round(p.y / 256) * 256);
+    this.floor.setPosition(Math.round(p.x / 512) * 512, Math.round(p.y / 512) * 512);
     this.updateHud();
     this.drawArrows();
     this.drawShadows();
@@ -1329,7 +1329,7 @@ export class GameScene extends Phaser.Scene implements World {
     const W = this.scale.width;
     const H = this.scale.height;
     this.uiCam?.setSize(W, H);
-    this.floor?.setSize(W / S + 640, H / S + 640);
+    this.floor?.setSize(W / S + 1100, H / S + 1100);
     if (!this.hud) return;
     const top = safeInsets().top * S;
     const h = this.hud;
