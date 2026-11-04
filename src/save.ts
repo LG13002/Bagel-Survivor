@@ -8,6 +8,7 @@ export interface SaveData {
   totalKills: number;
   clears: number;
   sound?: boolean;
+  music?: boolean;
   practice?: boolean;
   noHealClear?: boolean;
   /** Per bagel, per stage best runs, keyed 'stage:bagel'. */

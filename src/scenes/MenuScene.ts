@@ -6,7 +6,8 @@ import { clearRun, loadRun } from '../runsave';
 import { getBest, load, persist } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
-import { setSound, sfx, soundOn, unlockAudio } from '../sfx';
+import { musicOn, setMusic, setSound, sfx, soundOn, unlockAudio } from '../sfx';
+import { playMusic } from '../music';
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
@@ -21,6 +22,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     makeTextures(this);
+    playMusic('menu');
     const save = load();
     this.idx = Math.max(0, BAGELS.findIndex((b) => b.id === save.selected));
     this.build();
@@ -123,6 +125,8 @@ export class MenuScene extends Phaser.Scene {
         persist();
       }
       this.slideFrom = d;
+      sfx('swoosh');
+      if (!save.unlocked.includes(BAGELS[this.idx].id)) sfx('lock');
       this.build();
     };
     const dots = this.add.graphics();
@@ -163,13 +167,13 @@ export class MenuScene extends Phaser.Scene {
 
     // Buttons
     const playY = bottom - 150 * S;
-    const tw = Math.min((W - 72 * S) / 2, 134 * S);
+    const tw = Math.min((Math.min(W - 60 * S, 300 * S) - 16 * S) / 3, 100 * S);
     const toggle = (x: number, label: () => string, flip: () => void) => {
       const b = button(this, x, playY - 66 * S, tw, 40 * S, label(), () => {
         unlockAudio();
         flip();
         (b.getData('label') as Phaser.GameObjects.Text).setText(label());
-      }, { color: COLORS.panel, textColor: CSS.cream, size: 14, radius: 10 });
+      }, { color: COLORS.panel, textColor: CSS.cream, size: 13, radius: 10 });
       c.add(b);
     };
     const saved = loadRun();
@@ -182,11 +186,12 @@ export class MenuScene extends Phaser.Scene {
       }, { color: COLORS.green, textColor: CSS.dark, size: 16, radius: 12 });
       c.add(rb);
     } else {
-      toggle(W / 2 - tw / 2 - 6 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
+      toggle(W / 2 - tw - 8 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
         save.practice = !save.practice;
         persist();
       });
-      toggle(W / 2 + tw / 2 + 6 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
+      toggle(W / 2, () => `Music: ${musicOn() ? 'On' : 'Off'}`, () => setMusic(!musicOn()));
+      toggle(W / 2 + tw + 8 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
     }
     const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
       if (locked) return;
@@ -357,6 +362,7 @@ export class MenuScene extends Phaser.Scene {
                 shown = Math.round(tw.getValue() ?? save.dough);
                 setWallet(shown);
               },
+              onComplete: () => sfx('coin'),
             });
             for (const r of refreshers) r();
           }, { size: 18, icon: 'coin', muted: !afford });
