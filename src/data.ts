@@ -93,6 +93,15 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   glaze: { id: 'glaze', name: 'Glaze', icon: 'ic_glaze', blurb: '+7% move speed' },
 };
 
+export interface StageDef {
+  id: string;
+  name: string;
+  floor: string; // tiling texture, 256 × 256
+}
+
+// Stage 2 (the freezer) and beyond slot in here later.
+export const STAGES: StageDef[] = [{ id: 'stage1', name: 'The Bakery', floor: 'floor_stage1' }];
+
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 

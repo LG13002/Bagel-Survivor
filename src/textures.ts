@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { S } from './config';
-import { ICONS, ctex, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
+import { ICONS, ctex, drawBakeryFloor, drawBasket, drawGoldToaster, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -12,15 +12,6 @@ function tex(scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G
   draw(g);
   g.generateTexture(key, Math.ceil(w * S), Math.ceil(h * S));
   g.destroy();
-}
-
-// Deterministic pseudo-random so textures look the same every load.
-function rng(seed: number): () => number {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
 
 export function makeTextures(scene: Phaser.Scene): void {
@@ -35,14 +26,9 @@ export function makeTextures(scene: Phaser.Scene): void {
   bagelTex('bagel_onion', { ...golden, seeds: ['#f6e6b6', '#8a5a2a', '#dcbb72'], seedCount: 26, seedSize: 1.45 });
   ctex(scene, 'mine', 10, 10, (c) => drawMine(c, 10));
 
-  tex(scene, 'floor', 64, 64, (g) => {
-    g.fillStyle(0x6e5a48).fillRect(0, 0, 64, 64);
-    g.fillStyle(0x76614e).fillRect(0, 0, 32, 32).fillRect(32, 32, 32, 32);
-    g.lineStyle(1.5, 0x5a4939).strokeRect(0, 0, 32, 32).strokeRect(32, 32, 32, 32).strokeRect(32, 0, 32, 32).strokeRect(0, 32, 32, 32);
-    const r = rng(3);
-    g.fillStyle(0x5f4d3d, 0.6);
-    for (let i = 0; i < 6; i++) g.fillCircle(r() * 64, r() * 64, 0.8 + r());
-  });
+  // Stage floors (256 × 256, seamless). 'floor' is used behind the menus.
+  ctex(scene, 'floor_stage1', 256, 256, (c) => drawBakeryFloor(c, 256));
+  ctex(scene, 'floor', 256, 256, (c) => drawBakeryFloor(c, 256));
 
   // Enemies: dark bodies with red eyes so they never read as loot.
   ctex(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));

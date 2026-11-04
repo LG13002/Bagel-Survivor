@@ -13,6 +13,7 @@ import {
   type EnemyKind,
   type ToppingId,
   type WeaponId,
+  STAGES,
 } from '../data';
 import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } from '../entities';
 import { load, persist, recordBest } from '../save';
@@ -118,6 +119,7 @@ export class GameScene extends Phaser.Scene implements World {
   private joyVec = { x: 0, y: 0 };
   private joyGfx!: Phaser.GameObjects.Graphics;
   private arrowGfx!: Phaser.GameObjects.Graphics;
+  private shadowGfx!: Phaser.GameObjects.Graphics;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
 
   constructor() {
@@ -200,9 +202,12 @@ export class GameScene extends Phaser.Scene implements World {
     cam.ignore(this.uiLayer);
     this.uiCam.ignore(this.worldLayer);
 
-    this.floor = this.add.tileSprite(0, 0, 10, 10, 'floor');
+    this.floor = this.add.tileSprite(0, 0, 10, 10, STAGES[0].floor);
     this.floor.setTileScale(1 / S).setDepth(0);
     this.worldLayer.add(this.floor);
+    // Soft contact shadows under everything that stands on the floor, redrawn each frame.
+    this.shadowGfx = this.add.graphics().setDepth(2);
+    this.worldLayer.add(this.shadowGfx);
 
     this.player.sprite = this.img(this.bagel.tex, 0, 0, 50);
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
@@ -653,9 +658,30 @@ export class GameScene extends Phaser.Scene implements World {
     this.hpBg.setPosition(p.x, p.y + 22);
     this.hpFill.setPosition(p.x - 15, p.y + 22).setSize(30 * Math.max(0, p.hp / p.maxHp), 4);
     this.cameras.main.centerOn(p.x, p.y);
-    this.floor.setPosition(Math.round(p.x / 64) * 64, Math.round(p.y / 64) * 64);
+    this.floor.setPosition(Math.round(p.x / 256) * 256, Math.round(p.y / 256) * 256);
     this.updateHud();
     this.drawArrows();
+    this.drawShadows();
+  }
+
+  private drawShadows(): void {
+    const g = this.shadowGfx;
+    g.clear();
+    const p = this.player;
+    const hw = this.scale.width / S / 2 + 60;
+    const hh = this.scale.height / S / 2 + 60;
+    g.fillStyle(0x1a0f08, 0.28);
+    g.fillEllipse(p.x, p.y + 15, 28, 8);
+    for (const e of this.enemies) {
+      if (!e.alive || Math.abs(e.x - p.x) > hw || Math.abs(e.y - p.y) > hh) continue;
+      if (e.kind === 'knife') continue; // knives fly, no shadow
+      const r = e.radius;
+      g.fillEllipse(e.x, e.y + r * 0.85, r * 2, r * 0.6);
+    }
+    for (const it of this.pickups) {
+      if (it.kind !== 'chest' && it.kind !== 'goldchest') continue;
+      g.fillEllipse(it.x, it.y + 12, 24, 6);
+    }
   }
 
   // ---------------------------------------------------------------- Director
@@ -784,6 +810,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (!special && this.enemies.length >= RUN.maxEnemies + 40) return null;
     const e = this.pool.pop() ?? new Enemy();
     if (!e.sprite) e.sprite = this.img(def.tex, x, y, 30);
+    e.phase = Math.random() * Math.PI * 2;
     e.sprite.setTexture(def.tex).setVisible(true).setAlpha(1).setRotation(0).setFlipX(false);
     e.sprite.clearTint();
     const isBig = def.radius > 20;
@@ -914,6 +941,8 @@ export class GameScene extends Phaser.Scene implements World {
           break;
         default:
           if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
+          // Waddle while walking.
+          e.sprite.setRotation(Math.sin(t * 9 + e.phase) * 0.12);
       }
 
       e.x += (mvx + e.kx) * dt;
@@ -1300,7 +1329,7 @@ export class GameScene extends Phaser.Scene implements World {
     const W = this.scale.width;
     const H = this.scale.height;
     this.uiCam?.setSize(W, H);
-    this.floor?.setSize(W / S + 256, H / S + 256);
+    this.floor?.setSize(W / S + 640, H / S + 640);
     if (!this.hud) return;
     const top = safeInsets().top * S;
     const h = this.hud;
@@ -1614,8 +1643,8 @@ export class GameScene extends Phaser.Scene implements World {
       const info = this.describe(pick);
       this.applyChoice(pick);
       got.push(`${info.name} ${info.tag.startsWith('LV') ? info.tag.replace('LV', 'Lv') : '(new)'}`);
-      if (!evo && i === 0) icon = info.icon;
     }
+    if (!evo) icon = gold ? 'goldchest' : 'chest';
     if (!evo && !got.length) {
       this.player.hp = this.stats.maxHp;
       got.push('Fully healed!');

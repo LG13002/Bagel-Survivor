@@ -4,6 +4,8 @@ import type { EnemyKind } from './data';
 export class Enemy {
   sprite!: Phaser.GameObjects.Image;
   kind: EnemyKind = 'crumb';
+  /** Random offset so enemies don't waddle in sync. */
+  phase = 0;
   x = 0;
   y = 0;
   hp = 1;
