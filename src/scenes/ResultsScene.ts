@@ -45,7 +45,7 @@ export class ResultsScene extends Phaser.Scene {
     this.add.image(W / 2, top + 104 * S, (BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain') + '_big').setScale(0.5).setAngle(r.victory ? 0 : 160);
 
     if (r.newBest) {
-      const nb = txt(this, W / 2 + Math.min(pw / 2 - 64 * S, 110 * S), top + 96 * S, 'NEW BEST!', 17, CSS.gold).setAngle(-12);
+      const nb = txt(this, W / 2 + Math.min(pw / 2 - 64 * S, 110 * S), top + 96 * S, r.quick ? 'NEW QUICK BEST!' : 'NEW BEST!', r.quick ? 14 : 17, CSS.gold).setAngle(-12);
       this.tweens.add({ targets: nb, scale: 1.12, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
 
@@ -71,7 +71,7 @@ export class ResultsScene extends Phaser.Scene {
     txt(this, W / 2, top + (compact ? 335 : 375) * S, notes.slice(0, compact ? 2 : 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
 
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
-    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, practice: r.practice }), { size: 28 });
+    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, practice: r.practice, quick: r.quick }), { size: 28 });
     button(this, W / 2, by + 74 * S, Math.min(W - 60 * S, 260 * S), 50 * S, 'Menu', () => this.go('menu', {}), {
       color: COLORS.panelLight,
       textColor: CSS.cream,

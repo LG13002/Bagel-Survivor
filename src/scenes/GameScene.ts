@@ -18,7 +18,7 @@ import {
   STAGES,
 } from '../data';
 import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } from '../entities';
-import { load, persist, recordBest } from '../save';
+import { QUICK_STAGE, STAGE, load, persist, recordBest } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
@@ -37,6 +37,7 @@ interface Choice {
 export interface RunResult {
   victory: boolean;
   practice: boolean;
+  quick: boolean;
   time: number;
   level: number;
   kills: number;
@@ -52,6 +53,10 @@ const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = { crumb: 'crunch', ant: 'crunc
 /** Practice runs start at 2:30 with a head start of level-ups. */
 const PRACTICE_START = 150;
 const PRACTICE_LEVELS = 12;
+/** Quick Run: the full run's schedule plays this much faster (5:00 squeezed into 3:00). */
+const QUICK_PACE = 5 / 3;
+const QUICK_XP = 1.6;
+const QUICK_DOUGH = 0.75;
 
 export class GameScene extends Phaser.Scene implements World {
   player = new Player();
@@ -108,6 +113,7 @@ export class GameScene extends Phaser.Scene implements World {
     badge: Phaser.GameObjects.Graphics;
     level: Phaser.GameObjects.Text;
     timer: Phaser.GameObjects.Text;
+    quickBadge: Phaser.GameObjects.Container;
     kills: Phaser.GameObjects.Container;
     pause: Phaser.GameObjects.Container;
     build: Phaser.GameObjects.Container;
@@ -138,6 +144,9 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private practice = false;
+  private quick = false;
+  /** Stage-schedule speed: 1 for a full run, QUICK_PACE for a Quick Run. */
+  private pace = 1;
   private resume: RunSnapshot | null = null;
   private healsTaken = 0;
   private raisinKills = 0;
@@ -147,13 +156,20 @@ export class GameScene extends Phaser.Scene implements World {
   private auraT = 0;
   private snapT = 0;
 
-  init(data: { bagel?: string; practice?: boolean; resume?: boolean }): void {
+  /** Where we are on the full run's schedule (the clock the director and music follow). */
+  private get stageT(): number {
+    return this.now * this.pace;
+  }
+
+  init(data: { bagel?: string; practice?: boolean; quick?: boolean; resume?: boolean }): void {
     this.resume = data.resume ? loadRun() : null;
     if (this.resume) {
-      data = { bagel: this.resume.bagel, practice: this.resume.practice };
+      data = { bagel: this.resume.bagel, practice: this.resume.practice, quick: !!this.resume.quick };
     }
     this.bagel = BAGELS.find((b) => b.id === data.bagel) ?? BAGELS[0];
     this.practice = !!data.practice;
+    this.quick = !!data.quick;
+    this.pace = this.quick ? QUICK_PACE : 1;
     this.healsTaken = 0;
     this.raisinKills = 0;
     this.mines = [];
@@ -162,7 +178,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.auraT = 0;
     this.snapT = 0;
     this.player = new Player();
-    this.now = this.practice ? PRACTICE_START : DEBUG.start;
+    this.now = (this.practice ? PRACTICE_START : DEBUG.start) / this.pace;
     this.enemies = [];
     this.bigs = [];
     this.pool = [];
@@ -186,10 +202,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.evolutionsThisRun = [];
     this.miniKilled = false;
     this.spawnT = 0.5;
-    this.nextWave = Math.max(RUN.miniBossAt, this.now + 20);
-    this.nextAnts = Math.max(RUN.antsFrom, this.now + 10);
-    this.nextElite = Math.max(RUN.eliteAt, Math.ceil(this.now / RUN.eliteEvery) * RUN.eliteEvery);
-    this.miniSpawned = this.now > RUN.miniBossAt;
+    const st = this.stageT;
+    this.nextWave = Math.max(RUN.miniBossAt, st + 20);
+    this.nextAnts = Math.max(RUN.antsFrom, st + 10);
+    this.nextElite = Math.max(RUN.eliteAt, Math.ceil(st / RUN.eliteEvery) * RUN.eliteEvery);
+    this.miniSpawned = st > RUN.miniBossAt;
     this.bossSpawned = false;
     this.boss = null;
     this.mini = null;
@@ -493,7 +510,7 @@ export class GameScene extends Phaser.Scene implements World {
     const boss = this.bigs.some((e) => e.alive && (e.kind === 'croissant' || e.kind === 'toaster'));
     playMusic(boss ? 'boss' : 'run');
     // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
-    setRunIntensity(this.now >= 120 ? 2 : this.now >= 60 ? 1 : 0, this.now >= 180 ? 1.08 : 1);
+    setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, this.stageT >= 180 ? 1.08 : 1);
     if (this.player.hp > 0 && this.player.hp / this.stats.maxHp < 0.25) sfx('heart');
   }
 
@@ -571,6 +588,7 @@ export class GameScene extends Phaser.Scene implements World {
       savedAt: Date.now(),
       bagel: this.bagel.id,
       practice: this.practice,
+      quick: this.quick,
       now: this.now,
       level: this.level,
       xp: this.xp,
@@ -804,7 +822,7 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private director(dt: number): void {
-    const t = this.now;
+    const t = this.stageT;
     const hpMult = 1 + t / 180;
     let interval = Math.max(0.1, 0.7 - t * 0.0018);
     if (this.boss) interval *= 4;
@@ -1380,7 +1398,7 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private gainXp(v: number): void {
-    this.xp += v;
+    this.xp += v * (this.quick ? QUICK_XP : 1);
     while (this.xp >= this.xpNext) {
       this.xp -= this.xpNext;
       this.level++;
@@ -1396,13 +1414,14 @@ export class GameScene extends Phaser.Scene implements World {
     const badge = this.ui(this.add.graphics());
     const level = this.ui(txt(this, 0, 0, '1', 17, CSS.dark, { stroke: false }));
     const timer = this.ui(txt(this, 0, 0, '0:00', 26));
+    const quickBadge = this.ui(pill(this, 0, 0, 'ic_bolt', 'QUICK', { size: 11, h: 22, color: CSS.gold }).setVisible(this.quick));
     const kills = this.ui(pill(this, 0, 0, 'en_crumb', '0', { size: 14, h: 28 }));
     const pause = this.ui(button(this, 0, 0, 36 * S, 36 * S, 'II', () => this.openPause(), { color: COLORS.panelLight, textColor: CSS.cream, size: 16, radius: 11 }));
     const build = this.ui(this.add.container(0, 0));
     const bossName = this.ui(txt(this, 0, 0, '', 14, CSS.gold).setVisible(false));
     const bossBg = this.ui(this.add.rectangle(0, 0, 10, 10, 0x1d140d).setVisible(false));
     const bossFill = this.ui(this.add.rectangle(0, 0, 10, 10, COLORS.red).setOrigin(0, 0.5).setVisible(false));
-    this.hud = { xpBar, badge, level, timer, kills, pause, build, bossName, bossBg, bossFill };
+    this.hud = { xpBar, badge, level, timer, quickBadge, kills, pause, build, bossName, bossBg, bossFill };
     this.buildSig = '';
     this.xpShown = 0;
   }
@@ -1428,6 +1447,7 @@ export class GameScene extends Phaser.Scene implements World {
     h.xpBar.setPosition(pad + 34 * S, row1);
     this.drawXpBar();
     h.timer.setPosition(W / 2, top + 60 * S);
+    h.quickBadge.setPosition(W / 2 + 46 * S + h.quickBadge.width / 2, top + 60 * S);
     h.kills.setPosition(pad + h.kills.width / 2, top + 60 * S);
     h.build.setPosition(pad, top + 90 * S);
     h.bossName.setPosition(W / 2, top + 140 * S);
@@ -1872,7 +1892,7 @@ export class GameScene extends Phaser.Scene implements World {
     const ph = 470 * S;
     const top = H / 2 - ph / 2;
     c.add(panel(this, W / 2, H / 2, pw, ph));
-    c.add(txt(this, W / 2, top + 36 * S, this.practice ? 'PAUSED (PRACTICE)' : 'PAUSED', 26, CSS.gold));
+    c.add(txt(this, W / 2, top + 36 * S, this.practice ? 'PAUSED (PRACTICE)' : this.quick ? 'PAUSED (QUICK)' : 'PAUSED', 26, CSS.gold));
 
     // Run so far
     const stats = [
@@ -1947,10 +1967,11 @@ export class GameScene extends Phaser.Scene implements World {
 
   /** Dough this run is worth so far (the same formula endRun pays out). */
   private runDough(victory: boolean): number {
-    let dough = Math.round((this.now / 60) * 10 + this.kills / 60 + this.coins);
+    // Quick Runs count time on the full-run schedule, then pay about 75% of a full run.
+    let dough = (this.stageT / 60) * 10 + this.kills / 60 + this.coins;
     if (this.miniKilled) dough += 10;
     if (victory) dough += 40;
-    return dough;
+    return Math.round(dough * (this.quick ? QUICK_DOUGH : 1));
   }
 
   // ---------------------------------------------------------------- End
@@ -1967,18 +1988,20 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.practice) dough = 0;
     save.dough += dough;
     save.totalKills += this.kills;
-    if (!this.practice) save.bestTime = Math.max(save.bestTime, Math.floor(this.now));
+    // A Quick Run clear counts as surviving 3:00 for unlock goals.
+    if (!this.practice) save.bestTime = Math.max(save.bestTime, Math.floor(this.now), this.quick && victory ? 180 : 0);
     clearRun();
     if (victory && !this.practice) {
       save.clears++;
       if (this.healsTaken === 0) save.noHealClear = true;
     }
     const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
-    const newBest = !this.practice && recordBest(save, this.bagel.id, { time: Math.floor(this.now), kills: this.kills, cleared: victory });
+    const newBest = !this.practice && recordBest(save, this.bagel.id, { time: Math.floor(this.now), kills: this.kills, cleared: victory }, this.quick ? QUICK_STAGE : STAGE);
     persist();
     const result: RunResult = {
       victory,
       practice: this.practice,
+      quick: this.quick,
       time: this.now,
       level: this.level,
       kills: this.kills,
