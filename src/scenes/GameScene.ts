@@ -787,9 +787,7 @@ export class GameScene extends Phaser.Scene implements World {
     e.sprite.setTexture(def.tex).setVisible(true).setAlpha(1).setRotation(0).setFlipX(false);
     e.sprite.clearTint();
     const isBig = def.radius > 20;
-    const scale = kind === 'elite' ? 2 : 1;
-    e.sprite.setScale(scale / S).setDepth(isBig ? 35 : 30);
-    if (kind === 'elite') e.sprite.setTint(0xb6e07a);
+    e.sprite.setScale(1 / S).setDepth(isBig ? 35 : 30);
     e.kind = kind;
     e.x = x;
     e.y = y;
@@ -810,7 +808,6 @@ export class GameScene extends Phaser.Scene implements World {
     e.attackT = 1.5;
     e.attack2T = 0;
     e.hitCd.clear();
-    e.sprite.setData('tinted', kind === 'elite');
     this.enemies.push(e);
     if (isBig) this.bigs.push(e);
     return e;
@@ -980,7 +977,6 @@ export class GameScene extends Phaser.Scene implements World {
       if (flashing !== e.sprite.getData('flash')) {
         e.sprite.setData('flash', flashing);
         if (flashing) e.sprite.setTintFill(0xffffff);
-        else if (e.sprite.getData('tinted')) e.sprite.setTint(0xb6e07a);
         else e.sprite.clearTint();
       }
       if (this.paused === 'over') return;

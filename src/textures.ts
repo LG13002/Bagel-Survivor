@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { S } from './config';
+import { ctex, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -22,67 +23,16 @@ function rng(seed: number): () => number {
   };
 }
 
-function eyes(g: G, x1: number, x2: number, y: number, r: number, angry = false): void {
-  g.fillStyle(0xffffff).fillCircle(x1, y, r).fillCircle(x2, y, r);
-  g.fillStyle(0x1a1a1a).fillCircle(x1 + r * 0.15, y + r * 0.25, r * 0.55).fillCircle(x2 + r * 0.15, y + r * 0.25, r * 0.55);
-  if (angry) {
-    g.lineStyle(r * 0.6, 0x1a1a1a);
-    g.lineBetween(x1 - r, y - r * 1.4, x1 + r, y - r * 0.6);
-    g.lineBetween(x2 + r, y - r * 1.4, x2 - r, y - r * 0.6);
-  }
-}
-
-interface BagelLook {
-  rim: number;
-  top: number;
-  hi: number;
-  seeds?: number[];
-  seedCount?: number;
-  seedSize?: number;
-  swirl?: number;
-}
-
-function bagel(g: G, look: BagelLook): void {
-  const c = 20;
-  g.fillStyle(0x000000, 0.25).fillEllipse(c, c + 15, 30, 8);
-  g.lineStyle(11, look.rim).strokeCircle(c, c, 10.5);
-  g.lineStyle(7, look.top).strokeCircle(c - 0.5, c - 1, 10.5);
-  if (look.swirl !== undefined) {
-    g.lineStyle(1.4, look.swirl, 0.9);
-    for (let i = 0; i < 3; i++) {
-      g.beginPath();
-      g.arc(c, c, 8.5 + i * 2.6, Math.PI * (0.2 + i * 0.7), Math.PI * (1.0 + i * 0.7));
-      g.strokePath();
-    }
-  }
-  g.lineStyle(2.5, look.hi);
-  g.beginPath();
-  g.arc(c, c, 12, Math.PI * 1.1, Math.PI * 1.65);
-  g.strokePath();
-  if (look.seeds) {
-    const r = rng(7);
-    const n = look.seedCount ?? 26;
-    const sz = look.seedSize ?? 1;
-    for (let i = 0; i < n; i++) {
-      const a = r() * Math.PI * 2;
-      const d = 7 + r() * 8;
-      g.fillStyle(look.seeds[i % look.seeds.length]);
-      g.fillEllipse(c + Math.cos(a) * d, c + Math.sin(a) * d, 2.2 * sz, 1.3 * sz);
-    }
-  }
-  eyes(g, c - 5, c + 5, c - 10.5, 3.4);
-}
-
 export function makeTextures(scene: Phaser.Scene): void {
-  const golden = { rim: 0xb8742f, top: 0xe0a458, hi: 0xf6cf8a };
-  tex(scene, 'bagel_plain', 40, 40, (g) => bagel(g, golden));
-  tex(scene, 'bagel_everything', 40, 40, (g) => bagel(g, { ...golden, seeds: [0x222222, 0xf6efd9, 0x5a3b1c, 0xe9d8a6] }));
-  tex(scene, 'bagel_poppy', 40, 40, (g) => bagel(g, { ...golden, seeds: [0x1b1f2e, 0x2c3248], seedCount: 70, seedSize: 0.8 }));
-  tex(scene, 'bagel_cinnamon', 40, 40, (g) =>
-    bagel(g, { rim: 0x7a4320, top: 0xa0602e, hi: 0xd09a62, swirl: 0x5a2f14, seeds: [0x3d1f2b, 0x5a2a3a], seedCount: 9, seedSize: 1.7 }),
-  );
-  tex(scene, 'bagel_pumpernickel', 40, 40, (g) => bagel(g, { rim: 0x24140c, top: 0x452819, hi: 0x6e4630 }));
-  tex(scene, 'bagel_onion', 40, 40, (g) => bagel(g, { ...golden, seeds: [0xf3e2b0, 0x8a5a2a, 0xd9b870], seedCount: 22, seedSize: 1.5 }));
+  // Bagels (Chunky Cartoon, drawn in art.ts)
+  const golden = { base: '#e3a24c', crust: '#b0642a', hi: '#f8d38c' };
+  const bagelTex = (key: string, look: BagelLook) => ctex(scene, key, 40, 40, (c) => drawBagel(c, 20, 20, 15.5, look));
+  bagelTex('bagel_plain', golden);
+  bagelTex('bagel_everything', { ...golden, seeds: ['#2a1f1a', '#fbf3dc', '#6b4422', '#f0dca2'], seedCount: 34 });
+  bagelTex('bagel_poppy', { ...golden, seeds: ['#1b1f2e', '#323a55'], seedCount: 80, seedSize: 0.75 });
+  bagelTex('bagel_cinnamon', { base: '#a8652f', crust: '#6e3a19', hi: '#d9a068', swirl: '#5a2c12', seeds: ['#3d1f2b', '#5e2c40'], seedCount: 10, seedSize: 1.6 });
+  bagelTex('bagel_pumpernickel', { base: '#5a3622', crust: '#2a160c', hi: '#8f6146' });
+  bagelTex('bagel_onion', { ...golden, seeds: ['#f6e6b6', '#8a5a2a', '#dcbb72'], seedCount: 26, seedSize: 1.45 });
   tex(scene, 'mine', 10, 10, (g) => {
     g.fillStyle(0x1b1f2e).fillEllipse(5, 5, 6, 4);
     g.fillStyle(0x4a5578).fillEllipse(4.4, 4.4, 2.6, 1.4);
@@ -97,82 +47,15 @@ export function makeTextures(scene: Phaser.Scene): void {
     for (let i = 0; i < 6; i++) g.fillCircle(r() * 64, r() * 64, 0.8 + r());
   });
 
-  // Crumb enemy: big, dark and outlined with red eyes so it never reads as loot.
-  tex(scene, 'en_crumb', 24, 24, (g) => {
-    const r = rng(11);
-    const pts: Phaser.Types.Math.Vector2Like[] = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const d = 8 + r() * 3;
-      pts.push({ x: 12 + Math.cos(a) * d, y: 12 + Math.sin(a) * d });
-    }
-    g.fillStyle(0x1a0f08).fillPoints(pts.map((p) => ({ x: 12 + (p.x - 12) * 1.18, y: 12 + (p.y - 12) * 1.18 })), true);
-    g.fillStyle(0x5a3416).fillPoints(pts, true);
-    g.fillStyle(0x7a4a22).fillCircle(10, 10, 4);
-    g.fillStyle(0xff3b2f).fillCircle(8.5, 11, 2.3).fillCircle(15.5, 11, 2.3);
-    g.fillStyle(0xffd23f).fillCircle(8.8, 11.3, 0.9).fillCircle(15.8, 11.3, 0.9);
-    g.lineStyle(1.6, 0x1a0f08).lineBetween(6, 7.5, 11, 9.5).lineBetween(18, 7.5, 13, 9.5);
-  });
-
-  const blob = (g: G, size: number) => {
-    const c = size / 2;
-    const r = size * 0.36;
-    g.fillStyle(0x4f7a2a).fillCircle(c, c + 1, r);
-    g.fillCircle(c - r * 0.7, c + r * 0.3, r * 0.55).fillCircle(c + r * 0.75, c + r * 0.25, r * 0.5).fillCircle(c + r * 0.2, c - r * 0.6, r * 0.55);
-    g.fillStyle(0x76a83e).fillCircle(c - r * 0.2, c - r * 0.1, r * 0.6);
-    g.fillStyle(0x3c5e1f).fillCircle(c + r * 0.4, c + r * 0.5, r * 0.18).fillCircle(c - r * 0.6, c + r * 0.55, r * 0.14);
-    eyes(g, c - r * 0.35, c + r * 0.35, c - r * 0.15, r * 0.24, true);
-  };
-  tex(scene, 'en_mold', 32, 32, (g) => blob(g, 32));
-  tex(scene, 'en_moldling', 22, 22, (g) => blob(g, 22));
-
-  tex(scene, 'en_knife', 40, 14, (g) => {
-    g.fillStyle(0x5b3a22).fillRoundedRect(1, 4, 13, 6, 2);
-    g.fillStyle(0xc7c7c7).fillCircle(5, 7, 0.9).fillCircle(10, 7, 0.9);
-    g.fillStyle(0xdfe5ea).fillPoints([{ x: 14, y: 3 }, { x: 33, y: 4 }, { x: 39, y: 7 }, { x: 33, y: 10 }, { x: 14, y: 10 }], true);
-    g.fillStyle(0xffffff, 0.7).fillRect(15, 4, 17, 1.5);
-    g.fillStyle(0xff3b2f).fillCircle(26, 7, 1.6);
-  });
-
-  tex(scene, 'en_ant', 20, 14, (g) => {
-    g.lineStyle(1, 0x111111);
-    for (const x of [7, 10, 13]) {
-      g.lineBetween(x, 7, x - 2, 1);
-      g.lineBetween(x, 7, x - 2, 13);
-    }
-    g.fillStyle(0x1d1612).fillCircle(4, 7, 3.4).fillCircle(10, 7, 2.6).fillCircle(15.5, 7, 3);
-    g.fillStyle(0xff4d3a).fillCircle(17, 6, 0.9).fillCircle(17, 8, 0.9);
-  });
-
-  tex(scene, 'en_croissant', 72, 56, (g) => {
-    const segs = [
-      { x: 12, y: 36, w: 16, h: 22 },
-      { x: 23, y: 24, w: 18, h: 28 },
-      { x: 36, y: 20, w: 20, h: 32 },
-      { x: 49, y: 24, w: 18, h: 28 },
-      { x: 60, y: 36, w: 16, h: 22 },
-    ];
-    for (const s of segs) {
-      g.fillStyle(0x9c5a1c).fillEllipse(s.x, s.y + 2, s.w, s.h);
-      g.fillStyle(0xd99234).fillEllipse(s.x, s.y, s.w - 2, s.h - 3);
-      g.fillStyle(0xf2bd62).fillEllipse(s.x - 2, s.y - 4, s.w * 0.4, s.h * 0.3);
-    }
-    eyes(g, 31, 41, 22, 4, true);
-  });
-
-  tex(scene, 'en_toaster', 84, 76, (g) => {
-    g.fillStyle(0x000000, 0.3).fillEllipse(42, 70, 70, 10);
-    g.fillStyle(0x7d868f).fillRoundedRect(6, 14, 72, 54, 14);
-    g.fillStyle(0xb9c2ca).fillRoundedRect(8, 14, 68, 50, 13);
-    g.fillStyle(0xdbe2e8).fillRoundedRect(12, 17, 30, 8, 4);
-    g.fillStyle(0x2a2522).fillRoundedRect(20, 10, 18, 8, 3).fillRoundedRect(46, 10, 18, 8, 3);
-    g.fillStyle(0xb0702f).fillRect(22, 6, 14, 6).fillRect(48, 6, 14, 6);
-    g.fillStyle(0x333333).fillRect(76, 34, 6, 12);
-    g.fillStyle(0xff3b1f).fillCircle(30, 40, 6).fillCircle(54, 40, 6);
-    g.fillStyle(0xffd23f).fillCircle(30, 41, 2.5).fillCircle(54, 41, 2.5);
-    g.lineStyle(3.5, 0x1a1a1a).lineBetween(21, 29, 37, 35).lineBetween(63, 29, 47, 35);
-    g.lineStyle(3, 0x1a1a1a).lineBetween(32, 55, 52, 55);
-  });
+  // Enemies: dark bodies with red eyes so they never read as loot.
+  ctex(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));
+  ctex(scene, 'en_mold', 32, 32, (c) => drawMold(c, 16, 16, 14));
+  ctex(scene, 'en_moldling', 22, 22, (c) => drawMold(c, 11, 11, 9.5));
+  ctex(scene, 'en_elite', 64, 64, (c) => drawElite(c, 32, 33, 27));
+  ctex(scene, 'en_knife', 40, 14, (c) => drawKnife(c, 40, 14));
+  ctex(scene, 'en_ant', 20, 14, (c) => drawAnt(c, 20, 14));
+  ctex(scene, 'en_croissant', 72, 56, (c) => drawCroissant(c, 72, 56));
+  ctex(scene, 'en_toaster', 84, 76, (c) => drawToaster(c, 84, 76));
 
   // Player projectiles
   tex(scene, 'seed', 10, 10, (g) => {
