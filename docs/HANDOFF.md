@@ -109,6 +109,7 @@ From the owner's playtest notes:
 - Enemy behavior is now data: `ai`, `dash`, `split`, `burst` on `EnemyDef`. Stage 1 behaves the same (timeline bot and weapon benchmark match main).
 - Bot benchmark, level 3 weapons from 2:00: the Freezer deals about 20% more damage per minute than Stage 1 (422 vs 352). Part 2 tunes this to the 10 to 15% target once its elites and bosses are in.
 - `VITE_PREVIEW=1` builds open every built stage, for the preview link.
+- After the owner's first play: ice patches are bigger (radius 80 to 140px) with less grip (longer slides), thawing from fully frozen takes 3.5s of moving so the Warm Mug matters, the loose frozen-peas prop became a printed bag of peas (it read as XP seeds), and the Popsicle is about 5% bigger than the swarm crumbs.
 
 ## Weapon benchmark (bot, after step 7)
 

@@ -413,23 +413,69 @@ function iceTray(c: Ctx, w: number, h: number): void {
     }
 }
 
+/** A bag of frozen peas: a printed bag with a pea pod on it, so no loose green dots that read as pickups. */
 function frozenPeas(c: Ctx, w: number, h: number): void {
-  const rand = rng(33);
-  softShadow(c, w / 2, h / 2 + 6, 46, 16, 0.12);
-  for (let i = 0; i < 16; i++) {
-    const a = rand() * TAU;
-    const d = rand() * 34;
-    const x = w / 2 + Math.cos(a) * d;
-    const y = h / 2 + Math.sin(a) * d * 0.6;
+  const cx = w / 2;
+  const cy = h / 2;
+  softShadow(c, cx + 4, cy + 8, 40, 30, 0.16);
+  // bag body
+  c.beginPath();
+  c.moveTo(cx - 30, cy - 26);
+  c.lineTo(cx + 30, cy - 26);
+  c.quadraticCurveTo(cx + 36, cy + 4, cx + 32, cy + 30);
+  c.quadraticCurveTo(cx, cy + 36, cx - 32, cy + 30);
+  c.quadraticCurveTo(cx - 36, cy + 4, cx - 30, cy - 26);
+  c.closePath();
+  c.fillStyle = linear(c, 0, cy - 26, 0, cy + 34, [
+    [0, '#5f9a4a'],
+    [1, '#477a37'],
+  ]);
+  c.fill();
+  c.strokeStyle = 'rgba(40,70,30,0.55)';
+  c.lineWidth = 2;
+  c.stroke();
+  // crimped top
+  rrect(c, cx - 32, cy - 32, 64, 9, 3);
+  c.fillStyle = '#d9e6ee';
+  c.fill();
+  c.strokeStyle = 'rgba(80,100,120,0.5)';
+  c.lineWidth = 1.5;
+  c.stroke();
+  c.strokeStyle = 'rgba(80,100,120,0.35)';
+  for (let i = -26; i <= 26; i += 6) {
     c.beginPath();
-    c.arc(x, y, 5, 0, TAU);
-    c.fillStyle = '#8fc07a';
-    c.fill();
+    c.moveTo(cx + i, cy - 31);
+    c.lineTo(cx + i, cy - 24);
+    c.stroke();
+  }
+  // white label with a pea pod
+  c.beginPath();
+  c.ellipse(cx, cy + 4, 22, 15, 0, 0, TAU);
+  c.fillStyle = 'rgba(255,255,255,0.85)';
+  c.fill();
+  c.beginPath();
+  c.moveTo(cx - 17, cy + 6);
+  c.quadraticCurveTo(cx, cy - 10, cx + 17, cy + 2);
+  c.quadraticCurveTo(cx, cy + 14, cx - 17, cy + 6);
+  c.fillStyle = '#7fb85e';
+  c.fill();
+  c.strokeStyle = '#3f6e2e';
+  c.lineWidth = 1.5;
+  c.stroke();
+  for (let i = 0; i < 3; i++) {
     c.beginPath();
-    c.arc(x - 1.5, y - 1.5, 1.8, 0, TAU);
-    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.arc(cx - 8 + i * 8, cy + 3 - i * 0.8, 3.2, 0, TAU);
+    c.fillStyle = '#a6d97f';
     c.fill();
   }
+  // frost on the bag
+  c.fillStyle = 'rgba(235,248,255,0.55)';
+  c.beginPath();
+  c.ellipse(cx - 18, cy + 22, 10, 4, -0.3, 0, TAU);
+  c.fill();
+  c.beginPath();
+  c.ellipse(cx + 22, cy - 14, 6, 3, 0.4, 0, TAU);
+  c.fill();
 }
 
 function popsicleStick(c: Ctx, w: number, h: number): void {

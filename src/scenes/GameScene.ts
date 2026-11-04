@@ -58,6 +58,10 @@ const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS
 const FROST_DELAY = 2;
 const FROST_FILL = 2;
 const FROST_SLOW = 0.7;
+/** Once frozen, it takes this many seconds of moving to thaw (a Warm Mug thaws at once). */
+const THAW_TIME = 3.5;
+/** How fast you steer on ice (lower = longer slides). */
+const ICE_GRIP = 1.2;
 const MUG_SAFE = 5;
 interface IcePatch {
   x: number;
@@ -746,7 +750,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (ice && !this.onIce) sfx('ice');
     this.onIce = ice;
     if (ice) {
-      const k = 1 - Math.exp(-2.6 * dt);
+      const k = 1 - Math.exp(-ICE_GRIP * dt);
       this.vel.x += (tx - this.vel.x) * k;
       this.vel.y += (ty - this.vel.y) * k;
     } else {
@@ -768,7 +772,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
     if (moving) {
       this.stillT = 0;
-      this.frost = Math.max(0, this.frost - dt);
+      this.frost = Math.max(0, this.frost - dt / (this.frozen ? THAW_TIME : 1));
       if (this.frost === 0 && this.frozen) {
         this.frozen = false;
         this.player.sprite.clearTint();
@@ -782,7 +786,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.frost >= 1 && !this.frozen) {
       this.frozen = true;
       sfx('frost');
-      this.banner('Frozen! Keep moving to thaw.', '#bfe6fb', 16);
+      this.banner('Frozen! Keep moving, or grab a Warm Mug.', '#bfe6fb', 16);
     }
   }
 
@@ -896,8 +900,8 @@ export class GameScene extends Phaser.Scene implements World {
     const n = rand() < 0.45 ? 1 : rand() < 0.3 ? 2 : 0;
     const out: IcePatch[] = [];
     for (let i = 0; i < n; i++) {
-      const rx = 48 + rand() * 46;
-      const ry = rx * (0.55 + rand() * 0.2);
+      const rx = 80 + rand() * 60;
+      const ry = rx * (0.6 + rand() * 0.2);
       const x = (cx + 0.2 + rand() * 0.6) * C;
       const y = (cy + 0.2 + rand() * 0.6) * C;
       if (Math.hypot(x, y) < 170 + rx) continue;

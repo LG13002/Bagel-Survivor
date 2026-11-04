@@ -383,7 +383,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   fcrumb: { tex: 'en_fcrumb', hp: 8, speed: 71, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0xcfe9f7 },
   icecube: { tex: 'en_icecube', hp: 30, speed: 44, dmg: 13, radius: 12, xp: 3, mass: 2, ai: 'charge', dash: 380, burst: 0xbfe6fb },
   peapod: { tex: 'en_peapod', hp: 20, speed: 50, dmg: 6, radius: 11, xp: 3, mass: 1.2, ai: 'shoot', burst: 0x7fc24a },
-  popsicle: { tex: 'en_popsicle', hp: 24, speed: 46, dmg: 8, radius: 11, xp: 2, mass: 1.4, split: { kind: 'pophalf', n: 2 }, burst: 0xf0705a },
+  popsicle: { tex: 'en_popsicle', hp: 24, speed: 46, dmg: 8, radius: 11.5, xp: 2, mass: 1.4, split: { kind: 'pophalf', n: 2 }, burst: 0xf0705a },
   pophalf: { tex: 'en_pophalf', hp: 9, speed: 60, dmg: 5, radius: 8, xp: 1, mass: 1, burst: 0xf0705a },
   fmold: { tex: 'en_fmold', hp: 70, speed: 38, dmg: 10, radius: 16, xp: 5, mass: 3, split: { kind: 'fmoldling', n: 2 }, burst: 0x9cc7b8 },
   fmoldling: { tex: 'en_fmoldling', hp: 10, speed: 52, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0x9cc7b8 },

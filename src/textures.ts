@@ -63,7 +63,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'en_fcrumb', 24, 26, (c) => drawFrostCrumb(c, 12, 14, 10));
   ctex(scene, 'en_icecube', 30, 30, (c) => drawIceCube(c, 15, 15, 12.5));
   ctex(scene, 'en_peapod', 30, 26, (c) => drawPeaPod(c, 14, 14, 11.5));
-  ctex(scene, 'en_popsicle', 24, 34, (c) => drawPopsicle(c, 24, 34));
+  ctex(scene, 'en_popsicle', 26, 36, (c) => drawPopsicle(c, 26, 36));
   ctex(scene, 'en_pophalf', 20, 22, (c) => drawPopsicle(c, 20, 22, 1));
   ctex(scene, 'en_fmold', 40, 40, (c) => drawMold(c, 20, 20, 17, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
   ctex(scene, 'en_fmoldling', 24, 24, (c) => drawMold(c, 12, 12, 10, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
