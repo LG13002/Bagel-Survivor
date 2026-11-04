@@ -1,4 +1,4 @@
-import { BAGELS, type BagelDef } from './data';
+import { BAGELS, STAGES, stageById, type BagelDef, type StageDef } from './data';
 import { fmtTime } from './config';
 import type { SaveData } from './save';
 
@@ -50,4 +50,25 @@ export function nearestGoals(save: SaveData, n: number): { bagel: BagelDef; stat
     .map((bagel) => ({ bagel, status: goalStatus(save, bagel) }))
     .sort((a, b) => b.status.frac - a.status.frac)
     .slice(0, n);
+}
+
+/** A stage's goal is met: the stage before it has been cleared (Stage 1 is always open). */
+export function stageUnlocked(save: SaveData, st: StageDef): boolean {
+  return !st.unlockAfter || (save.stageClears?.[st.unlockAfter] ?? 0) > 0;
+}
+
+/** Unlocked and built, so it can be picked and played. */
+export function stagePlayable(save: SaveData, st: StageDef): boolean {
+  return st.built && stageUnlocked(save, st);
+}
+
+/** The stage the menu has picked, falling back to Stage 1 if it can't be played. */
+export function pickedStage(save: SaveData): StageDef {
+  const st = stageById(save.stage);
+  return stagePlayable(save, st) ? st : STAGES[0];
+}
+
+/** Playable stages, used to spot ones a run just opened up. */
+export function playableStages(save: SaveData): string[] {
+  return STAGES.filter((st) => stagePlayable(save, st)).map((st) => st.id);
 }

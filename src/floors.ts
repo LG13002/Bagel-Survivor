@@ -243,3 +243,100 @@ export const COUNTER_PROPS: PropDef[] = [
   { key: 'prop_sprinkles', w: 110, h: 90, weight: 1.2, spin: true, draw: sprinkleSpill },
   { key: 'prop_streak', w: 300, h: 70, weight: 0.8, spin: true, draw: flourStreak },
 ];
+
+/** Picture for a stage card and the menu's stage button, w × h with rounded corners and an ink edge. */
+export function drawStageThumb(c: Ctx, id: string, w: number, h: number): void {
+  const r = Math.min(w, h) * 0.2;
+  c.save();
+  rrect(c, 2, 2, w - 4, h - 4, r);
+  c.clip();
+  if (id === 'stage1') {
+    c.save();
+    c.scale(w / 160, w / 160);
+    drawButcherBlock(c, 256);
+    c.restore();
+    // A cookie and a dusting of flour so it reads as the countertop.
+    c.fillStyle = 'rgba(255,250,240,0.55)';
+    c.beginPath();
+    c.ellipse(w * 0.72, h * 0.68, w * 0.16, h * 0.12, 0.3, 0, TAU);
+    c.fill();
+    c.fillStyle = '#d9a35f';
+    c.beginPath();
+    c.arc(w * 0.3, h * 0.38, Math.min(w, h) * 0.17, 0, TAU);
+    c.fill();
+    c.fillStyle = '#5a3418';
+    for (const [dx, dy] of [[-0.05, -0.04], [0.05, 0.02], [-0.01, 0.07]]) {
+      c.beginPath();
+      c.arc(w * (0.3 + dx), h * (0.38 + dy), Math.min(w, h) * 0.025, 0, TAU);
+      c.fill();
+    }
+  } else if (id === 'stage2') {
+    // Frosty ice tiles with a big snowflake.
+    c.fillStyle = linear(c, 0, 0, 0, h, [[0, '#cfeefc'], [1, '#8fc6e6']]);
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(255,255,255,0.75)';
+    c.lineWidth = 1.5;
+    const t = w / 4;
+    for (let x = t; x < w; x += t) {
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x, h);
+      c.stroke();
+    }
+    for (let y = t; y < h; y += t) {
+      c.beginPath();
+      c.moveTo(0, y);
+      c.lineTo(w, y);
+      c.stroke();
+    }
+    c.save();
+    c.translate(w / 2, h / 2);
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = Math.max(2, w * 0.035);
+    c.lineCap = 'round';
+    const a = Math.min(w, h) * 0.3;
+    for (let i = 0; i < 6; i++) {
+      c.rotate(TAU / 6);
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(0, -a);
+      c.moveTo(0, -a * 0.6);
+      c.lineTo(-a * 0.22, -a * 0.82);
+      c.moveTo(0, -a * 0.6);
+      c.lineTo(a * 0.22, -a * 0.82);
+      c.stroke();
+    }
+    c.restore();
+  } else {
+    // Glowing heating coils under a dark oven rack.
+    c.fillStyle = '#2a1a14';
+    c.fillRect(0, 0, w, h);
+    for (const y of [h * 0.32, h * 0.7]) {
+      c.strokeStyle = 'rgba(255,120,40,0.35)';
+      c.lineWidth = h * 0.16;
+      c.beginPath();
+      c.moveTo(0, y);
+      c.lineTo(w, y);
+      c.stroke();
+      c.strokeStyle = '#ff9a3c';
+      c.lineWidth = h * 0.06;
+      c.stroke();
+      c.strokeStyle = '#ffe08a';
+      c.lineWidth = h * 0.02;
+      c.stroke();
+    }
+    c.strokeStyle = '#8d8f94';
+    c.lineWidth = Math.max(1.5, w * 0.025);
+    for (let x = w / 6; x < w; x += w / 6) {
+      c.beginPath();
+      c.moveTo(x, 0);
+      c.lineTo(x, h);
+      c.stroke();
+    }
+  }
+  c.restore();
+  rrect(c, 2, 2, w - 4, h - 4, r);
+  c.strokeStyle = '#24160d';
+  c.lineWidth = 3;
+  c.stroke();
+}

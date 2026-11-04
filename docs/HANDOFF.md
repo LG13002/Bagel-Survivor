@@ -93,6 +93,13 @@ From the owner's playtest notes:
 - Seed Gatling seed damage 13 (was 9).
 - Quick Run Moldlings now get their health from the Quick Run clock.
 
+### Phase 2, M5: stage framework and stage picker
+- Planning: the [Phase 2 question template](https://claude.ai/artifact/Q5REiFfRxiK92pAS17Krdq), the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) and the [M5 change list](https://claude.ai/artifact/NJvqyK5S5t5Tgcm8UwMokt).
+- Every stage is a `StageDef` recipe in `STAGES`. The run reads its floor, props, enemy mix, ring waves, lines, elite, mini-boss, boss, music, Dough pay and difficulty dials from it. Stage 1's numbers moved in unchanged.
+- A stage button on the menu opens the stage picker (cards with a picture, story line, flame difficulty pips, the bagel's bests, locks and a "Coming soon" ribbon). PLAY starts the picked stage.
+- Save data gains `stage` and `stageClears`. Old saves count their clears as Stage 1 clears. Run snapshots gain `stage`.
+- Results show the stage name and a "NEW STAGE" note when a run opens one.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

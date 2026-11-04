@@ -13,8 +13,12 @@ export interface SaveData {
   quick?: boolean;
   practice?: boolean;
   noHealClear?: boolean;
-  /** Per bagel, per stage best runs, keyed 'stage:bagel'. */
+  /** Per bagel, per stage best runs, keyed 'stage:bagel' ('stage1q:plain' for Quick Runs). */
   best?: Record<string, BestScore>;
+  /** Last stage picked on the menu. */
+  stage?: string;
+  /** Clears per stage id (Full and Quick both count). */
+  stageClears?: Record<string, number>;
 }
 
 const KEY = 'everything-bagel-save-v1';
@@ -43,6 +47,8 @@ export function load(): SaveData {
   } catch {
     // Storage blocked (private mode etc.): play without saving.
   }
+  // Saves from before stage select: every clear so far was a Stage 1 clear.
+  if (!data.stageClears) data.stageClears = data.clears > 0 ? { stage1: data.clears } : {};
   cache = data;
   return data;
 }
@@ -63,15 +69,16 @@ export interface BestScore {
   cleared: boolean;
 }
 
-export const STAGE = 'stage1';
-/** High scores for Quick Runs of stage 1 are kept separately. */
-export const QUICK_STAGE = 'stage1q';
+/** Key for a stage's bests. Quick Runs keep their own: 'stage1q'. */
+export function bestStage(stage: string, quick: boolean): string {
+  return quick ? `${stage}q` : stage;
+}
 
 function bestKey(stage: string, bagel: string): string {
   return `${stage}:${bagel}`;
 }
 
-export function getBest(save: SaveData, bagel: string, stage = STAGE): BestScore | undefined {
+export function getBest(save: SaveData, bagel: string, stage: string): BestScore | undefined {
   return save.best?.[bestKey(stage, bagel)];
 }
 
@@ -84,7 +91,7 @@ function better(a: BestScore, b: BestScore | undefined): boolean {
 }
 
 /** Records the run if it beats the stored best. Returns true for a new best. */
-export function recordBest(save: SaveData, bagel: string, score: BestScore, stage = STAGE): boolean {
+export function recordBest(save: SaveData, bagel: string, score: BestScore, stage: string): boolean {
   if (!better(score, getBest(save, bagel, stage))) return false;
   save.best = { ...(save.best ?? {}), [bestKey(stage, bagel)]: score };
   return true;

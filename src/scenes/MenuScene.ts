@@ -1,13 +1,17 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
-import { BAGELS, BAKERY, TOPPINGS, WEAPONS, type WeaponId } from '../data';
-import { goalStatus } from '../progress';
+import { BAGELS, BAKERY, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
+import { goalStatus, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
-import { QUICK_STAGE, STAGE, getBest, load, persist } from '../save';
+import { bestStage, getBest, load, persist, type SaveData } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { musicOn, setMusic, setSound, sfx, soundOn, unlockAudio } from '../sfx';
 import { playMusic } from '../music';
+
+/** Height of the menu's stage button row, in CSS px. */
+const STAGE_ROW = 48;
+const STAGE_ROW_COMPACT = 40;
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
@@ -15,6 +19,8 @@ export class MenuScene extends Phaser.Scene {
   private bakery: Phaser.GameObjects.Container | null = null;
   private doughPill: Phaser.GameObjects.Container | null = null;
   private slideFrom = 0;
+  /** Card shown in the stage picker. */
+  private stageIdx = 0;
 
   constructor() {
     super('menu');
@@ -42,6 +48,7 @@ export class MenuScene extends Phaser.Scene {
     const top = ins.top * S;
     const bottom = H - ins.bottom * S;
     const save = load();
+    const stage = pickedStage(save);
     const c = this.add.container(0, 0);
     this.root = c;
 
@@ -58,8 +65,8 @@ export class MenuScene extends Phaser.Scene {
     // Title
     // Short screens (e.g. iPhone mini, or the in-app preview with its top bar) get a compact layout.
     const compact = (bottom - top) / S < 720;
-    const k = compact ? 0.78 : 1;
-    const titleY = top + (compact ? 70 * S : Math.max(96 * S, H * 0.13));
+    const k = compact ? 0.7 : 1;
+    const titleY = top + (compact ? 62 * S : Math.max(96 * S, H * 0.13));
     c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40 * k, CSS.gold));
     c.add(txt(this, W / 2, titleY + 44 * k * S, 'BAGEL', 54 * k, CSS.cream));
     // Short screens skip the tagline to make room for the bagel.
@@ -74,8 +81,9 @@ export class MenuScene extends Phaser.Scene {
       wrap: Math.min(W / S - 60, 320),
       bold: false,
     }).setOrigin(0.5, 0);
-    const extraBelow = gs ? 26 * S : 0; // progress bar under a locked bagel's goal
-    const buttonsTop = bottom - 150 * S - 66 * S - 48 * S - (compact ? 26 : 32) * S; // top of the mode switch, with a gap
+    const extraBelow = gs && !compact ? 26 * S : 0; // progress bar under a locked bagel's goal
+    const stageRow = compact ? STAGE_ROW_COMPACT : STAGE_ROW;
+    const buttonsTop = bottom - 150 * S - 66 * S - 48 * S - stageRow * S - (compact ? 26 : 32) * S; // top of the stage button, with a gap
     const titleBottom = titleY + (compact ? 64 * k + 8 : 86 * k + 16) * S;
     // Below the bagel: dots, name, best line, then the description.
     const sp = compact ? 0.84 : 1; // tighter spacing under the bagel on short screens
@@ -103,14 +111,16 @@ export class MenuScene extends Phaser.Scene {
     const nameT = txt(this, W / 2, by + R + 48 * sp * S, bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream);
     c.add(nameT);
     slide.push(nameT);
+    // Short screens have no room for a locked bagel's progress bar: its progress goes in the best line's place.
+    if (gs && compact) c.add(txt(this, W / 2, by + R + 72 * sp * S, gs.progress, 14, CSS.muted, { bold: false }));
     if (!locked) {
-      const best = getBest(save, bagel.id, save.quick ? QUICK_STAGE : STAGE);
-      const label = save.quick ? 'Quick Run' : 'Stage 1';
+      const best = getBest(save, bagel.id, bestStage(stage.id, !!save.quick));
+      const label = `Stage ${stage.num}${save.quick ? ' Quick' : ''}`;
       const line = !best ? `${label} best: no runs yet` : best.cleared ? `♛ ${label} cleared  ·  ${best.kills} kills` : `${label} best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
       c.add(txt(this, W / 2, by + R + 72 * sp * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
     }
     c.add(desc);
-    if (gs) {
+    if (gs && !compact) {
       const bw = Math.min(W - 100 * S, 240 * S);
       const y = desc.y + desc.height + 14 * S;
       const g = this.add.graphics();
@@ -181,11 +191,12 @@ export class MenuScene extends Phaser.Scene {
     const saved = loadRun();
     if (saved) {
       const name = BAGELS.find((b) => b.id === saved.bagel)?.name ?? 'run';
-      const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 280 * S), 44 * S, `Resume ${saved.quick ? 'Quick ' : ''}${name} at ${fmtTime(saved.now)}`, () => {
+      const label = `Resume ${saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}, ${fmtTime(saved.now)}`;
+      const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 300 * S), 44 * S, label, () => {
         unlockAudio();
         this.cameras.main.fadeOut(200, 18, 12, 8);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { resume: true }));
-      }, { color: COLORS.green, textColor: CSS.dark, size: 16, radius: 12 });
+      }, { color: COLORS.green, textColor: CSS.dark, size: label.length > 34 ? 14 : 16, radius: 12 });
       c.add(rb);
     } else {
       toggle(W / 2 - tw - 8 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
@@ -225,13 +236,15 @@ export class MenuScene extends Phaser.Scene {
       };
       half(false, 'Full 5:00');
       half(true, 'Quick 3:00');
+      // Stage button above the switch: shows the picked stage and opens the stage picker.
+      c.add(this.stageButton(stage, W / 2, y - sh / 2 - 12 * S - ((compact ? STAGE_ROW_COMPACT : STAGE_ROW) / 2 - 4) * S, sw, compact));
     }
     const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
       if (locked) return;
       unlockAudio();
       clearRun();
       this.cameras.main.fadeOut(200, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, practice: !!save.practice, quick: !!save.quick }));
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, stage: stage.id, practice: !!save.practice, quick: !!save.quick }));
     }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
     c.add(play);
     if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -262,6 +275,158 @@ export class MenuScene extends Phaser.Scene {
       x += p.width + gap;
       c.add(p);
     }
+  }
+
+  /** Chunky button with the stage's picture, its name and a chevron. */
+  private stageButton(stage: StageDef, x: number, y: number, w: number, compact: boolean): Phaser.GameObjects.Container {
+    const h = (compact ? 34 : 40) * S;
+    const b = button(this, x, y, w, h, '', () => this.openStages(), { color: COLORS.panelLight, radius: 12 });
+    const pic = this.add.image(-w / 2 + 12 * S, 0, `${stage.thumb}_sm`).setOrigin(0, 0.5);
+    pic.setScale((h - 10 * S) / pic.height);
+    const label = txt(this, pic.x + pic.displayWidth + 9 * S, 0, `Stage ${stage.num}: ${stage.name}`, 15, CSS.cream, { stroke: false }).setOrigin(0, 0.5);
+    const more = txt(this, w / 2 - 16 * S, -1 * S, '›', 26, CSS.gold, { stroke: false });
+    b.add([pic, label, more]);
+    // Move the extras with the button's press squish.
+    const moving = [pic, label, more];
+    const base = moving.map((o) => o.y);
+    b.on('pointerdown', () => moving.forEach((o, i) => (o.y = base[i] + 3.5 * S)));
+    const up = () => moving.forEach((o, i) => (o.y = base[i]));
+    b.on('pointerup', up);
+    b.on('pointerout', up);
+    return b;
+  }
+
+  /** Stage picker: one card per stage, flipped with swipes or chevrons. */
+  private openStages(): void {
+    const save = load();
+    this.stageIdx = Math.max(0, STAGES.indexOf(pickedStage(save)));
+    this.drawStages(save, 0);
+  }
+
+  private drawStages(save: SaveData, slideFrom: number): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    this.bakery?.destroy();
+    const c = this.add.container(0, 0);
+    this.bakery = c;
+    const close = () => {
+      c.destroy();
+      this.bakery = null;
+      this.build();
+    };
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    const pw = Math.min(W - 24 * S, 400 * S);
+    const ph = Math.min(H - 24 * S, 540 * S);
+    c.add(panel(this, W / 2, H / 2, pw, ph));
+    const top = H / 2 - ph / 2;
+    c.add(txt(this, W / 2, top + 34 * S, 'PICK A STAGE', 26, CSS.gold));
+
+    const st = STAGES[this.stageIdx];
+    const unlocked = stageUnlocked(save, st);
+    const playable = stagePlayable(save, st);
+    const picked = pickedStage(save).id === st.id;
+    const card = this.add.container(W / 2, 0);
+    c.add(card);
+
+    // Picture, darkened with a lock until it can be played.
+    const picY = top + 145 * S;
+    const pic = this.add.image(0, picY, st.thumb);
+    pic.setScale(Math.min((pw - 120 * S) / pic.width, (120 * S) / pic.height));
+    if (!playable) pic.setTint(0x55504a);
+    card.add(pic);
+    if (!unlocked) card.add(this.add.image(0, picY, 'ic_lock').setScale(1.6));
+    if (!st.built) {
+      const rib = this.add.container(0, picY + pic.displayHeight / 2 - 4 * S);
+      const g = this.add.graphics();
+      const rw = 150 * S;
+      g.fillStyle(0x24160d, 1).fillRoundedRect(-rw / 2 - 2 * S, -15 * S, rw + 4 * S, 30 * S, 8 * S);
+      g.fillStyle(COLORS.red, 1).fillRoundedRect(-rw / 2, -13 * S, rw, 26 * S, 7 * S);
+      rib.add([g, txt(this, 0, 0, 'COMING SOON', 15, CSS.cream, { stroke: false })]);
+      rib.setAngle(-4);
+      card.add(rib);
+    }
+
+    let y = picY + pic.displayHeight / 2 + 30 * S;
+    card.add(txt(this, 0, y, `STAGE ${st.num}`, 13, CSS.muted, { stroke: false }));
+    y += 24 * S;
+    card.add(txt(this, 0, y, st.name, 24, unlocked ? CSS.cream : CSS.muted));
+    y += 30 * S;
+    // Difficulty: one flame per step up.
+    for (let i = 0; i < 3; i++) {
+      const f = this.add.image((i - 1) * 26 * S, y, 'ic_flame').setScale(0.65);
+      if (i >= st.pips) f.setAlpha(0.22);
+      card.add(f);
+    }
+    y += 24 * S;
+    const story = txt(this, 0, y, st.story, 14, '#e8d8c0', { bold: false, wrap: (pw - 60 * S) / S }).setOrigin(0.5, 0);
+    card.add(story);
+    y += story.height + 18 * S;
+    if (unlocked && st.built) {
+      const bagel = BAGELS.find((b) => b.id === save.selected) ?? BAGELS[0];
+      const line = (quick: boolean) => {
+        const best = getBest(save, bagel.id, bestStage(st.id, quick));
+        const label = quick ? 'Quick' : 'Full';
+        return !best ? `${label}: no runs yet` : best.cleared ? `${label}: ♛ cleared · ${best.kills} kills` : `${label}: ${fmtTime(best.time)} · ${best.kills} kills`;
+      };
+      card.add(txt(this, 0, y, `${bagel.name}'s bests`, 13, CSS.gold, { stroke: false }));
+      card.add(txt(this, 0, y + 20 * S, `${line(false)}\n${line(true)}`, 13, CSS.cream, { bold: false, stroke: false }).setOrigin(0.5, 0));
+    } else {
+      card.add(txt(this, 0, y, `Unlock: ${st.unlockText}`, 15, CSS.gold));
+      const note = unlocked ? 'Goal done! This stage is still being baked.' : `Clear Stage ${stageById(st.unlockAfter ?? undefined).num} first`;
+      card.add(txt(this, 0, y + 22 * S, note, 12, CSS.muted, { bold: false, stroke: false }));
+    }
+
+    if (slideFrom) {
+      card.x = W / 2 + slideFrom * 120 * S;
+      card.alpha = 0;
+      this.tweens.add({ targets: card, x: W / 2, alpha: 1, duration: 220, ease: 'Cubic.Out' });
+    }
+
+    // Flip between stages: chevrons beside the picture, swipe, and dots.
+    const go = (d: number) => {
+      this.stageIdx = (this.stageIdx + d + STAGES.length) % STAGES.length;
+      sfx('swoosh');
+      if (!stagePlayable(save, STAGES[this.stageIdx])) sfx('lock');
+      this.drawStages(save, d);
+    };
+    const ad = 44 * S;
+    const ax = pw / 2 - 30 * S;
+    c.add(button(this, W / 2 - ax, picY, ad, ad, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 22 }));
+    c.add(button(this, W / 2 + ax, picY, ad, ad, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 22 }));
+    const zone = this.add.zone(W / 2, picY, pw - 2 * ad - 30 * S, 150 * S).setInteractive();
+    c.add(zone);
+    let sx: number | null = null;
+    zone.on('pointerdown', (p: Phaser.Input.Pointer) => (sx = p.x));
+    zone.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (sx === null) return;
+      const dx = p.x - sx;
+      sx = null;
+      if (Math.abs(dx) > 40 * S) go(dx < 0 ? 1 : -1);
+    });
+    const dots = this.add.graphics();
+    STAGES.forEach((s2, i) => {
+      const x = W / 2 + (i - (STAGES.length - 1) / 2) * 14 * S;
+      const on = i === this.stageIdx;
+      dots.fillStyle(on ? COLORS.gold : stagePlayable(save, s2) ? COLORS.panelLight : 0x1d140d).fillCircle(x, top + 64 * S, (on ? 4 : 3) * S);
+    });
+    c.add(dots);
+
+    // Bottom: Back, and Play this stage (or why it can't be played yet).
+    const by = top + ph - 40 * S;
+    const bw = (pw - 50 * S) / 2;
+    c.add(button(this, W / 2 - bw / 2 - 5 * S, by, bw, 48 * S, 'Back', close, { color: COLORS.panelLight, textColor: CSS.cream, size: 19 }));
+    const pickLabel = playable ? (picked ? 'Picked' : 'Pick') : st.built ? 'Locked' : 'Soon';
+    c.add(
+      button(this, W / 2 + bw / 2 + 5 * S, by, bw, 48 * S, pickLabel, () => {
+        if (!playable) {
+          sfx('lock');
+          return;
+        }
+        save.stage = st.id;
+        persist();
+        close();
+      }, { size: 20, muted: !playable }),
+    );
   }
 
   private openCookbook(): void {

@@ -1021,6 +1021,23 @@ export const UI_ICONS: Record<string, (c: Ctx) => void> = {
     c.closePath();
     fillInk(c, linear(c, 0, 4, 0, 34, [[0, '#fff3a0'], [1, '#f0a818']]));
   },
+  // Difficulty pip on the stage cards.
+  ic_flame: (c) => {
+    c.beginPath();
+    c.moveTo(18, 3);
+    c.bezierCurveTo(22, 11, 30, 15, 30, 23);
+    c.bezierCurveTo(30, 30, 24, 34, 18, 34);
+    c.bezierCurveTo(12, 34, 6, 30, 6, 23);
+    c.bezierCurveTo(6, 17, 11, 15, 12, 9);
+    c.bezierCurveTo(15, 12, 16, 15, 16, 18);
+    c.bezierCurveTo(19, 14, 19, 8, 18, 3);
+    c.closePath();
+    fillInk(c, linear(c, 0, 3, 0, 34, [[0, '#ffd36a'], [0.6, '#f07a2a'], [1, '#d6452a']]), 2);
+    c.beginPath();
+    c.ellipse(18, 27, 4.5, 5.5, 0, 0, TAU);
+    c.fillStyle = '#fff1b0';
+    c.fill();
+  },
 };
 
 // ---------- Chests ----------
