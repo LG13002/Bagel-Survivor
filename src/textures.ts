@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { S } from './config';
-import { COUNTER_PROPS, drawButcherBlock } from './floors';
+import { COUNTER_PROPS, drawButcherBlock, drawStageThumb } from './floors';
 import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
@@ -38,6 +38,11 @@ export function makeTextures(scene: Phaser.Scene): void {
   // Stage floors (256 × 256, seamless). 'floor' is used behind the menus.
   ctex(scene, 'floor_stage1', 256, 256, (c) => drawButcherBlock(c, 256));
   ctex(scene, 'floor', 256, 256, (c) => drawButcherBlock(c, 256));
+  // Stage pictures for the stage cards (big) and the menu's stage button (small).
+  for (const id of ['stage1', 'stage2', 'stage3']) {
+    ctex(scene, `thumb_${id}`, 120, 76, (c) => drawStageThumb(c, id, 120, 76));
+    ctex(scene, `thumb_${id}_sm`, 40, 30, (c) => drawStageThumb(c, id, 40, 30));
+  }
   // Countertop props, scattered over the floor by GameScene.
   for (const p of COUNTER_PROPS) ctex(scene, p.key, p.w, p.h, (c) => p.draw(c, p.w, p.h));
 

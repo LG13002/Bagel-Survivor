@@ -9,7 +9,7 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 - **Live:** https://lg13002.github.io/Bagel-Survivor/. Pushes to `main` deploy through GitHub Actions to Pages.
 - **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
-- **Status (2026-11-04):** Stage 1 and the prototype milestones M1 to M4 are complete. The next big piece is **Stage 2 (the freezer)**.
+- **Status (2026-11-04):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker) is the current step; M6 is the Freezer.
 
 ## How to work with the owner (rules)
 
@@ -35,7 +35,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - Every texture is a function in `src/art.ts`, registered in `src/textures.ts` through `ctex(scene, key, w, h, draw)`.
   - `ctex` draws at device scale S, so textures stay sharp on retina screens.
   - Hero and results bagels use a `<tex>_big` 160px texture.
-- **Stage 1 floor:** the "Giant countertop", a butcher block (`src/floors.ts`) with props scattered in seeded 384px chunks (spoon, cookie cutters, cup, flour, sprinkles). Each future stage gets its own floor through `STAGES` in `src/data.ts`. Stage 2 is the freezer.
+- **Stage 1 floor:** the "Giant countertop", a butcher block (`src/floors.ts`) with props scattered in seeded 384px chunks (spoon, cookie cutters, cup, flour, sprinkles). Each stage names its floor and prop set in `STAGES` in `src/data.ts`. Stage 2 is the Freezer, Stage 3 the Toaster Oven.
 - **UI kit (`src/ui.ts`):**
   - `button()`: chunky, with an ink outline, a 5*S bottom edge, a press shift and a click sound. Options: `icon`, `chevron`, `muted`.
   - `pill()`, `drawPips()`, and `panel` (ink outline plus an inner light stroke).
@@ -47,7 +47,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 | File | What's in it |
 | --- | --- |
 | `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; the owner asked for +20%), colors, safe insets, `DEBUG` URL flags |
-| `src/data.ts` | **All tuning:** weapons, toppings, evolutions, bagels, Bakery upgrades, enemies, `RUN` pacing (incl. `hpBonus`), `xpNeeded` |
+| `src/data.ts` | **All tuning:** weapons, toppings, evolutions, bagels, Bakery upgrades, enemies, `STAGES` (one recipe per stage: cast, timeline banners, music, Dough pay, difficulty dials), `RUN` pacing, `xpNeeded` |
 | `src/weapons.ts` | The 6 weapon classes (normal and evolved behavior; damage numbers are inline here) |
 | `src/scenes/GameScene.ts` | The run: director/spawning, pickups, the Sticky Bun, chests, level-up, HUD, pause, audio state, Quick Run pacing, resume snapshot |
 | `src/scenes/MenuScene.ts` | Menu, bagel picker (swipe and chevrons), Full/Quick switch, toggles, Bakery shop, Cookbook |
@@ -55,7 +55,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 | `src/art.ts`, `src/floors.ts`, `src/textures.ts` | Drawn-in-code art |
 | `src/sfx.ts` | WebAudio buses (sfx 0.35, music 0.16 through a lowpass), all sound effects, voice cap, unlock on first tap |
 | `src/music.ts` | Step sequencer and the songs `menu`, `run` (intensity layers), `boss`, `win`, `stale`. API: `playMusic`, `setRunIntensity`, `playJingle`, `stopMusic` |
-| `src/save.ts` | localStorage key `everything-bagel-save-v1`. Bests are keyed `'<stage>:<bagel>'`, where the stage is `stage1` or `stage1q` (Quick) |
+| `src/save.ts` | localStorage key `everything-bagel-save-v1`. Bests are keyed `'<stage>:<bagel>'` (`bestStage()`: `stage1`, or `stage1q` for Quick). `stage` = last picked stage, `stageClears` = clears per stage (unlocks the next stage) |
 | `src/runsave.ts` | Run snapshot for resume after iOS kills the app |
 | `public/sw.js` | Network-first service worker (offline play) |
 
@@ -68,9 +68,10 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - Toaster Tyrant at 4:30. Beating him clears the stage.
 - **Quick Run:** the same schedule on a stage clock running at `QUICK_PACE = 5/3`, through the `stageT` getter. The boss arrives at real 2:42.
   - XP ×1.6, Dough ×0.75.
-  - Separate bests (`stage1q`). Quick clears count toward unlocks.
+  - Separate bests (`stage1q`, `stage2q`, …). Quick clears count toward unlocks.
   - **Always schedule by `this.stageT`, never `this.now`.**
-- **Enemy health** = base × `RUN.hpBonus` (1.1) × (1 + stageT/180). Elites and bosses use flat health.
+- **Enemy health** = base × `stage.hpBonus` (1.1 in Stage 1) × (1 + stageT / `stage.hpGrowth` (180 in Stage 1)). Elites and bosses use flat health. Other per-stage dials: `spawnRate`, `dmg`, `dough`.
+- **Stages:** `GameScene` reads everything stage-specific from `this.stage` (a `StageDef`). A stage with `built: false` shows on the stage picker as "Coming soon" and can't be picked. Stages 2 and 3 borrow Stage 1's cast until M6 and M9 build them. A stage unlocks when the one in `unlockAfter` has been cleared (`progress.ts`).
 - **Sticky Bun:** pickup kind `'bun'`. Touching it pulls every seed and coin to you.
   - Drops: the Croissant always drops one. In Full Runs only, the last Giant Mold before the boss drops a second.
   - It lands on the far side of the boss, never drifts toward you, gets an edge arrow, and is saved in the snapshot.
@@ -104,6 +105,6 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 ## Ideas parked for later
 
-- **Stage 2, the freezer:** a new floor, enemies and boss, with harder content than Stage 1.
-- More tuning from the owner's phone runs. Easy dials: `RUN.hpBonus`, the weapon numbers in `weapons.ts`, and the `RUN` timings.
+- **Phase 2:** see the design doc linked under Status. The doc is the source of truth for stages, enemies, bagels and weapons.
+- More tuning from the owner's phone runs. Easy dials: the stage dials in `STAGES`, the weapon numbers in `weapons.ts`, and the `RUN` timings.
 - Sesame Shot is the weakest weapon at level 3 (on purpose for the starter). Buff it if the owner says it feels slow.

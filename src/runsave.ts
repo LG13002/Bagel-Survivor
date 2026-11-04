@@ -3,6 +3,8 @@ export interface RunSnapshot {
   v: 1;
   savedAt: number;
   bagel: string;
+  /** Stage id; snapshots from before stage select are Stage 1. */
+  stage?: string;
   practice: boolean;
   quick?: boolean;
   buns?: number;

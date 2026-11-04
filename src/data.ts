@@ -1,4 +1,5 @@
 // All tunable game content lives here.
+import type { SongId } from './music';
 
 export type WeaponId = 'sesame' | 'storm' | 'puddle' | 'lox' | 'coffee' | 'pin';
 export type ToppingId = 'butter' | 'dough' | 'caffeine' | 'oven' | 'salt' | 'glaze';
@@ -93,14 +94,123 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   glaze: { id: 'glaze', name: 'Glaze', icon: 'ic_glaze', blurb: '+7% move speed' },
 };
 
-export interface StageDef {
-  id: string;
-  name: string;
-  floor: string; // tiling texture, 256 × 256
+export type StageId = 'stage1' | 'stage2' | 'stage3';
+
+/** One spawn-table step: regular enemies picked by weight until stage time `until` (seconds). */
+export interface MixStep {
+  until: number;
+  table: [EnemyKind, number][];
 }
 
-// Stage 2 (the freezer) and beyond slot in here later.
-export const STAGES: StageDef[] = [{ id: 'stage1', name: 'The Bakery', floor: 'floor_stage1' }];
+/** Everything that makes one stage what it is. The run reads all of this from the picked stage. */
+export interface StageDef {
+  id: StageId;
+  num: number;
+  name: string;
+  /** One line on the stage card. */
+  story: string;
+  /** Picture on the stage card and the menu's stage button. */
+  thumb: string;
+  /** Difficulty pips on the stage card, 1 to 3. */
+  pips: number;
+  /** Clear this stage to unlock this one (null = always open). */
+  unlockAfter: StageId | null;
+  unlockText: string;
+  /** False until the stage's content exists: shown as "Coming soon" and can't be picked. */
+  built: boolean;
+  floor: string; // tiling texture, 256 × 256
+  props: 'counter';
+  /** Dough multiplier for runs on this stage. */
+  dough: number;
+  // Difficulty dials
+  /** Extra health on regular enemies (bosses and elites excluded). */
+  hpBonus: number;
+  /** Regular enemy health is hpBonus × (1 + stageT / hpGrowth): lower grows faster over the run. */
+  hpGrowth: number;
+  /** Spawn speed: 1 = Stage 1's pace, higher spawns faster. */
+  spawnRate: number;
+  /** Contact damage multiplier for every enemy. */
+  dmg: number;
+  // Cast
+  mix: MixStep[];
+  /** The ring waves every 30s after the mini-boss: alternating kinds. */
+  wave: { kinds: [EnemyKind, EnemyKind]; banner: string };
+  /** Lines of fast enemies every 20s from 2:00, or null for none. */
+  lines: EnemyKind | null;
+  elite: { kind: EnemyKind; banner: string; color: string };
+  mini: { kind: EnemyKind; name: string; banner: string };
+  boss: { kind: EnemyKind; name: string; banner: string };
+  music: { run: SongId; boss: SongId };
+}
+
+const BAKERY_STAGE: StageDef = {
+  id: 'stage1',
+  num: 1,
+  name: 'The Bakery',
+  story: 'The Stale has crept onto the counter. Hold the line!',
+  thumb: 'thumb_stage1',
+  pips: 1,
+  unlockAfter: null,
+  unlockText: '',
+  built: true,
+  floor: 'floor_stage1',
+  props: 'counter',
+  dough: 1,
+  hpBonus: 1.1,
+  hpGrowth: 180,
+  spawnRate: 1,
+  dmg: 1,
+  mix: [
+    { until: 45, table: [['crumb', 1]] },
+    { until: 90, table: [['crumb', 70], ['mold', 30]] },
+    { until: 150, table: [['crumb', 50], ['mold', 30], ['knife', 20]] },
+    { until: Infinity, table: [['crumb', 40], ['mold', 32], ['knife', 28]] },
+  ],
+  wave: { kinds: ['moldling', 'crumb'], banner: 'The crumbs close in!' },
+  lines: 'ant',
+  elite: { kind: 'elite', banner: 'A Giant Mold appears!', color: '#9fd36a' },
+  mini: { kind: 'croissant', name: 'Crusty Croissant', banner: 'Crusty Croissant!' },
+  boss: { kind: 'toaster', name: 'The Toaster Tyrant', banner: 'THE TOASTER TYRANT' },
+  music: { run: 'run', boss: 'boss' },
+};
+
+// Stages 2 and 3 borrow Stage 1's cast and floor until their own content is built (M6 and M9).
+// Their difficulty dials are first guesses, tuned with the bot benchmark when each stage is built.
+export const STAGES: StageDef[] = [
+  BAKERY_STAGE,
+  {
+    ...BAKERY_STAGE,
+    id: 'stage2',
+    num: 2,
+    name: 'The Freezer',
+    story: 'The Stale is freezing the leftovers solid. Thaw them out.',
+    thumb: 'thumb_stage2',
+    pips: 2,
+    unlockAfter: 'stage1',
+    unlockText: 'Beat the Toaster Tyrant',
+    built: false,
+    dough: 1.5,
+    hpGrowth: 160,
+  },
+  {
+    ...BAKERY_STAGE,
+    id: 'stage3',
+    num: 3,
+    name: 'The Toaster Oven',
+    story: 'Deep in the oven, the Stale is burning everything to a crisp.',
+    thumb: 'thumb_stage3',
+    pips: 3,
+    unlockAfter: 'stage2',
+    unlockText: 'Beat the Freezer Burn',
+    built: false,
+    dough: 2,
+    hpGrowth: 145,
+  },
+];
+
+export function stageById(id: string | undefined): StageDef {
+  return STAGES.find((s) => s.id === id) ?? STAGES[0];
+}
 
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
@@ -253,7 +363,6 @@ export const RUN = {
   antsEvery: 20,
   maxEnemies: 260,
   earlyMaxEnemies: 180, // cap before 3:00
-  hpBonus: 1.1, // extra health on regular enemies (bosses and elites excluded)
 };
 
 /** XP needed to go from level `lvl` to `lvl + 1`. */
