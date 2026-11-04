@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { COLORS, CSS, DEBUG, S, fmtTime, safeInsets } from '../config';
+import { COLORS, CSS, DEBUG, S, ZOOM, fmtTime, safeInsets } from '../config';
+import { COUNTER_PROPS } from '../floors';
+import { rng } from '../art';
 import {
   BAGELS,
   ENEMIES,
@@ -13,6 +15,7 @@ import {
   type EnemyKind,
   type ToppingId,
   type WeaponId,
+  STAGES,
 } from '../data';
 import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } from '../entities';
 import { load, persist, recordBest } from '../save';
@@ -50,7 +53,7 @@ const PRACTICE_LEVELS = 12;
 
 export class GameScene extends Phaser.Scene implements World {
   player = new Player();
-  stats: Stats = { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 55, maxHp: 100 };
+  stats: Stats = { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100 };
   now = 0;
 
   private bagel!: BagelDef;
@@ -91,6 +94,9 @@ export class GameScene extends Phaser.Scene implements World {
   private uiLayer!: Phaser.GameObjects.Layer;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
   private floor!: Phaser.GameObjects.TileSprite;
+  /** Countertop props by chunk key, created near the camera and dropped when far away. */
+  private propCenter = '';
+  private propChunks = new Map<string, Phaser.GameObjects.Image[]>();
   private hpBg!: Phaser.GameObjects.Rectangle;
   private hpFill!: Phaser.GameObjects.Rectangle;
 
@@ -118,6 +124,7 @@ export class GameScene extends Phaser.Scene implements World {
   private joyVec = { x: 0, y: 0 };
   private joyGfx!: Phaser.GameObjects.Graphics;
   private arrowGfx!: Phaser.GameObjects.Graphics;
+  private shadowGfx!: Phaser.GameObjects.Graphics;
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
 
   constructor() {
@@ -159,6 +166,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.hazards = [];
     this.weapons = [];
     this.toppings = new Map();
+    this.propChunks = new Map();
+    this.propCenter = '';
     this.particles = 0;
     this.level = 1;
     this.xp = 0;
@@ -194,15 +203,18 @@ export class GameScene extends Phaser.Scene implements World {
     this.uiLayer = this.add.layer();
     this.uiLayer.setDepth(1000);
     const cam = this.cameras.main;
-    cam.setZoom(S);
+    cam.setZoom(S * ZOOM);
     cam.setBackgroundColor(COLORS.bg);
     this.uiCam = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     cam.ignore(this.uiLayer);
     this.uiCam.ignore(this.worldLayer);
 
-    this.floor = this.add.tileSprite(0, 0, 10, 10, 'floor');
+    this.floor = this.add.tileSprite(0, 0, 10, 10, STAGES[0].floor);
     this.floor.setTileScale(1 / S).setDepth(0);
     this.worldLayer.add(this.floor);
+    // Soft contact shadows under everything that stands on the floor, redrawn each frame.
+    this.shadowGfx = this.add.graphics().setDepth(2);
+    this.worldLayer.add(this.shadowGfx);
 
     this.player.sprite = this.img(this.bagel.tex, 0, 0, 50);
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
@@ -344,7 +356,7 @@ export class GameScene extends Phaser.Scene implements World {
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
-      magnet: 55 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
+      magnet: 62 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
       maxHp: Math.round((b.hp + 10 * (up.hp ?? 0)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
     };
     if (this.stats.maxHp > prevMax && this.player.hp > 0) this.player.hp += this.stats.maxHp - prevMax;
@@ -653,18 +665,91 @@ export class GameScene extends Phaser.Scene implements World {
     this.hpBg.setPosition(p.x, p.y + 22);
     this.hpFill.setPosition(p.x - 15, p.y + 22).setSize(30 * Math.max(0, p.hp / p.maxHp), 4);
     this.cameras.main.centerOn(p.x, p.y);
-    this.floor.setPosition(Math.round(p.x / 64) * 64, Math.round(p.y / 64) * 64);
+    this.floor.setPosition(Math.round(p.x / 256) * 256, Math.round(p.y / 256) * 256);
     this.updateHud();
     this.drawArrows();
+    this.drawShadows();
+    this.updateProps();
+  }
+
+  /** Scatter countertop props in 384px world chunks. Each chunk is seeded by its coordinates,
+   *  so the same spot always shows the same props and nothing repeats on a grid. */
+  private updateProps(): void {
+    const C = 384;
+    const p = this.player;
+    const rx = Math.ceil((this.viewW() / 2 + 160) / C);
+    const ry = Math.ceil((this.viewH() / 2 + 160) / C);
+    const pcx = Math.floor(p.x / C);
+    const pcy = Math.floor(p.y / C);
+    const key0 = `${pcx},${pcy}`;
+    if (this.propCenter === key0) return;
+    this.propCenter = key0;
+    const keep = new Set<string>();
+    const total = COUNTER_PROPS.reduce((a, d) => a + d.weight, 0);
+    for (let cx = pcx - rx; cx <= pcx + rx; cx++)
+      for (let cy = pcy - ry; cy <= pcy + ry; cy++) {
+        const key = `${cx},${cy}`;
+        keep.add(key);
+        if (this.propChunks.has(key)) continue;
+        const h = (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663)) >>> 0;
+        const rand = rng((h % 2147483646) + 1);
+        rand();
+        rand();
+        const n = rand() < 0.35 ? 2 : 3;
+        const list: Phaser.GameObjects.Image[] = [];
+        for (let i = 0; i < n; i++) {
+          let r = rand() * total;
+          let def = COUNTER_PROPS[0];
+          for (const d of COUNTER_PROPS) {
+            r -= d.weight;
+            if (r <= 0) {
+              def = d;
+              break;
+            }
+          }
+          // Each prop gets its own horizontal band of the chunk so they rarely overlap.
+          const x = (cx + 0.15 + rand() * 0.7) * C;
+          const y = (cy + (i + 0.2 + rand() * 0.6) / n) * C;
+          const im = this.img(def.key, x, y, 1);
+          im.setRotation(def.spin ? rand() * Math.PI * 2 : (rand() - 0.5) * 0.4);
+          list.push(im);
+        }
+        this.propChunks.set(key, list);
+      }
+    for (const [key, list] of this.propChunks)
+      if (!keep.has(key)) {
+        for (const im of list) im.destroy();
+        this.propChunks.delete(key);
+      }
+  }
+
+  private drawShadows(): void {
+    const g = this.shadowGfx;
+    g.clear();
+    const p = this.player;
+    const hw = this.viewW() / 2 + 60;
+    const hh = this.viewH() / 2 + 60;
+    g.fillStyle(0x1a0f08, 0.28);
+    g.fillEllipse(p.x, p.y + 15, 28, 8);
+    for (const e of this.enemies) {
+      if (!e.alive || Math.abs(e.x - p.x) > hw || Math.abs(e.y - p.y) > hh) continue;
+      if (e.kind === 'knife') continue; // knives fly, no shadow
+      const r = e.radius;
+      g.fillEllipse(e.x, e.y + r * 0.85, r * 2, r * 0.6);
+    }
+    for (const it of this.pickups) {
+      if (it.kind !== 'chest' && it.kind !== 'goldchest') continue;
+      g.fillEllipse(it.x, it.y + 12, 24, 6);
+    }
   }
 
   // ---------------------------------------------------------------- Director
 
   private viewW(): number {
-    return this.scale.width / S;
+    return this.scale.width / S / ZOOM;
   }
   private viewH(): number {
-    return this.scale.height / S;
+    return this.scale.height / S / ZOOM;
   }
 
   /**
@@ -784,12 +869,11 @@ export class GameScene extends Phaser.Scene implements World {
     if (!special && this.enemies.length >= RUN.maxEnemies + 40) return null;
     const e = this.pool.pop() ?? new Enemy();
     if (!e.sprite) e.sprite = this.img(def.tex, x, y, 30);
+    e.phase = Math.random() * Math.PI * 2;
     e.sprite.setTexture(def.tex).setVisible(true).setAlpha(1).setRotation(0).setFlipX(false);
     e.sprite.clearTint();
     const isBig = def.radius > 20;
-    const scale = kind === 'elite' ? 2 : 1;
-    e.sprite.setScale(scale / S).setDepth(isBig ? 35 : 30);
-    if (kind === 'elite') e.sprite.setTint(0xb6e07a);
+    e.sprite.setScale(1 / S).setDepth(isBig ? 35 : 30);
     e.kind = kind;
     e.x = x;
     e.y = y;
@@ -810,7 +894,6 @@ export class GameScene extends Phaser.Scene implements World {
     e.attackT = 1.5;
     e.attack2T = 0;
     e.hitCd.clear();
-    e.sprite.setData('tinted', kind === 'elite');
     this.enemies.push(e);
     if (isBig) this.bigs.push(e);
     return e;
@@ -917,6 +1000,8 @@ export class GameScene extends Phaser.Scene implements World {
           break;
         default:
           if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
+          // Waddle while walking.
+          e.sprite.setRotation(Math.sin(t * 9 + e.phase) * 0.12);
       }
 
       e.x += (mvx + e.kx) * dt;
@@ -980,7 +1065,6 @@ export class GameScene extends Phaser.Scene implements World {
       if (flashing !== e.sprite.getData('flash')) {
         e.sprite.setData('flash', flashing);
         if (flashing) e.sprite.setTintFill(0xffffff);
-        else if (e.sprite.getData('tinted')) e.sprite.setTint(0xb6e07a);
         else e.sprite.clearTint();
       }
       if (this.paused === 'over') return;
@@ -1023,7 +1107,8 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
-    if (e.dropsChest) this.dropPickup('chest', e.x, e.y, 1);
+    // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
+    if (e.dropsChest) this.dropPickup(e.kind === 'croissant' || Math.random() < 0.25 ? 'goldchest' : 'chest', e.x, e.y, 1);
     const r = Math.random();
     if (r < 0.01) this.dropPickup('coin', e.x + 6, e.y, 1);
     else if (r < 0.015) this.dropPickup('heal', e.x, e.y + 6, 30);
@@ -1207,8 +1292,9 @@ export class GameScene extends Phaser.Scene implements World {
 
   private dropPickup(kind: Pickup['kind'], x: number, y: number, value: number): void {
     const tex = kind === 'xp' ? this.gemTex(value) : kind;
-    const sprite = this.img(tex, x, y, kind === 'chest' ? 12 : 10);
-    if (kind === 'chest') {
+    const isChest = kind === 'chest' || kind === 'goldchest';
+    const sprite = this.img(tex, x, y, isChest ? 12 : 10);
+    if (isChest) {
       this.tweens.add({ targets: sprite, y: y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
     this.pickups.push({ sprite, x, y, kind, value, magnet: false, alive: true });
@@ -1227,7 +1313,7 @@ export class GameScene extends Phaser.Scene implements World {
       const dx = p.x - it.x;
       const dy = p.y - it.y;
       const d = Math.hypot(dx, dy) || 1;
-      if (it.kind === 'chest') {
+      if (it.kind === 'chest' || it.kind === 'goldchest') {
         if (d < 70) {
           it.x += (dx / d) * 200 * dt;
           it.y += (dy / d) * 200 * dt;
@@ -1265,7 +1351,10 @@ export class GameScene extends Phaser.Scene implements World {
         this.burst(this.player.x, this.player.y, 0x7fbf4d, 8, 30);
         break;
       case 'chest':
-        this.openChest();
+        this.openChest(false);
+        break;
+      case 'goldchest':
+        this.openChest(true);
         break;
     }
   }
@@ -1299,7 +1388,7 @@ export class GameScene extends Phaser.Scene implements World {
     const W = this.scale.width;
     const H = this.scale.height;
     this.uiCam?.setSize(W, H);
-    this.floor?.setSize(W / S + 256, H / S + 256);
+    this.floor?.setSize(W / S / ZOOM + 640, H / S / ZOOM + 640);
     if (!this.hud) return;
     const top = safeInsets().top * S;
     const h = this.hud;
@@ -1355,11 +1444,14 @@ export class GameScene extends Phaser.Scene implements World {
       if (!e.alive) continue;
       targets.push({ x: e.x, y: e.y, color: e.boss ? COLORS.red : e.kind === 'croissant' ? COLORS.gold : COLORS.green });
     }
-    for (const it of this.pickups) if (it.kind === 'chest') targets.push({ x: it.x, y: it.y, color: 0xfff0a0 });
+    for (const it of this.pickups) {
+      if (it.kind === 'chest') targets.push({ x: it.x, y: it.y, color: 0xf3d9a0 });
+      else if (it.kind === 'goldchest') targets.push({ x: it.x, y: it.y, color: 0xffc21f });
+    }
     const pulse = 1 + 0.12 * Math.sin(this.now * 8);
     for (const t of targets) {
-      const sx = W / 2 + (t.x - p.x) * S;
-      const sy = H / 2 + (t.y - p.y) * S;
+      const sx = W / 2 + (t.x - p.x) * S * ZOOM;
+      const sy = H / 2 + (t.y - p.y) * S * ZOOM;
       if (sx > 0 && sx < W && sy > 0 && sy < H) continue;
       const dx = sx - W / 2;
       const dy = sy - H / 2;
@@ -1577,39 +1669,46 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  private openChest(): void {
+  /** Bread basket: an evolution, or 1 upgrade and +5 Dough. Gold toaster: an evolution plus 2 upgrades, or 3 upgrades and +15 Dough. */
+  private openChest(gold: boolean): void {
     this.setPaused('chest');
     sfx('chest');
     const evo = this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
     let title: string;
-    let line: string;
-    let icon: string;
+    const lines: string[] = [];
+    let icon = 'ic_heal';
     if (evo) {
       evo.evolved = true;
       title = 'EVOLUTION!';
-      line = `${evo.def.name} became ${evo.def.evoName}\n${evo.def.evoBlurb}`;
+      lines.push(`${evo.def.name} became ${evo.def.evoName}`);
+      if (!gold) lines.push(evo.def.evoBlurb);
       icon = evo.def.icon;
       this.evolutionsThisRun.push(evo.def.id);
       const save = load();
       if (!save.cookbook.includes(evo.def.id)) save.cookbook.push(evo.def.id);
       persist();
     } else {
+      title = gold ? 'GOLDEN TOASTER!' : 'BREAD BASKET';
+      const dough = gold ? 15 : 5;
+      this.coins += dough;
+      lines.push(`+${dough} Dough`);
+    }
+    const ups = evo ? (gold ? 2 : 0) : gold ? 3 : 1;
+    const got: string[] = [];
+    for (let i = 0; i < ups; i++) {
       const opts = this.choices().filter((c) => c.kind !== 'heal' && c.kind !== 'coin');
       const pick = opts.find((c) => c.kind === 'wup') ?? opts[0];
-      this.coins += 5;
-      if (pick) {
-        const info = this.describe(pick);
-        this.applyChoice(pick);
-        title = 'TOASTER CHEST';
-        line = `${info.name} ${info.tag.startsWith('LV') ? info.tag.replace('LV', 'Lv') : '(new)'}\n+5 Dough`;
-        icon = info.icon;
-      } else {
-        this.player.hp = this.stats.maxHp;
-        title = 'TOASTER CHEST';
-        line = 'Fully healed!\n+5 Dough';
-        icon = 'ic_heal';
-      }
+      if (!pick) break;
+      const info = this.describe(pick);
+      this.applyChoice(pick);
+      got.push(`${info.name} ${info.tag.startsWith('LV') ? info.tag.replace('LV', 'Lv') : '(new)'}`);
     }
+    if (!evo) icon = gold ? 'goldchest' : 'chest';
+    if (!evo && !got.length) {
+      this.player.hp = this.stats.maxHp;
+      got.push('Fully healed!');
+    }
+    const line = [...got, ...lines].join('\n');
     const W = this.scale.width;
     const H = this.scale.height;
     const c = this.add.container(0, 0);
@@ -1617,11 +1716,12 @@ export class GameScene extends Phaser.Scene implements World {
     this.overlay = c;
     const dim = this.dim(0.7);
     c.add(dim);
-    c.add(panel(this, W / 2, H / 2, Math.min(W - 40 * S, 340 * S), 250 * S));
+    const extra = Math.max(0, line.split('\n').length - 2) * 20 * S;
+    c.add(panel(this, W / 2, H / 2 + extra / 2, Math.min(W - 40 * S, 340 * S), 250 * S + extra));
     const im = this.add.image(W / 2, H / 2 - 60 * S, icon).setScale(2.2);
-    const t1 = txt(this, W / 2, H / 2 + 6 * S, title, evo ? 30 : 24, evo ? CSS.gold : CSS.cream);
-    const t2 = txt(this, W / 2, H / 2 + 56 * S, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
-    const t3 = txt(this, W / 2, H / 2 + 100 * S, 'Tap to continue', 13, CSS.muted).setAlpha(0);
+    const t1 = txt(this, W / 2, H / 2 + 6 * S, title, evo || gold ? 28 : 24, evo || gold ? CSS.gold : CSS.cream);
+    const t2 = txt(this, W / 2, H / 2 + 56 * S + extra / 2, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
+    const t3 = txt(this, W / 2, H / 2 + 100 * S + extra, 'Tap to continue', 13, CSS.muted).setAlpha(0);
     c.add([im, t1, t2, t3]);
     this.tweens.resumeAll();
     im.setScale(0.5);
