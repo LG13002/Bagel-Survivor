@@ -128,6 +128,14 @@ From the owner's playtest notes:
 - Stage 1 with no new upgrades is unchanged: same scheduled events in the timeline bot, and the weapon bench is within noise of `main`.
 - Bot hit sampling: Hard Crust at ranks 1/3/5 cuts damage taken to about 93%/79%/64% in Stage 1 and 92%/77%/62% in the Freezer. Maxing all four Extras costs 3,100 Dough, so it is a long-term goal.
 
+### Phase 2, M8 part 1: four new weapons
+- Piercing Butter Knife / Cutlery Drawer (Honey), Jam Jar Lob / Jam Session (Jam), Toaster Pop / Toast Barrage (Everything Seasoning), Waffle Smash / Belgian Slam (Cream Cheese Frosting). The owner renamed two of the working names (Butter Knife Throw, Waffle Iron).
+- They unlock through goals and stay off level-up cards until then. Preview builds open them all.
+- Jam is grape purple so it never reads as the Freezer's pink melt puddles, which slow the player. Player toast is golden with a butter pat, unlike the Toaster Tyrant's dark toast.
+- Sesame Shot +10% damage (12 to 13.2 per seed).
+- Bot bench (level 3, then evolved; useful damage/sec): Butter Knife 158 / 314, Jam Jar 268 / 353, Toaster Pop 249 / 326, Waffle Smash 161 (after a buff from 135) / 360. Sesame Shot level 3: 104 (was 97).
+- Style board for the flare pass (part 2): https://claude.ai/artifact/3SvXccvywF63eTFsDociyw
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

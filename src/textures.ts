@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, drawButcherBlock, drawFreezerFloor, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -85,6 +85,12 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'puddle', 128, 128, (c) => drawPuddle(c, 128));
   ctex(scene, 'lox', 30, 18, (c) => drawLox(c, 30, 18));
   ctex(scene, 'pin', 56, 16, (c) => drawPin(c, 56, 16));
+  ctex(scene, 'knife_w', 32, 10, (c) => drawButterKnife(c, 32, 10));
+  ctex(scene, 'jar', 16, 20, (c) => drawJamJar(c, 16, 20));
+  ctex(scene, 'ptoast', 18, 18, (c) => drawPlayerToast(c, 18));
+  ctex(scene, 'jam_pool', 128, 128, (c) => drawJamPool(c, 128));
+  ctex(scene, 'stamp', 128, 128, (c) => drawStamp(c, 128));
+  ctex(scene, 'shock', 128, 128, (c) => drawShock(c, 128));
   ctex(scene, 'splash', 8, 8, (c) => drawDrop(c, 4, 4, 3, '#5e3317', '#b8763a'));
 
   // Enemy projectiles

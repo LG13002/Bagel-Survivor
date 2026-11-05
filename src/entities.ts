@@ -87,4 +87,8 @@ export interface Stats {
   speed: number; // px/s
   magnet: number; // px
   maxHp: number;
+  /** Extra projectiles from Honey. */
+  proj: number;
+  /** Duration multiplier from Jam. */
+  dur: number;
 }

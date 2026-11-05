@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
-import { checkUnlocks, goalStatus, pickedStage, stagePlayable, stageUnlocked } from '../progress';
+import { checkUnlocks, checkWeaponUnlocks, goalStatus, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { bestStage, getBest, load, persist, type SaveData } from '../save';
 import { makeTextures } from '../textures';
@@ -31,7 +31,7 @@ export class MenuScene extends Phaser.Scene {
     playMusic('menu');
     const save = load();
     // Goals met by older saves (or handed out in preview builds) unlock on opening the game.
-    if (checkUnlocks(save).length) persist();
+    if (checkUnlocks(save).length + checkWeaponUnlocks(save).length) persist();
     this.idx = Math.max(0, BAGELS.findIndex((b) => b.id === save.selected));
     this.build();
     const onResize = () => this.build();
@@ -268,7 +268,7 @@ export class MenuScene extends Phaser.Scene {
     const stats = [
       pill(this, 0, bottom - 24 * S, 'ic_clock', `Best ${fmtTime(save.bestTime)}`, { size: 13, h: 26 }),
       pill(this, 0, bottom - 24 * S, 'ic_crown', `${save.clears} clears`, { size: 13, h: 26 }),
-      pill(this, 0, bottom - 24 * S, 'ic_book', `${save.cookbook.length}/6`, { size: 13, h: 26 }),
+      pill(this, 0, bottom - 24 * S, 'ic_book', `${save.cookbook.length}/${Object.keys(WEAPONS).length}`, { size: 13, h: 26 }),
     ];
     const gap = 8 * S;
     let x = W / 2 - (stats.reduce((a, p) => a + p.width, 0) + gap * (stats.length - 1)) / 2;
@@ -431,7 +431,7 @@ export class MenuScene extends Phaser.Scene {
     );
   }
 
-  private openCookbook(): void {
+  private openCookbook(tab = 0, page = 0): void {
     const W = this.scale.width;
     const H = this.scale.height;
     const save = load();
@@ -439,41 +439,69 @@ export class MenuScene extends Phaser.Scene {
     const c = this.add.container(0, 0);
     this.bakery = c;
     c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
-    const ids = Object.keys(WEAPONS) as WeaponId[];
+    const all = Object.keys(WEAPONS) as WeaponId[];
+    const locked = all.filter((id) => WEAPONS[id].unlock);
+    // Five rows a page keeps it on screen on small phones; two tabs: Evolutions and Weapons.
+    const PER = 5;
+    const ids = tab === 0 ? all.slice(page * PER, page * PER + PER) : locked;
+    const pages = tab === 0 ? Math.ceil(all.length / PER) : 1;
     const pw = Math.min(W - 24 * S, 400 * S);
-    const rowH = 62 * S;
-    const ph = 160 * S + ids.length * rowH;
+    const rowH = 60 * S;
+    const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S + 66 * S;
     c.add(panel(this, W / 2, H / 2, pw, ph));
     const top = H / 2 - ph / 2;
     c.add(txt(this, W / 2, top + 36 * S, 'THE COOKBOOK', 28, CSS.gold));
-    c.add(txt(this, W / 2, top + 64 * S, `${save.cookbook.length} of ${ids.length} evolutions found`, 14, CSS.cream, { bold: false }));
-    const lx = W / 2 - pw / 2 + 20 * S;
-    ids.forEach((id, i) => {
-      const w = WEAPONS[id];
-      const t = TOPPINGS[w.evolveWith];
-      const found = save.cookbook.includes(id);
-      const y = top + 108 * S + i * rowH;
-      c.add(this.add.image(lx + 18 * S, y, w.icon).setScale(0.9));
-      c.add(txt(this, lx + 44 * S, y, '+', 18, CSS.muted));
-      const ti = this.add.image(lx + 70 * S, y, t.icon).setScale(0.9);
-      if (!found) ti.setTintFill(0x1d140d);
-      c.add(ti);
-      const tx = lx + 98 * S;
-      c.add(txt(this, tx, y - 10 * S, found ? w.evoName : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
+    const opened = locked.filter((id) => weaponOpen(save, id)).length;
+    const sub = tab === 0 ? `${save.cookbook.length} of ${all.length} evolutions found` : `${opened} of ${locked.length} weapons unlocked`;
+    c.add(txt(this, W / 2, top + 64 * S, sub, 14, CSS.cream, { bold: false }));
+    const cw = pw - 28 * S;
+    const tw = (cw - 10 * S) / 2;
+    ['Evolutions', 'Weapons'].forEach((label, i) => {
+      const on = i === tab;
       c.add(
-        txt(this, tx, y + 11 * S, found ? `${w.name} + ${t.name}` : `Max it + a mystery topping`, 12, CSS.muted, {
-          bold: false,
-          stroke: false,
-          wrap: (pw - 120 * S) / S,
-          align: 'left',
-        }).setOrigin(0, 0.5),
+        button(this, W / 2 + (i ? 1 : -1) * (tw / 2 + 5 * S), top + 104 * S, tw, 38 * S, label, () => {
+          if (!on) this.openCookbook(i);
+        }, { size: 16, muted: !on }),
       );
     });
+    const lx = W / 2 - pw / 2 + 20 * S;
+    const small = (x: number, y: number, s: string, wrap: number) =>
+      txt(this, x, y, s, 12, CSS.muted, { bold: false, stroke: false, wrap, align: 'left' }).setOrigin(0, 0.5);
+    ids.forEach((id, i) => {
+      const w = WEAPONS[id];
+      const y = top + 160 * S + i * rowH;
+      if (tab === 0) {
+        const t = TOPPINGS[w.evolveWith];
+        const found = save.cookbook.includes(id);
+        c.add(this.add.image(lx + 18 * S, y, w.icon).setScale(0.9));
+        c.add(txt(this, lx + 44 * S, y, '+', 18, CSS.muted));
+        const ti = this.add.image(lx + 70 * S, y, t.icon).setScale(0.9);
+        if (!found) ti.setTintFill(0x1d140d);
+        c.add(ti);
+        const tx = lx + 98 * S;
+        c.add(txt(this, tx, y - 10 * S, found ? w.evoName : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
+        c.add(small(tx, y + 11 * S, found ? `${w.name} + ${t.name}` : `Max it + a mystery topping`, (pw - 120 * S) / S));
+      } else {
+        const open = weaponOpen(save, id);
+        const st = weaponGoalStatus(save, w);
+        const ic = this.add.image(lx + 18 * S, y, w.icon).setScale(0.9);
+        if (!open) ic.setTintFill(0x1d140d);
+        c.add(ic);
+        const tx = lx + 46 * S;
+        c.add(txt(this, tx, y - 10 * S, w.name, 16, open ? CSS.gold : CSS.cream).setOrigin(0, 0.5));
+        c.add(small(tx, y + 11 * S, open ? w.blurb : `${w.unlock!.text} (${st.progress})`, (pw - 70 * S) / S));
+      }
+    });
+    let by = top + 160 * S + PER * rowH - 10 * S;
+    if (pages > 1) {
+      const go = (d: number) => this.openCookbook(0, (page + d + pages) % pages);
+      c.add(button(this, W / 2 - 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
+      c.add(txt(this, W / 2, by + 4 * S, `${page + 1} / ${pages}`, 15, CSS.cream));
+      c.add(button(this, W / 2 + 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
+      by += 46 * S;
+    }
     c.add(
-      txt(this, W / 2, top + ph - 82 * S, 'Evolve: max a weapon, own its topping, open a chest.', 12, CSS.muted, { bold: false, wrap: (pw - 40 * S) / S }),
-    );
-    c.add(
-      button(this, W / 2, top + ph - 40 * S, 160 * S, 46 * S, 'Done', () => {
+      button(this, W / 2, by + 28 * S, 160 * S, 46 * S, 'Done', () => {
         c.destroy();
         this.bakery = null;
       }, { size: 20 }),

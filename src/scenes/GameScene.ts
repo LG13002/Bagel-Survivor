@@ -25,7 +25,7 @@ import { button, drawPips, panel, pill, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
 import { muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
-import { checkUnlocks, playableStages } from '../progress';
+import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
 import { clearRun, loadRun, saveRun, type RunSnapshot } from '../runsave';
 
 type PauseReason = '' | 'levelup' | 'pause' | 'chest' | 'over';
@@ -46,6 +46,8 @@ export interface RunResult {
   bagel: string;
   stage: string;
   newUnlock: string;
+  /** Names of weapons this run unlocked, or ''. */
+  newWeapon: string;
   /** Name of a stage this run opened up, or ''. */
   newStage: string;
   newBest: boolean;
@@ -94,7 +96,7 @@ const QUICK_DOUGH = 0.75;
 
 export class GameScene extends Phaser.Scene implements World {
   player = new Player();
-  stats: Stats = { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100 };
+  stats: Stats = { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100, proj: 0, dur: 1 };
   now = 0;
 
   private bagel!: BagelDef;
@@ -189,6 +191,8 @@ export class GameScene extends Phaser.Scene implements World {
   private luck = 0;
   private reviveRank = 0;
   private revived = false;
+  /** Warm Mugs picked up this run (they count toward Jam Jar Lob's unlock). */
+  private runMugs = 0;
   private armor = 0;
   // Blueberry's dash and Asiago's age
   private dashT = 0;
@@ -280,6 +284,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.luck = up.luck ?? 0;
     this.reviveRank = up.revive ?? 0;
     this.revived = false;
+    this.runMugs = 0;
     this.armor = up.armor ?? 0;
     this.dashT = 0;
     this.dashReadyAt = 0;
@@ -382,7 +387,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.cameras.main.shake(ms, intensity);
   }
 
-  playSfx(name: 'pin' | 'splash' | 'shoot' | 'lox' | 'storm'): void {
+  playSfx(name: Sfx): void {
     sfx(name);
   }
 
@@ -468,16 +473,23 @@ export class GameScene extends Phaser.Scene implements World {
     const t = (id: ToppingId) => this.toppings.get(id) ?? 0;
     const prevMax = this.stats.maxHp;
     this.stats = {
-      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven')) * (1 + this.agedPct / 100),
+      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven') + 0.04 * t('honey')) * (1 + this.agedPct / 100),
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
       magnet: 62 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
       maxHp: Math.round((b.hp + 10 * (up.hp ?? 0)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
+      proj: (t('honey') >= 1 ? 1 : 0) + (t('honey') >= 4 ? 1 : 0),
+      dur: 1 + 0.15 * t('jam'),
     };
     if (this.stats.maxHp > prevMax && this.player.hp > 0) this.player.hp += this.stats.maxHp - prevMax;
     this.player.maxHp = this.stats.maxHp;
     this.player.hp = Math.min(this.player.hp, this.stats.maxHp);
+  }
+
+  /** Lucky Seed ranks plus Everything Seasoning levels. */
+  private get luckNow(): number {
+    return this.luck + (this.toppings.get('seasoning') ?? 0);
   }
 
   private addWeapon(id: WeaponId): void {
@@ -490,14 +502,15 @@ export class GameScene extends Phaser.Scene implements World {
 
   private choices(): Choice[] {
     const pool: { c: Choice; w: number }[] = [];
+    const save = load();
     // Lucky Seed: cards for what you already own (the road to evolutions) come up more often.
-    const own = 1 + 0.1 * this.luck;
+    const own = 1 + 0.1 * this.luckNow;
     for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
     if (this.weapons.length < MAX_SLOTS)
-      for (const id of Object.keys(WEAPONS)) if (!this.weaponOf(id)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
+      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
     for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) pool.push({ c: { kind: 'tup', id }, w: own });
     if (this.toppings.size < MAX_SLOTS)
-      for (const id of Object.keys(TOPPINGS)) if (!this.toppings.has(id as ToppingId)) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
+      for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon))) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
     const out: Choice[] = [];
     const n = this.bagel.choices;
     while (out.length < n && pool.length) {
@@ -715,6 +728,7 @@ export class GameScene extends Phaser.Scene implements World {
       evolutions: this.evolutionsThisRun,
       healsTaken: this.healsTaken,
       revived: this.revived,
+      mugs: this.runMugs,
       buns: this.pickups.filter((it) => it.kind === 'bun').length,
     };
     saveRun(snap);
@@ -747,6 +761,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.evolutionsThisRun = s.evolutions;
     this.healsTaken = s.healsTaken;
     this.revived = !!s.revived;
+    this.runMugs = s.mugs ?? 0;
     for (let i = 0; i < (s.buns ?? 0); i++) this.dropPickup('bun', this.player.x + 60 + i * 30, this.player.y, 1);
     this.recomputeStats();
     this.player.hp = Math.min(this.stats.maxHp, s.hp);
@@ -1602,7 +1617,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
     // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
-    if (e.dropsChest) this.dropPickup(e.kind === this.stage.mini.kind || Math.random() < 0.25 + 0.05 * this.luck ? 'goldchest' : 'chest', e.x, e.y, 1);
+    if (e.dropsChest) this.dropPickup(e.kind === this.stage.mini.kind || Math.random() < 0.25 + 0.05 * this.luckNow ? 'goldchest' : 'chest', e.x, e.y, 1);
     if (e.dropsBun) {
       // Land on the far side of the boss so it isn't grabbed by accident at the kill.
       const ba = Math.atan2(e.y - this.player.y, e.x - this.player.x);
@@ -1852,7 +1867,8 @@ export class GameScene extends Phaser.Scene implements World {
     const p = this.player;
     if (DEBUG.god || this.paused || this.now < p.invulnUntil) return;
     // Hard Crust blocks 1 per rank, but a hit always does at least half.
-    if (this.armor) d = Math.max(d * 0.5, d - this.armor);
+    const armor = this.armor + (this.toppings.get('frosting') ?? 0);
+    if (armor) d = Math.max(d * 0.5, d - armor);
     p.hp -= d;
     p.invulnUntil = this.now + 0.9;
     this.cameras.main.shake(110, 0.005);
@@ -2010,6 +2026,7 @@ export class GameScene extends Phaser.Scene implements World {
         this.player.sprite.clearTint();
         this.mugUntil = this.now + MUG_SAFE;
         sfx('sip');
+        this.runMugs++;
         this.burst(this.player.x, this.player.y, 0xff9a5c, 10, 40);
         break;
       case 'bun':
@@ -2659,7 +2676,15 @@ export class GameScene extends Phaser.Scene implements World {
       save.stageClears = { ...(save.stageClears ?? {}), [this.stage.id]: (save.stageClears?.[this.stage.id] ?? 0) + 1 };
       if (this.healsTaken === 0) save.noHealClear = true;
     }
+    if (!this.practice) {
+      const beaten = new Set(save.beaten ?? []);
+      if (this.miniKilled) beaten.add(this.stage.mini.kind);
+      if (victory) beaten.add(this.stage.boss.kind);
+      save.beaten = [...beaten];
+      save.mugs = (save.mugs ?? 0) + this.runMugs;
+    }
     const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
+    const newWeapon = this.practice ? '' : checkWeaponUnlocks(save).join(', ');
     const newBest = !this.practice && recordBest(save, this.bagel.id, { time: Math.floor(this.now), kills: this.kills, cleared: victory }, bestStage(this.stage.id, this.quick));
     const opened = playableStages(save).filter((id) => !openBefore.includes(id));
     if (opened.length) save.stage = opened[0];
@@ -2675,6 +2700,7 @@ export class GameScene extends Phaser.Scene implements World {
       bagel: this.bagel.id,
       stage: this.stage.id,
       newUnlock,
+      newWeapon,
       newStage: opened.length ? stageById(opened[0]).name : '',
       newBest,
       evolutions: this.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),

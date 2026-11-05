@@ -9,7 +9,7 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 - **Live:** https://lg13002.github.io/Bagel-Survivor/. Pushes to `main` deploy through GitHub Actions to Pages.
 - **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
-- **Status (2026-11-04):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. Next is M8.
+- **Status (2026-11-04):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. M8 part 1 (4 new weapons) is built; part 2 (the weapon flare pass, from the owner's pick on the style board) is next.
 
 ## How to work with the owner (rules)
 
@@ -48,7 +48,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 | --- | --- |
 | `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; the owner asked for +20%), colors, safe insets, `DEBUG` URL flags |
 | `src/data.ts` | **All tuning:** weapons, toppings, evolutions, bagels, Bakery upgrades, enemies, `STAGES` (one recipe per stage: cast, timeline banners, music, Dough pay, difficulty dials), `RUN` pacing, `xpNeeded` |
-| `src/weapons.ts` | The 6 weapon classes (normal and evolved behavior; damage numbers are inline here) |
+| `src/weapons.ts` | The 10 weapon classes (normal and evolved behavior; damage numbers are inline here). `pickTargets` and `Lob` are shared by the thrown weapons |
 | `src/scenes/GameScene.ts` | The run: director/spawning, pickups, the Sticky Bun, chests, level-up, HUD, pause, audio state, Quick Run pacing, resume snapshot |
 | `src/scenes/MenuScene.ts` | Menu, bagel picker (swipe and chevrons), Full/Quick switch, toggles, Bakery shop, Cookbook |
 | `src/scenes/ResultsScene.ts` | End of run, Dough payout, new-best banners |
@@ -81,6 +81,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - **There is no automatic seed pull anywhere.** The owner found it jarring.
 - **Seeds:** once there are more than 300 on the floor, new ones merge into the nearest seed, so nothing is lost.
 - **Build limits:** 4 weapon slots and 4 topping slots, each up to level 5. A level 5 weapon plus its matching topping evolves from a chest.
+- **Weapons:** 6 starters plus 4 that unlock through goals (`unlock` on the def, `progress.ts`): Piercing Butter Knife (beat the Frozen Waffle), Jam Jar Lob (15 Warm Mugs in total), Toaster Pop (beat the Freezer Burn), Waffle Smash (6 evolutions). A locked weapon and its topping (`weapon` on the topping def) never show on cards. The save keeps `weapons`, `beaten` (boss kinds) and `mugs`; practice runs count for nothing. Old saves with a Freezer clear count both Freezer bosses as beaten. New toppings: Honey (+4% damage every level, and `stats.proj`: +1 projectile at levels 1 and 4, capped at +2), Jam (`stats.dur`, +15% duration per level), Everything Seasoning (adds to Lucky Seed luck), Cream Cheese Frosting (adds to Hard Crust; a hit still does at least half). The Cookbook has Evolutions (5 a page) and Weapons tabs.
 - **Bakery:** 8 permanent upgrades, 5 ranks each, in two tabs (`tab` on the def). Basics: Crust health, Oven damage, Rise speed, Sticky Seeds magnet. Extras: Lucky Seed (better cards, more gold toasters), Reroll Rack, Second Bake (one revive per run), Hard Crust (-1 damage per hit, never below half). With no Extras bought, runs play exactly as before.
 - **Bagel quirks** (`quirkId` in `BAGELS`): Blueberry's `dash` (flick or SPACE, 5s cooldown ring, safe while dashing) and Asiago's `aged` (+1% damage per 10s of stage time, up to +30%, HUD badge). Goals can be `stageclear` or `stagetime` on a given `stage`; `checkUnlocks` runs when the menu opens.
 

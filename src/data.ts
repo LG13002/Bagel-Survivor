@@ -1,8 +1,16 @@
 // All tunable game content lives here.
 import type { SongId } from './music';
 
-export type WeaponId = 'sesame' | 'storm' | 'puddle' | 'lox' | 'coffee' | 'pin';
-export type ToppingId = 'butter' | 'dough' | 'caffeine' | 'oven' | 'salt' | 'glaze';
+export type WeaponId = 'sesame' | 'storm' | 'puddle' | 'lox' | 'coffee' | 'pin' | 'knife' | 'jar' | 'toastpop' | 'iron';
+export type ToppingId = 'butter' | 'dough' | 'caffeine' | 'oven' | 'salt' | 'glaze' | 'honey' | 'jam' | 'seasoning' | 'frosting';
+
+/** How a locked weapon is earned. 'boss' = beat that boss or mini-boss once; 'mugs' = Warm Mugs picked up in total; 'cookbook' = evolutions found. */
+export interface WeaponGoal {
+  kind: 'boss' | 'mugs' | 'cookbook';
+  boss?: string;
+  target: number;
+  text: string;
+}
 
 export interface WeaponDef {
   id: WeaponId;
@@ -13,6 +21,8 @@ export interface WeaponDef {
   evolveWith: ToppingId;
   evoName: string;
   evoBlurb: string;
+  /** Locked weapons never show on level-up cards until this goal is met. */
+  unlock?: WeaponGoal;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
@@ -76,6 +86,50 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evoName: 'Baker’s Dozen',
     evoBlurb: 'Thirteen pins in every direction.',
   },
+  knife: {
+    id: 'knife',
+    name: 'Piercing Butter Knife',
+    icon: 'ic_knife',
+    blurb: 'Knives pierce every enemy in a line.',
+    levels: ['Knives pierce every enemy in a line.', '+1 knife', '+50% damage', '+1 knife', 'Longer, faster knives'],
+    evolveWith: 'honey',
+    evoName: 'Cutlery Drawer',
+    evoBlurb: 'Fans of knives in four directions.',
+    unlock: { kind: 'boss', boss: 'waffle', target: 1, text: 'Beat the Frozen Waffle' },
+  },
+  jar: {
+    id: 'jar',
+    name: 'Jam Jar Lob',
+    icon: 'ic_jar',
+    blurb: 'Lobbed jars leave sticky, slowing jam.',
+    levels: ['Lobbed jars leave sticky, slowing jam.', '+1 jar', 'Bigger pools', '+1 jar', 'More damage, longer pools'],
+    evolveWith: 'jam',
+    evoName: 'Jam Session',
+    evoBlurb: 'Big pools pull enemies to the middle.',
+    unlock: { kind: 'mugs', target: 15, text: 'Pick up 15 Warm Mugs' },
+  },
+  toastpop: {
+    id: 'toastpop',
+    name: 'Toaster Pop',
+    icon: 'ic_toastpop',
+    blurb: 'Toast pops up and lands on enemies.',
+    levels: ['Toast pops up and lands on enemies.', '+1 toast', '+50% damage', '+1 toast', 'Bigger splash, pops faster'],
+    evolveWith: 'seasoning',
+    evoName: 'Toast Barrage',
+    evoBlurb: 'A rain of toast across the screen.',
+    unlock: { kind: 'boss', boss: 'fburn', target: 1, text: 'Beat the Freezer Burn' },
+  },
+  iron: {
+    id: 'iron',
+    name: 'Waffle Smash',
+    icon: 'ic_iron',
+    blurb: 'Heavy stamps around you, big shove.',
+    levels: ['Heavy stamps around you, big shove.', '+40% damage', 'Bigger stamp', 'A second stamp on a nearby enemy', 'Faster, and dazes enemies'],
+    evolveWith: 'frosting',
+    evoName: 'Belgian Slam',
+    evoBlurb: 'A giant stamp and a shockwave ring.',
+    unlock: { kind: 'cookbook', target: 6, text: 'Discover 6 evolutions' },
+  },
 };
 
 export interface ToppingDef {
@@ -83,6 +137,8 @@ export interface ToppingDef {
   name: string;
   icon: string;
   blurb: string;
+  /** Offered only once this weapon is unlocked (the new toppings arrive with their weapons). */
+  weapon?: WeaponId;
 }
 
 export const TOPPINGS: Record<ToppingId, ToppingDef> = {
@@ -92,6 +148,10 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   oven: { id: 'oven', name: 'Hot Oven', icon: 'ic_oven', blurb: '+10% damage' },
   salt: { id: 'salt', name: 'Salt Crystals', icon: 'ic_salt', blurb: '+25% pickup range' },
   glaze: { id: 'glaze', name: 'Glaze', icon: 'ic_glaze', blurb: '+7% move speed' },
+  honey: { id: 'honey', name: 'Honey', icon: 'ic_honey', blurb: '+4% damage; +1 projectile at levels 1 and 4', weapon: 'knife' },
+  jam: { id: 'jam', name: 'Jam', icon: 'ic_jam', blurb: '+15% duration: puddles, pools, boomerangs', weapon: 'jar' },
+  seasoning: { id: 'seasoning', name: 'Everything Seasoning', icon: 'ic_seasoning', blurb: '+luck: better cards and chests', weapon: 'toastpop' },
+  frosting: { id: 'frosting', name: 'Cream Cheese Frosting', icon: 'ic_frosting', blurb: '-1 damage from every hit', weapon: 'iron' },
 };
 
 export type StageId = 'stage1' | 'stage2' | 'stage3';

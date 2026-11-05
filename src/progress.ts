@@ -1,4 +1,4 @@
-import { BAGELS, STAGES, stageById, type BagelDef, type StageDef } from './data';
+import { BAGELS, STAGES, WEAPONS, stageById, type BagelDef, type StageDef, type WeaponDef, type WeaponId } from './data';
 import { fmtTime } from './config';
 import type { SaveData } from './save';
 
@@ -95,4 +95,41 @@ export function pickedStage(save: SaveData): StageDef {
 /** Playable stages, used to spot ones a run just opened up. */
 export function playableStages(save: SaveData): string[] {
   return STAGES.filter((st) => stagePlayable(save, st)).map((st) => st.id);
+}
+
+/** A weapon can show on level-up cards: a starter, or its goal was met (preview builds open them all). */
+export function weaponOpen(save: SaveData, id: WeaponId): boolean {
+  return PREVIEW || !WEAPONS[id].unlock || (save.weapons ?? []).includes(id);
+}
+
+export function weaponGoalStatus(save: SaveData, w: WeaponDef): GoalStatus {
+  const g = w.unlock;
+  if (!g) return { done: true, frac: 1, progress: '' };
+  switch (g.kind) {
+    case 'boss': {
+      const done = (save.beaten ?? []).includes(g.boss ?? '');
+      return { done, frac: done ? 1 : 0, progress: done ? 'beaten' : 'not beaten yet' };
+    }
+    case 'mugs': {
+      const n = save.mugs ?? 0;
+      return { done: n >= g.target, frac: Math.min(1, n / g.target), progress: `${Math.min(n, g.target)} of ${g.target}` };
+    }
+    case 'cookbook': {
+      const n = save.cookbook.length;
+      return { done: n >= g.target, frac: Math.min(1, n / g.target), progress: `${Math.min(n, g.target)} of ${g.target}` };
+    }
+  }
+}
+
+/** Unlock any weapons whose goals are now met. Returns the names of new unlocks. */
+export function checkWeaponUnlocks(save: SaveData): string[] {
+  const out: string[] = [];
+  for (const w of Object.values(WEAPONS)) {
+    if (!w.unlock || (save.weapons ?? []).includes(w.id)) continue;
+    if (weaponGoalStatus(save, w).done) {
+      save.weapons = [...(save.weapons ?? []), w.id];
+      out.push(w.name);
+    }
+  }
+  return out;
 }
