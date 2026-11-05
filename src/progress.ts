@@ -2,6 +2,10 @@ import { BAGELS, STAGES, stageById, type BagelDef, type StageDef } from './data'
 import { fmtTime } from './config';
 import type { SaveData } from './save';
 
+/** Preview builds (VITE_PREVIEW=1, used for the playable preview link) open every stage, and the newest bagels, so they can be tried right away. */
+const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
+const PREVIEW_BAGELS = ['blueberry', 'asiago'];
+
 export interface GoalStatus {
   done: boolean;
   /** 0..1 */
@@ -26,9 +30,27 @@ export function goalStatus(save: SaveData, b: BagelDef): GoalStatus {
       };
     case 'noheal':
       return { done: !!save.noHealClear, frac: save.noHealClear ? 1 : 0, progress: save.noHealClear ? 'done' : 'not yet' };
+    case 'stageclear': {
+      const n = save.stageClears?.[g.stage ?? 'stage1'] ?? 0;
+      return { done: n >= g.target, frac: Math.min(1, n / g.target), progress: n ? 'cleared' : 'not cleared yet' };
+    }
+    case 'stagetime': {
+      const best = stageBestTime(save, g.stage ?? 'stage1');
+      return { done: best >= g.target, frac: Math.min(1, best / g.target), progress: `best ${fmtTime(best)} of ${fmtTime(g.target)}` };
+    }
     case 'cookbook':
       return { done: save.cookbook.length >= g.target, frac: Math.min(1, save.cookbook.length / g.target), progress: `${save.cookbook.length} of ${g.target}` };
   }
+}
+
+/** Longest survival on a stage: the tracked time, or older saves' bests (a Quick clear counts as 3:00). */
+function stageBestTime(save: SaveData, stage: string): number {
+  let t = save.stageTime?.[stage] ?? 0;
+  for (const [k, b] of Object.entries(save.best ?? {})) {
+    if (k.startsWith(`${stage}:`)) t = Math.max(t, b.time);
+    else if (k.startsWith(`${stage}q:`)) t = Math.max(t, b.time, b.cleared ? 180 : 0);
+  }
+  return t;
 }
 
 /** Unlock any bagels whose goals are now met. Returns the names of new unlocks. */
@@ -36,7 +58,8 @@ export function checkUnlocks(save: SaveData): string[] {
   const out: string[] = [];
   for (const b of BAGELS) {
     if (save.unlocked.includes(b.id)) continue;
-    if (goalStatus(save, b).done) {
+    // Preview builds hand out the newest bagels so they can be tried right away.
+    if (goalStatus(save, b).done || (PREVIEW && PREVIEW_BAGELS.includes(b.id))) {
       save.unlocked.push(b.id);
       out.push(b.name);
     }
@@ -52,8 +75,6 @@ export function nearestGoals(save: SaveData, n: number): { bagel: BagelDef; stat
     .slice(0, n);
 }
 
-/** Preview builds (VITE_PREVIEW=1, used for the playable preview link) open every stage so new ones can be tried right away. */
-const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
 
 /** A stage's goal is met: the stage before it has been cleared (Stage 1 is always open). */
 export function stageUnlocked(save: SaveData, st: StageDef): boolean {

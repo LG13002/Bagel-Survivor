@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
-import { goalStatus, pickedStage, stagePlayable, stageUnlocked } from '../progress';
+import { checkUnlocks, goalStatus, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { bestStage, getBest, load, persist, type SaveData } from '../save';
 import { makeTextures } from '../textures';
@@ -30,6 +30,8 @@ export class MenuScene extends Phaser.Scene {
     makeTextures(this);
     playMusic('menu');
     const save = load();
+    // Goals met by older saves (or handed out in preview builds) unlock on opening the game.
+    if (checkUnlocks(save).length) persist();
     this.idx = Math.max(0, BAGELS.findIndex((b) => b.id === save.selected));
     this.build();
     const onResize = () => this.build();
@@ -478,7 +480,7 @@ export class MenuScene extends Phaser.Scene {
     );
   }
 
-  private openBakery(): void {
+  private openBakery(tab = 0): void {
     const W = this.scale.width;
     const H = this.scale.height;
     const save = load();
@@ -490,7 +492,9 @@ export class MenuScene extends Phaser.Scene {
     const pw = Math.min(W - 24 * S, 400 * S);
     const cardH = 78 * S;
     const gap = 10 * S;
-    const ph = 168 * S + BAKERY.length * (cardH + gap);
+    const list = BAKERY.filter((u) => (u.tab ?? 0) === tab);
+    const tabH = 50 * S;
+    const ph = 168 * S + tabH + list.length * (cardH + gap);
     c.add(panel(this, W / 2, H / 2, pw, ph));
     const top = H / 2 - ph / 2;
     c.add(txt(this, W / 2, top + 36 * S, 'THE BAKERY', 28, CSS.gold));
@@ -502,9 +506,19 @@ export class MenuScene extends Phaser.Scene {
       if (this.doughPill) (this.doughPill.getData('label') as Phaser.GameObjects.Text).setText(`${v} Dough`);
     };
     const cw = pw - 28 * S;
+    // Two tabs so all eight upgrades fit on a phone: Basics and Extras.
+    const tw = (cw - 10 * S) / 2;
+    ['Basics', 'Extras'].forEach((label, i) => {
+      const on = i === tab;
+      c.add(
+        button(this, W / 2 + (i ? 1 : -1) * (tw / 2 + 5 * S), top + 112 * S, tw, 38 * S, label, () => {
+          if (!on) this.openBakery(i);
+        }, { size: 16, muted: !on }),
+      );
+    });
     const refreshers: (() => void)[] = [];
-    BAKERY.forEach((u, i) => {
-      const y = top + 104 * S + cardH / 2 + i * (cardH + gap);
+    list.forEach((u, i) => {
+      const y = top + 104 * S + tabH + cardH / 2 + i * (cardH + gap);
       const row = this.add.container(W / 2, y);
       c.add(row);
       const bg = this.add.graphics();
