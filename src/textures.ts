@@ -82,7 +82,10 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'melt', 64, 42, (c) => drawMeltPuddle(c, 64, 42));
   // Toaster Oven enemies and hazards
   ctex(scene, 'en_ember', 26, 26, (c) => drawEmberCrumb(c, 13, 13, 10));
-  ctex(scene, 'en_btoast', 30, 32, (c) => drawBurntToast(c, 30, 32));
+  ctex(scene, 'en_btoast', 30, 38, (c) => {
+    c.translate(0, 6);
+    drawBurntToast(c, 30, 32);
+  });
   ctex(scene, 'en_hotsauce', 24, 34, (c) => drawHotSauce(c, 24, 34));
   ctex(scene, 'en_popcorn', 30, 30, (c) => drawPopcorn(c, 30, 30));
   ctex(scene, 'en_popbit', 18, 18, (c) => drawPopBit(c, 18));

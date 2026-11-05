@@ -2114,7 +2114,11 @@ export class GameScene extends Phaser.Scene implements World {
   /** An ember spark where an Ember Crumb died: it stings only if you walk right into it. */
   private addSpark(x: number, y: number): void {
     if (this.sparks.length >= 24) this.sparks.shift()!.img.destroy();
-    const img = this.img('ember', x, y, 4);
+    // Drawn above seeds (and nudged off the spot where the seed lands) so it always reads as a red flame.
+    const a = Math.random() * Math.PI * 2;
+    x += Math.cos(a) * 10;
+    y += Math.sin(a) * 10;
+    const img = this.img('ember', x, y, 11);
     this.sparks.push({ img, x, y, life: 1.1 });
   }
 

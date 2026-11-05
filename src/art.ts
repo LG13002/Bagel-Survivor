@@ -2161,13 +2161,21 @@ export function drawBurntToast(c: Ctx, w: number, h: number): void {
   const rand = rng(5);
   c.fillStyle = 'rgba(110,55,20,0.6)';
   for (let i = 0; i < 9; i++) { c.beginPath(); c.arc(w * (0.25 + rand() * 0.5), h * (0.4 + rand() * 0.45), 0.8 + rand() * 0.6, 0, TAU); c.fill(); }
-  // smoke wisp
-  c.strokeStyle = 'rgba(220,220,220,0.75)';
-  c.lineWidth = 1.6;
-  c.beginPath();
-  c.moveTo(w * 0.78, h * 0.18);
-  c.quadraticCurveTo(w * 0.9, h * 0.08, w * 0.82, 0);
-  c.stroke();
+  // Smoke: a few small wavy squiggles rising off the top (the texture leaves room above the slice).
+  c.strokeStyle = 'rgba(225,225,225,0.8)';
+  c.lineWidth = 1.3;
+  for (const [x0, y0, len] of [
+    [0.3, 0.12, 0.2],
+    [0.55, 0.06, 0.22],
+    [0.78, 0.12, 0.18],
+  ]) {
+    const x = w * x0;
+    const y = h * y0;
+    c.beginPath();
+    c.moveTo(x, y);
+    c.bezierCurveTo(x + w * 0.06, y - h * len * 0.33, x - w * 0.06, y - h * len * 0.66, x, y - h * len);
+    c.stroke();
+  }
   angryEye(c, w * 0.34, h * 0.56, w * 0.11, -1, 2);
   angryEye(c, w * 0.66, h * 0.56, w * 0.11, 1, 2);
 }
