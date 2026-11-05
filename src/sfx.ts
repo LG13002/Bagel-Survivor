@@ -145,6 +145,55 @@ export function noise(dur: number, vol: number, freq: number, opts: { type?: Biq
   src.stop(t + dur + 0.02);
 }
 
+/** Each weapon's own quiet hit sound ("Crisp" flare). Shares the voice cap with the small sounds. */
+const lastHit: Record<string, number> = {};
+export function hitSfx(id: string): void {
+  if (!ctx || !soundOn() || ctx.state !== 'running') return;
+  const now = ctx.currentTime;
+  if (now - (lastHit[id] ?? -1) < 0.055) return;
+  while (recent.length && now - recent[0] > 0.1) recent.shift();
+  if (recent.length >= 8) return;
+  recent.push(now);
+  lastHit[id] = now;
+  const j = 1 + (Math.random() - 0.5) * 0.12;
+  switch (id) {
+    case 'sesame': // tick
+      tone('triangle', 1800 * j, 1200, 0.035, 0.07);
+      break;
+    case 'storm': // glassy ting
+      tone('sine', 2600 * j, 2500, 0.07, 0.045);
+      break;
+    case 'puddle': // soft squelch
+      noise(0.06, 0.1, 600 * j);
+      break;
+    case 'lox': // fishy slap
+      noise(0.05, 0.12, 1500 * j, { type: 'bandpass' });
+      tone('sine', 520 * j, 300, 0.05, 0.06);
+      break;
+    case 'coffee': // sizzle
+      noise(0.08, 0.08, 4200 * j, { type: 'highpass' });
+      break;
+    case 'pin': // woody bonk
+      tone('triangle', 330 * j, 170, 0.08, 0.18);
+      break;
+    case 'knife': // clink
+      tone('square', 3100 * j, 2700, 0.03, 0.03);
+      tone('sine', 4200 * j, 4100, 0.06, 0.035);
+      break;
+    case 'jar': // blub
+      tone('sine', 380 * j, 720, 0.06, 0.1);
+      break;
+    case 'toastpop': // crunch
+      noise(0.05, 0.14, 2100 * j, { type: 'bandpass' });
+      break;
+    case 'iron': // thud
+      tone('sine', 150 * j, 70, 0.09, 0.18);
+      break;
+    default:
+      tone('square', 220, 90, 0.05, 0.12);
+  }
+}
+
 export function sfx(name: Sfx): void {
   if (!ctx || !soundOn() || ctx.state !== 'running') return;
   const now = ctx.currentTime;

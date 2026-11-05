@@ -10,12 +10,30 @@ export interface World {
   now: number;
   nearest(x: number, y: number, maxR: number): Enemy | null;
   query(x: number, y: number, r: number, cb: (e: Enemy) => void): void;
-  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number): boolean;
+  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: WeaponId): boolean;
+  /** A small fading dot behind a projectile (level 5 and evolved looks). */
+  trailDot(x: number, y: number, color: number): void;
   img(tex: string, x: number, y: number, depth: number): Phaser.GameObjects.Image;
   tweens: Phaser.Tweens.TweenManager;
   shake(ms: number, intensity: number): void;
   playSfx(name: Sfx): void;
 }
+
+const GOLD_TINT = 0xffe7a0;
+/** Evolved projectiles change color (the fire seeds already have their own texture). */
+const EVO_TINT: Partial<Record<WeaponId, number>> = { lox: 0xffc2a8, pin: 0xffd28a, knife: 0xbfe0ff, jar: 0xe0c8ff, toastpop: 0xfff0b0 };
+const EVO_TRAIL: Record<WeaponId, number> = {
+  sesame: 0xff8a3a,
+  storm: 0xff7a2a,
+  puddle: 0xfff6dc,
+  lox: 0xff9a7a,
+  coffee: 0xc8601e,
+  pin: 0xf6d38c,
+  knife: 0xf0f4f8, // silver, not blue: blue dots read as XP seeds
+  jar: 0xb07ae0,
+  toastpop: 0xffd27a,
+  iron: 0xffd27a,
+};
 
 export abstract class Weapon {
   level = 1;
@@ -27,6 +45,27 @@ export abstract class Weapon {
   }
   abstract update(dt: number): void;
   destroy(): void {}
+  /** Hits an enemy with this weapon's own spark and hit sound. */
+  protected strike(e: Enemy, dmg: number, kx: number, ky: number, key = '', cd = 0): boolean {
+    return this.w.hit(e, dmg, kx, ky, key, cd, this.def.id);
+  }
+  /** 0 = normal, 1 = level 5 (gold), 2 = evolved (new color and a trail). */
+  protected get look(): number {
+    return this.evolved ? 2 : this.level >= 5 ? 1 : 0;
+  }
+  /** Tints a projectile for its look: gold at level 5, the evolution's color when evolved. */
+  protected style(img: Phaser.GameObjects.Image): Phaser.GameObjects.Image {
+    const look = this.look;
+    if (look === 1) img.setTint(GOLD_TINT);
+    else if (look === 2 && EVO_TINT[this.def.id]) img.setTint(EVO_TINT[this.def.id]!);
+    return img;
+  }
+  /** Leaves a light trail behind a moving projectile at level 5 and when evolved. */
+  protected trail(x: number, y: number, rate = 0.3): void {
+    const look = this.look;
+    if (!look || Math.random() > rate) return;
+    this.w.trailDot(x, y, look === 1 ? 0xffd34d : EVO_TRAIL[this.def.id]);
+  }
   /** Fires on a timer; returns true on the frames it should fire. */
   protected tick(dt: number, cd: number): boolean {
     this.t -= dt;
@@ -88,12 +127,13 @@ class SesameShot extends Weapon {
       b.y += b.vy * dt;
       b.life -= dt;
       b.img.setPosition(b.x, b.y);
+      this.trail(b.x, b.y, 0.25);
       this.w.query(b.x, b.y, 6 * s.area, (e) => {
         if (b.pierce <= 0 || b.hit.has(e)) return;
         b.hit.add(e);
         b.pierce--;
         const d = Math.hypot(b.vx, b.vy) || 1;
-        this.w.hit(e, (b.img.getData('dmg') as number) * s.damage, (b.vx / d) * 60, (b.vy / d) * 60, '', 0);
+        this.strike(e, (b.img.getData('dmg') as number) * s.damage, (b.vx / d) * 60, (b.vy / d) * 60, '', 0);
       });
       if (b.pierce <= 0 || b.life <= 0 || Math.abs(b.x - p.x) > 900 || Math.abs(b.y - p.y) > 900) {
         b.img.destroy();
@@ -104,7 +144,7 @@ class SesameShot extends Weapon {
   private fire(angle: number, dmg: number, pierce: number, tex: string): void {
     const p = this.w.player;
     const speed = 480;
-    const img = this.w.img(tex, p.x, p.y, 20);
+    const img = this.style(this.w.img(tex, p.x, p.y, 20));
     img.setRotation(angle).setData('dmg', dmg);
     img.setScale(img.scaleX * this.w.stats.area);
     this.bullets.push({ img, x: p.x, y: p.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 1.4, pierce, hit: new Set() });
@@ -130,11 +170,11 @@ class SeedStorm extends Weapon {
         ]
       : [{ r: 62 * (lv >= 5 ? 1.3 : 1), n: 3 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0), sp: 3.2 * (lv >= 5 ? 1.3 : 1) }];
     const total = rings.reduce((a, r) => a + r.n, 0);
-    const key = `${total}-${this.evolved}`;
+    const key = `${total}-${this.evolved}-${this.look}`;
     if (key !== this.layoutKey) {
       this.destroy();
       this.layoutKey = key;
-      for (let i = 0; i < total; i++) this.orbs.push(this.w.img(this.evolved ? 'seed_fire' : 'orb', 0, 0, 21));
+      for (let i = 0; i < total; i++) this.orbs.push(this.style(this.w.img(this.evolved ? 'seed_fire' : 'orb', 0, 0, 21)));
     }
     this.angle += dt;
     this.w.playSfx('storm'); // throttled to an occasional shimmer
@@ -149,8 +189,9 @@ class SeedStorm extends Weapon {
         const y = p.y + Math.sin(a) * r;
         const o = this.orbs[k++];
         o.setPosition(x, y).setRotation(a + Math.PI / 2);
+        this.trail(x, y, 0.08);
         this.w.query(x, y, 9 * s.area, (e) => {
-          this.w.hit(e, dmg, Math.cos(a) * 90, Math.sin(a) * 90, 'storm', 0.45);
+          this.strike(e, dmg, Math.cos(a) * 90, Math.sin(a) * 90, 'storm', 0.45);
         });
       }
     }
@@ -186,6 +227,7 @@ class CreamPuddle extends Weapon {
         const target = this.randomTarget();
         const life = (this.evolved ? 3.5 : 3 * (lv >= 5 ? 1.5 : 1)) * s.dur;
         const img = this.w.img('puddle', target.x, target.y, 2);
+        if (this.look === 1) img.setTint(0xfff0c0);
         const scale = (r * 2) / 128;
         img.setScale(0).setAlpha(0.9);
         this.w.tweens.add({ targets: img, scale: img.getData('base') * scale, duration: 180, ease: 'Back.Out' });
@@ -213,7 +255,7 @@ class CreamPuddle extends Weapon {
       pd.life -= dt;
       this.w.query(pd.x, pd.y, pd.r, (e) => {
         e.slowUntil = this.w.now + 0.3;
-        if (doTick) this.w.hit(e, dmg, 0, 0, '', 0);
+        if (doTick) this.strike(e, dmg, 0, 0, '', 0);
       });
     }
     for (let i = this.puddles.length - 1; i >= 0; i--) {
@@ -271,7 +313,7 @@ class LoxBoomerang extends Weapon {
       if (this.rangs.length !== n) {
         this.destroy();
         for (let i = 0; i < n; i++) {
-          const img = this.w.img('lox', p.x, p.y, 21);
+          const img = this.style(this.w.img('lox', p.x, p.y, 21));
           img.setScale(img.scaleX * size);
           this.rangs.push({ img, dx: 0, dy: 0, t: 0, phase: (i / n) * Math.PI * 2, id: `lox${i}` });
         }
@@ -283,7 +325,7 @@ class LoxBoomerang extends Weapon {
       const base = Math.atan2(dir.y, dir.x);
       for (let i = 0; i < count; i++) {
         const a = base + (i - (count - 1) / 2) * 0.7;
-        const img = this.w.img('lox', p.x, p.y, 21);
+        const img = this.style(this.w.img('lox', p.x, p.y, 21));
         img.setScale(img.scaleX * size);
         this.rangs.push({ img, dx: Math.cos(a), dy: Math.sin(a), t: 0, phase: 0, id: `lox${this.seq++}` });
       }
@@ -304,9 +346,10 @@ class LoxBoomerang extends Weapon {
         y = p.y + r.dy * d;
       }
       r.img.setPosition(x, y).setRotation(r.t * 14);
+      this.trail(x, y, 0.35);
       this.w.query(x, y, 12 * size, (e) => {
         const kd = Math.hypot(e.x - x, e.y - y) || 1;
-        this.w.hit(e, dmg, ((e.x - x) / kd) * 120, ((e.y - y) / kd) * 120, r.id, 0.35);
+        this.strike(e, dmg, ((e.x - x) / kd) * 120, ((e.y - y) / kd) * 120, r.id, 0.35);
       });
       if (!this.evolved && r.t >= T) {
         r.img.destroy();
@@ -343,7 +386,7 @@ class CoffeeSplash extends Weapon {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
       for (const d of dirs) {
         if (Math.abs(Phaser.Math.Angle.Wrap(a - d)) <= half) {
-          this.w.hit(e, dmg, Math.cos(a) * 220, Math.sin(a) * 220, '', 0);
+          this.strike(e, dmg, Math.cos(a) * 220, Math.sin(a) * 220, '', 0);
           break;
         }
       }
@@ -356,6 +399,8 @@ class CoffeeSplash extends Weapon {
         const a = d + (Math.random() * 2 - 1) * half;
         const dist = range * (0.55 + Math.random() * 0.45);
         const img = this.w.img('splash', p.x, p.y, 22);
+        if (this.look === 1) img.setTint(GOLD_TINT);
+        else if (this.look === 2) img.setTint(0xff9a4a);
         const sc = img.scaleX * (0.8 + Math.random() * 1.2);
         img.setScale(sc);
         this.w.tweens.add({
@@ -404,7 +449,7 @@ class RollingPinW extends Weapon {
       this.w.shake(60, 0.0015);
       this.w.playSfx('pin');
       for (const a of angles) {
-        const img = this.w.img('pin', p.x, p.y, 19);
+        const img = this.style(this.w.img('pin', p.x, p.y, 19));
         img.setScale(img.scaleX * size).setRotation(a + Math.PI / 2);
         this.pins.push({ img, x: p.x, y: p.y, dx: Math.cos(a), dy: Math.sin(a), life: 2.4, hit: new Set(), size });
       }
@@ -415,6 +460,7 @@ class RollingPinW extends Weapon {
       pin.y += pin.dy * 270 * dt;
       pin.life -= dt;
       pin.img.setPosition(pin.x, pin.y);
+      this.trail(pin.x, pin.y, 0.35);
       // Wobble the pin a little to sell the roll.
       pin.img.setScale(pin.img.getData('base') * pin.size, pin.img.getData('base') * pin.size * (0.85 + 0.15 * Math.sin(pin.life * 30)));
       this.w.query(pin.x, pin.y, 30 * pin.size, (e) => {
@@ -425,7 +471,7 @@ class RollingPinW extends Weapon {
         const lateral = Math.abs(-rx * pin.dy + ry * pin.dx);
         if (along < 8 * pin.size + e.radius && lateral < 28 * pin.size + e.radius) {
           pin.hit.add(e);
-          this.w.hit(e, dmg, pin.dx * 250, pin.dy * 250, '', 0);
+          this.strike(e, dmg, pin.dx * 250, pin.dy * 250, '', 0);
         }
       });
       if (pin.life <= 0) {
@@ -478,7 +524,7 @@ interface Lob {
   land: (x: number, y: number) => void;
 }
 
-function updateLobs(lobs: Lob[], dt: number): void {
+function updateLobs(lobs: Lob[], dt: number, trail?: (x: number, y: number) => void): void {
   for (let i = lobs.length - 1; i >= 0; i--) {
     const l = lobs[i];
     l.t += dt;
@@ -486,6 +532,7 @@ function updateLobs(lobs: Lob[], dt: number): void {
     const x = l.x0 + (l.x1 - l.x0) * k;
     const y = l.y0 + (l.y1 - l.y0) * k - Math.sin(Math.PI * k) * l.h;
     l.img.setPosition(x, y).setRotation(l.img.rotation + l.spin * dt);
+    if (trail && l.t > 0) trail(x, y);
     if (k >= 1) {
       l.img.destroy();
       lobs.splice(i, 1);
@@ -528,11 +575,12 @@ class ButterKnife extends Weapon {
       b.y += b.vy * dt;
       b.life -= dt;
       b.img.setPosition(b.x, b.y);
+      this.trail(b.x, b.y, 0.3);
       this.w.query(b.x, b.y, 10 * s.area, (e) => {
         if (b.hit.has(e)) return;
         b.hit.add(e);
         const d = Math.hypot(b.vx, b.vy) || 1;
-        this.w.hit(e, (b.img.getData('dmg') as number) * s.damage, (b.vx / d) * 50, (b.vy / d) * 50, '', 0);
+        this.strike(e, (b.img.getData('dmg') as number) * s.damage, (b.vx / d) * 50, (b.vy / d) * 50, '', 0);
       });
       if (b.life <= 0 || Math.abs(b.x - p.x) > 900 || Math.abs(b.y - p.y) > 900) {
         b.img.destroy();
@@ -543,7 +591,7 @@ class ButterKnife extends Weapon {
   private throw(angle: number, dmg: number, fast: boolean): void {
     const p = this.w.player;
     const speed = fast ? 640 : 520;
-    const img = this.w.img('knife_w', p.x, p.y, 20);
+    const img = this.style(this.w.img('knife_w', p.x, p.y, 20));
     img.setRotation(angle).setData('dmg', dmg);
     img.setScale(img.scaleX * this.w.stats.area * (fast ? 1.2 : 1));
     this.knives.push({ img, x: p.x, y: p.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: fast ? 1.15 : 0.9, pierce: 999, hit: new Set() });
@@ -574,12 +622,12 @@ class JamJar extends Weapon {
       const n = (ev ? 2 : 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0)) + s.proj;
       const p = this.w.player;
       for (const tg of pickTargets(this.w, n, 260)) {
-        const img = this.w.img('jar', p.x, p.y, 22);
+        const img = this.style(this.w.img('jar', p.x, p.y, 22));
         img.setScale(img.scaleX * 1.2);
         this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.55, h: 70, spin: 9, land: (x, y) => this.land(x, y) });
       }
     }
-    updateLobs(this.lobs, dt);
+    updateLobs(this.lobs, dt, (x, y) => this.trail(x, y, 0.4));
     this.tickT -= dt;
     const doTick = this.tickT <= 0;
     if (doTick) this.tickT = 0.5;
@@ -600,7 +648,7 @@ class JamJar extends Weapon {
             e.y += (dy / d) * step;
           }
         }
-        if (doTick) this.w.hit(e, dmg, 0, 0, '', 0);
+        if (doTick) this.strike(e, dmg, 0, 0, '', 0);
       });
       if (pl.life <= 0) {
         const img = pl.img;
@@ -617,7 +665,7 @@ class JamJar extends Weapon {
     const dmg = (ev ? 30 : 18 * (lv >= 5 ? 1.5 : 1)) * s.damage;
     this.w.query(x, y, splashR, (e) => {
       const d = Math.hypot(e.x - x, e.y - y) || 1;
-      this.w.hit(e, dmg, ((e.x - x) / d) * 80, ((e.y - y) / d) * 80, '', 0);
+      this.strike(e, dmg, ((e.x - x) / d) * 80, ((e.y - y) / d) * 80, '', 0);
     });
     this.w.playSfx('jar');
     const r = (ev ? 100 : 46 * (lv >= 3 ? 1.3 : 1)) * s.area;
@@ -647,14 +695,14 @@ class ToasterPop extends Weapon {
       if (ev) {
         // Toast Barrage: toast rains down all over the screen.
         for (const tg of pickTargets(this.w, 12 + s.proj, 420)) {
-          const img = this.w.img('ptoast', tg.x, tg.y - 320, 22);
+          const img = this.style(this.w.img('ptoast', tg.x, tg.y - 320, 22));
           img.setScale(img.scaleX * 1.4);
           this.lobs.push({ img, x0: tg.x + (Math.random() - 0.5) * 60, y0: tg.y - 320, x1: tg.x, y1: tg.y, t: -Math.random() * 0.4, T: 0.45, h: 0, spin: 6, land: (x, y) => this.land(x, y) });
         }
       } else {
         const n = 2 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
         for (const tg of pickTargets(this.w, n, 240)) {
-          const img = this.w.img('ptoast', p.x, p.y, 22);
+          const img = this.style(this.w.img('ptoast', p.x, p.y, 22));
           img.setScale(img.scaleX * 1.4);
           this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.5, h: 90, spin: 8, land: (x, y) => this.land(x, y) });
         }
@@ -662,7 +710,7 @@ class ToasterPop extends Weapon {
     }
     // A toast that hasn't started falling yet waits off to the side.
     for (const l of this.lobs) if (l.t < 0) l.img.setVisible(false);
-    updateLobs(this.lobs, dt);
+    updateLobs(this.lobs, dt, (x, y) => this.trail(x, y, 0.3));
     for (const l of this.lobs) if (l.t >= 0) l.img.setVisible(true);
   }
   private land(x: number, y: number): void {
@@ -673,7 +721,7 @@ class ToasterPop extends Weapon {
     const dmg = (ev ? 30 : 24 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     this.w.query(x, y, r, (e) => {
       const d = Math.hypot(e.x - x, e.y - y) || 1;
-      this.w.hit(e, dmg, ((e.x - x) / d) * 120, ((e.y - y) / d) * 120, '', 0);
+      this.strike(e, dmg, ((e.x - x) / d) * 120, ((e.y - y) / d) * 120, '', 0);
     });
     // Crumbs fly out where it lands.
     for (let i = 0; i < 5; i++) {
@@ -733,7 +781,7 @@ class WaffleSmash extends Weapon {
         const d = Math.hypot(dx, dy) || 1;
         if (d < r - 24) return;
         sh.hit.add(e);
-        this.w.hit(e, 40 * s.damage, (dx / d) * 260, (dy / d) * 260, '', 0);
+        this.strike(e, 40 * s.damage, (dx / d) * 260, (dy / d) * 260, '', 0);
       });
       if (k >= 1) {
         sh.img.destroy();
@@ -747,10 +795,11 @@ class WaffleSmash extends Weapon {
       const dx = e.x - x;
       const dy = e.y - y;
       const d = Math.hypot(dx, dy) || 1;
-      this.w.hit(e, dmg, (dx / d) * 300, (dy / d) * 300, '', 0);
+      this.strike(e, dmg, (dx / d) * 300, (dy / d) * 300, '', 0);
       if (daze) e.slowUntil = Math.max(e.slowUntil, this.w.now + 0.8);
     });
     const img = this.w.img('stamp', x, y, 3);
+    if (this.look === 1) img.setTint(0xffe28a);
     const sc = img.getData('base') * ((r * 2) / 128);
     img.setScale(sc * 1.25).setAlpha(0.95);
     this.w.tweens.add({ targets: img, scale: sc, duration: 90, ease: 'Quad.In' });
