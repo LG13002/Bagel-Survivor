@@ -77,8 +77,8 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - Coil flare-ups: a 300×40 strip near you (never under you) glows for 1.5s with a hiss, then flares for 8 damage to you and 45 to every enemy on it.
   - Grease pops: a spot wobbles for 1.4s, pops for 4, and leaves a 3s slick that slides like ice (it lives in `tempIce`).
   - Both run on real time (`this.now`), not the stage clock, so Quick Runs aren't swamped; they get more frequent as `stageT` grows.
-  - Rack posts: solid, seeded per floor chunk like ice, never near the start. You and enemies (not bosses) slide around them (`pushOut`). They block enemy shots but never yours.
-  - Ember Crumbs leave a short ember spark (3 damage) where they die; Melting Scoops drip small melt puddles. There is no Warm Mug in the oven.
+  - Rack posts (drawn as oven knobs, about 1 per floor chunk): solid, seeded per floor chunk like ice, never near the start. You and enemies (not bosses) slide around them (`pushOut`). They block enemy shots but never yours.
+  - Ember Crumbs leave a little flame (3 damage) where they die; Melting Scoops drip small melt puddles. There is no Warm Mug in the oven.
 - **Freezer cast:** elites alternate Ice Cream Scoop (melt puddles that slow you) and Frosted Croissant (the 3:45 one carries the second bun). Tyrant Jr. is a surprise at 4:00. Frozen Waffle mini-boss at 2:30 (3 telegraphed charges, then rests; splits into 4 squares). The Freezer Burn boss at 4:30: warning lines then icicle volleys, pizza-slice fans; at half health it enrages (faster volleys, frost circles that freeze the floor, Frosted Crumb rings). Music `frun` (layered like `run`) and `fboss`. Contact damage dial 0.94.
 - **Enemy behavior** comes from `ai` on the enemy's def (`line`, `charge`, `shoot`), plus `split` and `burst` for death effects, so new stage casts reuse it without new code.
 - **Sticky Bun:** pickup kind `'bun'`. Touching it pulls every seed and coin to you.

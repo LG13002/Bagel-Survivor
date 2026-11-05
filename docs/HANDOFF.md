@@ -148,6 +148,7 @@ From the owner's playtest notes:
 - Hazards: coil flare-ups, grease pops with slicks, and rack posts (solid; block enemy shots only). No Warm Mug in the oven.
 - Regular enemies: Ember Crumb, Burnt Toast (charger that flips), Hot Sauce Drop (3-shot spread), Popcorn Kernel (splits into 3 bits), plus the demoted Toaster Tots, Waffle Bits (the lines every 20s) and Melting Scoop.
 - Jalapeño Cheddar (unlock: clear the Toaster Oven). The owner asked that burning enemies show it, so they get an orange tint and a small flame.
+- After the owner's first playtest, they picked redraws from an idea board (https://claude.ai/artifact/NNrMpQ4mYvVVHMKZmXxba3): posts became oven knobs and got more common (about 1 per chunk), popcorn became a fluffy popped piece, the ember spark became a little flame, Burnt Toast became a classic toast slice, and Hot Sauce Drop became a small hot sauce bottle, because the red drop read as blood.
 - Until part 2 the oven borrows Stage 1's elite, mini-boss, boss and music. Bot: damage taken per minute is about level with the Freezer (2:00 start: oven 400 and 365, Freezer 390 and 373 over two runs); part 2's bosses and tuning bring it to about +10%.
 
 ## Weapon benchmark (bot, after step 7)

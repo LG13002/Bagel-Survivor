@@ -1101,13 +1101,13 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.stage.posts) this.posts = [...this.postChunks.values()].flat();
   }
 
-  /** Seeded rack posts for one floor chunk: usually 0 or 1, never near where a run starts. */
+  /** Seeded rack posts (drawn as oven knobs) for one floor chunk: about 1 on average, never near where a run starts. */
   private makePosts(cx: number, cy: number, C: number): Post[] {
     const h = (Math.imul(cx, 49979687) ^ Math.imul(cy, 1500450271)) >>> 0;
     const rand = rng((h % 2147483646) + 1);
     rand();
     const r = rand();
-    const n = r < 0.08 ? 2 : r < 0.46 ? 1 : 0;
+    const n = r < 0.2 ? 2 : r < 0.8 ? 1 : 0;
     const out: Post[] = [];
     for (let i = 0; i < n; i++) {
       const x = (cx + 0.15 + rand() * 0.7) * C;
