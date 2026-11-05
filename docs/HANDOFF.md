@@ -142,6 +142,14 @@ From the owner's playtest notes:
 - Sparks share the particle budget and skip when it is busy; damage-over-time weapons spark less often. Bot bench unchanged within noise (Seed Gatling 310, Everything Inferno 399).
 - Honey also gives +4% damage per level (the owner asked for a benefit at every level).
 
+### Phase 2, M9 part 1: the Toaster Oven
+- Change list (approved with all suggestions): https://claude.ai/artifact/5mNdywPPdViv9o1R1P5dnQ
+- Floor: a dark oven rack over dim coils, kept low-contrast so enemies and the bright hazard strips stand out. Props: crumb tray, foil, burnt crumbs, ash.
+- Hazards: coil flare-ups, grease pops with slicks, and rack posts (solid; block enemy shots only). No Warm Mug in the oven.
+- Regular enemies: Ember Crumb, Burnt Toast (charger that flips), Hot Sauce Drop (3-shot spread), Popcorn Kernel (splits into 3 bits), plus the demoted Toaster Tots, Waffle Bits (the lines every 20s) and Melting Scoop.
+- Jalapeño Cheddar (unlock: clear the Toaster Oven). The owner asked that burning enemies show it, so they get an orange tint and a small flame.
+- Until part 2 the oven borrows Stage 1's elite, mini-boss, boss and music. Bot: damage taken per minute is about level with the Freezer (2:00 start: oven 400 and 365, Freezer 390 and 373 over two runs); part 2's bosses and tuning bring it to about +10%.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

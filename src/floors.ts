@@ -308,31 +308,20 @@ export function drawStageThumb(c: Ctx, id: string, w: number, h: number): void {
     }
     c.restore();
   } else {
-    // Glowing heating coils under a dark oven rack.
-    c.fillStyle = '#2a1a14';
-    c.fillRect(0, 0, w, h);
-    for (const y of [h * 0.32, h * 0.7]) {
-      c.strokeStyle = 'rgba(255,120,40,0.35)';
-      c.lineWidth = h * 0.16;
-      c.beginPath();
-      c.moveTo(0, y);
-      c.lineTo(w, y);
-      c.stroke();
-      c.strokeStyle = '#ff9a3c';
-      c.lineWidth = h * 0.06;
-      c.stroke();
-      c.strokeStyle = '#ffe08a';
-      c.lineWidth = h * 0.02;
-      c.stroke();
-    }
-    c.strokeStyle = '#8d8f94';
-    c.lineWidth = Math.max(1.5, w * 0.025);
-    for (let x = w / 6; x < w; x += w / 6) {
-      c.beginPath();
-      c.moveTo(x, 0);
-      c.lineTo(x, h);
-      c.stroke();
-    }
+    // The oven floor, with one coil flaring up so it reads as the Toaster Oven.
+    c.save();
+    c.scale(w / 140, w / 140);
+    drawOvenFloor(c, 256);
+    c.restore();
+    const y = h * 0.62;
+    c.fillStyle = 'rgba(255,120,40,0.45)';
+    rrect(c, -4, y - h * 0.13, w + 8, h * 0.26, h * 0.1);
+    c.fill();
+    c.fillStyle = '#ffb04a';
+    rrect(c, -4, y - h * 0.06, w + 8, h * 0.12, h * 0.06);
+    c.fill();
+    c.fillStyle = '#fff1b0';
+    c.fillRect(0, y - h * 0.015, w, h * 0.03);
   }
   c.restore();
   rrect(c, 2, 2, w - 4, h - 4, r);
@@ -533,4 +522,177 @@ export const FREEZER_PROPS: PropDef[] = [
   { key: 'prop_stick', w: 120, h: 30, weight: 0.9, spin: true, draw: popsicleStick },
   { key: 'prop_bag', w: 130, h: 100, weight: 0.8, spin: true, draw: freezerBag },
   { key: 'prop_frost', w: 120, h: 70, weight: 1.3, spin: false, draw: frostPile },
+];
+
+// ---------- Stage 3: the Toaster Oven ----------
+// A dark oven rack over dim heating coils. The coils are dull red here on purpose: a coil that is
+// about to flare glows bright orange with a white edge, so the hazard never blends into the floor.
+
+/** Seamless oven floor, size × size: rack bars over dim coils. */
+export function drawOvenFloor(c: Ctx, size: number): void {
+  const rand = rng(33);
+  c.fillStyle = linear(c, 0, 0, size, size, [
+    [0, '#3b2a22'],
+    [1, '#33241d'],
+  ]);
+  c.fillRect(0, 0, size, size);
+  // Soot smudges.
+  for (let i = 0; i < 10; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 20 + rand() * 30;
+    wrapped(size, x, y, r, (px, py) => {
+      const g = c.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, 'rgba(20,12,8,0.28)');
+      g.addColorStop(1, 'rgba(20,12,8,0)');
+      c.fillStyle = g;
+      c.beginPath();
+      c.arc(px, py, r, 0, TAU);
+      c.fill();
+    });
+  }
+  // Dim heating coils: two zig-zag elements under the rack.
+  for (const cy of [64, 192]) {
+    c.strokeStyle = 'rgba(110,40,18,0.4)';
+    c.lineWidth = 14;
+    c.beginPath();
+    c.moveTo(0, cy);
+    c.lineTo(size, cy);
+    c.stroke();
+    c.strokeStyle = 'rgba(150,60,28,0.45)';
+    c.lineWidth = 6;
+    c.stroke();
+    c.strokeStyle = 'rgba(200,100,50,0.18)';
+    c.lineWidth = 2;
+    c.stroke();
+  }
+  // Rack bars: thin steel rods every 32px, with a highlight and a soft shadow.
+  for (let x = 16; x < size; x += 32) {
+    c.fillStyle = 'rgba(15,8,5,0.35)';
+    c.fillRect(x + 2, 0, 4, size);
+    c.fillStyle = '#58524f';
+    c.fillRect(x - 1.5, 0, 3, size);
+    c.fillStyle = 'rgba(255,255,255,0.1)';
+    c.fillRect(x - 1.5, 0, 1, size);
+  }
+  // Two cross bars hold the rack together.
+  for (const y of [0, 128]) {
+    c.fillStyle = 'rgba(15,8,5,0.35)';
+    c.fillRect(0, y + 3, size, 5);
+    c.fillStyle = '#625c58';
+    c.fillRect(0, y - 2.5, size, 5);
+    c.fillStyle = 'rgba(255,255,255,0.1)';
+    c.fillRect(0, y - 2.5, size, 1.5);
+  }
+  // Burnt specks.
+  c.fillStyle = 'rgba(25,14,8,0.5)';
+  for (let i = 0; i < 30; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 0.8 + rand() * 1.6;
+    wrapped(size, x, y, r, (px, py) => {
+      c.beginPath();
+      c.arc(px, py, r, 0, TAU);
+      c.fill();
+    });
+  }
+}
+
+function crumbTray(c: Ctx, w: number, h: number): void {
+  const x0 = w / 2 - 70;
+  const y0 = h / 2 - 34;
+  softShadow(c, w / 2 + 4, h / 2 + 8, 80, 30, 0.25);
+  rrect(c, x0, y0, 140, 68, 8);
+  c.fillStyle = linear(c, x0, y0, x0 + 140, y0 + 68, [
+    [0, 'rgba(160,160,162,0.85)'],
+    [1, 'rgba(105,104,106,0.85)'],
+  ]);
+  c.fill();
+  c.strokeStyle = 'rgba(40,30,25,0.55)';
+  c.lineWidth = 2;
+  c.stroke();
+  rrect(c, x0 + 7, y0 + 7, 126, 54, 5);
+  c.fillStyle = 'rgba(70,60,56,0.55)';
+  c.fill();
+  const rand = rng(61);
+  for (let i = 0; i < 26; i++) {
+    c.beginPath();
+    c.arc(x0 + 14 + rand() * 112, y0 + 14 + rand() * 40, 1 + rand() * 2.2, 0, TAU);
+    c.fillStyle = rand() < 0.5 ? 'rgba(120,70,35,0.8)' : 'rgba(45,28,16,0.8)';
+    c.fill();
+  }
+}
+
+function foilScrap(c: Ctx, w: number, h: number): void {
+  const rand = rng(73);
+  softShadow(c, w / 2 + 3, h / 2 + 6, 46, 22, 0.2);
+  c.beginPath();
+  const n = 11;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * TAU;
+    const rr = 1 - 0.35 * rand();
+    const px = w / 2 + Math.cos(a) * 42 * rr;
+    const py = h / 2 + Math.sin(a) * 26 * rr;
+    if (i) c.lineTo(px, py);
+    else c.moveTo(px, py);
+  }
+  c.closePath();
+  c.fillStyle = linear(c, 0, 0, w, h, [
+    [0, 'rgba(225,228,232,0.45)'],
+    [0.5, 'rgba(160,165,172,0.45)'],
+    [1, 'rgba(205,208,214,0.45)'],
+  ]);
+  c.fill();
+  // Crinkles.
+  c.strokeStyle = 'rgba(255,255,255,0.5)';
+  c.lineWidth = 1.2;
+  for (let i = 0; i < 6; i++) {
+    const x = w / 2 + (rand() - 0.5) * 60;
+    const y = h / 2 + (rand() - 0.5) * 30;
+    c.beginPath();
+    c.moveTo(x, y);
+    c.lineTo(x + (rand() - 0.5) * 22, y + (rand() - 0.5) * 14);
+    c.stroke();
+  }
+}
+
+/** A soft scatter of burnt crumbs: blurry and outline-free, so it never reads as an enemy. */
+function burntCrumbs(c: Ctx, w: number, h: number): void {
+  const rand = rng(89);
+  for (let i = 0; i < 9; i++) {
+    const x = w / 2 + (rand() - 0.5) * 80;
+    const y = h / 2 + (rand() - 0.5) * 40;
+    const r = 3 + rand() * 5;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(30,18,10,0.7)');
+    g.addColorStop(1, 'rgba(30,18,10,0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(x, y, r, 0, TAU);
+    c.fill();
+  }
+}
+
+/** A puff of ash. */
+function ashPile(c: Ctx, w: number, h: number): void {
+  const rand = rng(97);
+  for (let j = 0; j < 10; j++) {
+    const ox = w / 2 + (rand() - 0.5) * 70;
+    const oy = h / 2 + (rand() - 0.5) * 30;
+    const r = 10 + rand() * 12;
+    const g = c.createRadialGradient(ox, oy, 0, ox, oy, r);
+    g.addColorStop(0, 'rgba(150,140,135,0.35)');
+    g.addColorStop(1, 'rgba(150,140,135,0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(ox, oy, r, 0, TAU);
+    c.fill();
+  }
+}
+
+export const OVEN_PROPS: PropDef[] = [
+  { key: 'prop_tray', w: 160, h: 90, weight: 0.8, spin: true, draw: crumbTray },
+  { key: 'prop_foil', w: 100, h: 70, weight: 0.7, spin: true, draw: foilScrap },
+  { key: 'prop_burnt', w: 100, h: 60, weight: 1.2, spin: true, draw: burntCrumbs },
+  { key: 'prop_ash', w: 110, h: 60, weight: 1, spin: false, draw: ashPile },
 ];

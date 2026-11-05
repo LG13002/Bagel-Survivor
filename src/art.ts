@@ -2099,3 +2099,280 @@ export function drawPizzaSlice(c: Ctx, s: number): void {
   c.fillStyle = '#c23b2a';
   c.fill();
 }
+
+// ---------- Toaster Oven enemies and hazards ----------
+// Hot and bright, but enemies keep their ink outlines and angry eyes, and hazards get a white edge.
+
+/** A crumb with glowing ember cracks. */
+export function drawEmberCrumb(c: Ctx, x: number, y: number, r: number): void {
+  c.beginPath();
+  c.arc(x, y, r * 1.22, 0, TAU);
+  c.fillStyle = 'rgba(255,120,30,0.5)';
+  c.fill();
+  drawCrumb(c, x, y, r);
+  c.strokeStyle = '#ff9a2e';
+  c.lineWidth = Math.max(1.2, r * 0.13);
+  c.beginPath();
+  c.moveTo(x - r * 0.55, y + r * 0.25);
+  c.lineTo(x - r * 0.15, y + r * 0.5);
+  c.lineTo(x + r * 0.1, y + r * 0.3);
+  c.moveTo(x + r * 0.3, y + r * 0.6);
+  c.lineTo(x + r * 0.6, y + r * 0.2);
+  c.stroke();
+  c.strokeStyle = '#ffe28a';
+  c.lineWidth = Math.max(0.6, r * 0.05);
+  c.stroke();
+  const line = Math.max(1.5, r * 0.19);
+  angryEye(c, x - r * 0.33, y - r * 0.06, r * 0.21, -1, line, '#ffb22e');
+  angryEye(c, x + r * 0.33, y - r * 0.06, r * 0.21, 1, line, '#ffb22e');
+}
+
+/** A heavy burnt toast slice: dark crust, charred middle, angry eyes. */
+export function drawBurntToast(c: Ctx, w: number, h: number): void {
+  const line = 2.2;
+  const x = w / 2;
+  const top = 2;
+  const bot = h - 2;
+  const shape = (inset: number) => {
+    c.beginPath();
+    c.moveTo(3 + inset, bot - inset);
+    c.lineTo(3 + inset, top + h * 0.32);
+    c.bezierCurveTo(1 + inset, top - 1 + inset, x - 3, top + inset, x, top + h * 0.12 + inset);
+    c.bezierCurveTo(x + 3, top + inset, w - 1 - inset, top - 1 + inset, w - 3 - inset, top + h * 0.32);
+    c.lineTo(w - 3 - inset, bot - inset);
+    c.closePath();
+  };
+  shape(0);
+  c.fillStyle = '#4a2410';
+  c.fill();
+  ink(c, line);
+  shape(3.5);
+  c.fillStyle = radial(c, x, h * 0.55, w * 0.5, [
+    [0, '#8a5226'],
+    [0.7, '#5f3214'],
+    [1, '#3e1e0c'],
+  ]);
+  c.fill();
+  // Char marks.
+  c.fillStyle = 'rgba(25,12,5,0.55)';
+  c.beginPath();
+  c.ellipse(x - w * 0.2, h * 0.72, w * 0.12, h * 0.06, 0.3, 0, TAU);
+  c.ellipse(x + w * 0.22, h * 0.36, w * 0.08, h * 0.05, -0.4, 0, TAU);
+  c.fill();
+  angryEye(c, x - w * 0.18, h * 0.5, w * 0.12, -1, line);
+  angryEye(c, x + w * 0.18, h * 0.5, w * 0.12, 1, line);
+}
+
+/** A hot sauce drop: a bright red teardrop with a shine. */
+export function drawHotSauce(c: Ctx, w: number, h: number): void {
+  const line = 2;
+  const x = w / 2;
+  const shape = () => {
+    c.beginPath();
+    c.moveTo(x, 2);
+    c.bezierCurveTo(x + w * 0.18, h * 0.3, w - 2, h * 0.48, w - 2, h * 0.64);
+    c.arc(x, h * 0.64, x - 2, 0, Math.PI);
+    c.bezierCurveTo(2, h * 0.48, x - w * 0.18, h * 0.3, x, 2);
+    c.closePath();
+  };
+  shape();
+  c.fillStyle = radial(c, x, h * 0.6, w * 0.55, [
+    [0, '#ff7a5a'],
+    [0.6, '#e0331f'],
+    [1, '#a8170e'],
+  ]);
+  c.fill();
+  ink(c, line);
+  c.beginPath();
+  c.ellipse(x - w * 0.18, h * 0.5, w * 0.08, h * 0.1, 0.3, 0, TAU);
+  c.fillStyle = 'rgba(255,255,255,0.75)';
+  c.fill();
+  angryEye(c, x - w * 0.16, h * 0.66, w * 0.11, -1, line, '#ffd34a');
+  angryEye(c, x + w * 0.16, h * 0.66, w * 0.11, 1, line, '#ffd34a');
+}
+
+/** Hot Sauce Drop's shot: a big red blob with a thick white rim, easy to see on the dark rack. */
+export function drawSauceShot(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1.5, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+  ink(c, 1.4);
+  c.beginPath();
+  c.arc(m, m, m - 3.6, 0, TAU);
+  c.fillStyle = radial(c, m, m, m, [
+    [0, '#ff8a6a'],
+    [1, '#e0221a'],
+  ]);
+  c.fill();
+  c.beginPath();
+  c.arc(m - m * 0.25, m - m * 0.28, m * 0.18, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+}
+
+/** A popcorn kernel about to pop: golden hull with a white puff peeking out. */
+export function drawPopcorn(c: Ctx, w: number, h: number): void {
+  const line = 1.9;
+  const x = w / 2;
+  // Puff on top
+  c.beginPath();
+  c.arc(x - w * 0.16, h * 0.28, w * 0.2, 0, TAU);
+  c.arc(x + w * 0.14, h * 0.24, w * 0.22, 0, TAU);
+  c.fillStyle = '#fff8e6';
+  c.fill();
+  ink(c, line);
+  // Hull
+  c.beginPath();
+  c.moveTo(x, h - 2);
+  c.bezierCurveTo(x - w * 0.62, h * 0.86, x - w * 0.5, h * 0.3, x, h * 0.32);
+  c.bezierCurveTo(x + w * 0.5, h * 0.3, x + w * 0.62, h * 0.86, x, h - 2);
+  c.closePath();
+  c.fillStyle = radial(c, x, h * 0.6, w * 0.45, [
+    [0, '#ffd66a'],
+    [0.7, '#e9a52e'],
+    [1, '#b8741a'],
+  ]);
+  c.fill();
+  ink(c, line);
+  angryEye(c, x - w * 0.15, h * 0.6, w * 0.1, -1, line);
+  angryEye(c, x + w * 0.15, h * 0.6, w * 0.1, 1, line);
+}
+
+/** One fast popcorn bit: a white puff with tiny eyes. */
+export function drawPopBit(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m - s * 0.15, m + s * 0.05, s * 0.24, 0, TAU);
+  c.arc(m + s * 0.15, m + s * 0.05, s * 0.24, 0, TAU);
+  c.arc(m, m - s * 0.15, s * 0.26, 0, TAU);
+  c.fillStyle = '#fff6dc';
+  c.fill();
+  ink(c, 1.5);
+  c.beginPath();
+  c.arc(m, m - s * 0.15, s * 0.26, 0, TAU);
+  c.arc(m - s * 0.15, m + s * 0.05, s * 0.24, 0, TAU);
+  c.arc(m + s * 0.15, m + s * 0.05, s * 0.24, 0, TAU);
+  c.fillStyle = '#fff6dc';
+  c.fill();
+  c.fillStyle = '#f2c86a';
+  c.beginPath();
+  c.arc(m, m + s * 0.28, s * 0.12, 0, TAU);
+  c.fill();
+  angryEye(c, m - s * 0.13, m, s * 0.1, -1, 1);
+  angryEye(c, m + s * 0.13, m, s * 0.1, 1, 1);
+}
+
+/** Toaster Tot: the old Tyrant, shrunk down to swarm size, a little scorched. */
+export function drawTot(c: Ctx, w: number, h: number): void {
+  c.save();
+  c.scale(w / 84, h / 76);
+  drawToaster(c, 84, 76);
+  c.globalCompositeOperation = 'source-atop';
+  c.fillStyle = 'rgba(80,40,20,0.18)';
+  c.fillRect(0, 0, 84, 76);
+  c.globalCompositeOperation = 'source-over';
+  angryEye(c, 30, 41, 6.6, -1, 2.8, '#ff3b1f');
+  angryEye(c, 54, 41, 6.6, 1, 2.8, '#ff3b1f');
+  c.restore();
+}
+
+/** Rack post: a solid steel post seen from above, chunky and outlined so it reads as a wall. */
+export function drawRackPost(c: Ctx, s: number): void {
+  const m = s / 2;
+  const r = m - 3;
+  c.beginPath();
+  c.arc(m, m, r, 0, TAU);
+  c.fillStyle = radial(c, m, m, r, [
+    [0, '#e4e2df'],
+    [0.55, '#a19d99'],
+    [1, '#605b57'],
+  ]);
+  c.fill();
+  ink(c, 3);
+  c.beginPath();
+  c.arc(m, m, r * 0.55, 0, TAU);
+  c.fillStyle = '#7a7470';
+  c.fill();
+  ink(c, 1.6);
+  c.beginPath();
+  c.arc(m - r * 0.2, m - r * 0.22, r * 0.18, 0, TAU);
+  c.fillStyle = 'rgba(255,255,255,0.7)';
+  c.fill();
+}
+
+/** Ember spark left by an Ember Crumb: small, hot, and gone in a moment. */
+export function drawEmberSpark(c: Ctx, s: number): void {
+  const m = s / 2;
+  const g = c.createRadialGradient(m, m, 0, m, m, m);
+  g.addColorStop(0, 'rgba(255,240,170,1)');
+  g.addColorStop(0.4, 'rgba(255,150,40,0.9)');
+  g.addColorStop(1, 'rgba(255,80,20,0)');
+  c.fillStyle = g;
+  c.beginPath();
+  c.arc(m, m, m, 0, TAU);
+  c.fill();
+}
+
+/** A bubbling grease spot: golden-brown with a thick white outline and bubbles. */
+export function drawGreaseSpot(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 3, 0, TAU);
+  c.fillStyle = 'rgba(214,150,40,0.7)';
+  c.fill();
+  c.lineWidth = 3;
+  c.strokeStyle = '#ffffff';
+  c.stroke();
+  for (const [dx, dy, r] of [
+    [-0.3, -0.2, 0.18],
+    [0.25, 0.1, 0.22],
+    [-0.05, 0.38, 0.12],
+  ]) {
+    c.beginPath();
+    c.arc(m + dx * m, m + dy * m, r * m, 0, TAU);
+    c.fillStyle = 'rgba(255,230,150,0.85)';
+    c.fill();
+    c.lineWidth = 1.4;
+    c.strokeStyle = 'rgba(255,255,255,0.9)';
+    c.stroke();
+  }
+}
+
+/** Grease slick left by a pop: shiny amber with a dashed white edge, slippery like Freezer ice. */
+export function drawSlick(c: Ctx, w: number, h: number): void {
+  c.beginPath();
+  c.ellipse(w / 2, h / 2, w / 2 - 4, h / 2 - 4, 0, 0, TAU);
+  c.fillStyle = 'rgba(232,170,60,0.5)';
+  c.fill();
+  c.setLineDash([9, 6]);
+  c.lineWidth = 3;
+  c.strokeStyle = 'rgba(255,255,255,0.9)';
+  c.stroke();
+  c.setLineDash([]);
+  c.beginPath();
+  c.ellipse(w * 0.36, h * 0.38, w * 0.14, h * 0.1, -0.3, 0, TAU);
+  c.fillStyle = 'rgba(255,248,220,0.6)';
+  c.fill();
+}
+
+/** A small flame that flickers on a burning enemy (Jalapeño Cheddar's Spicy). */
+export function drawFlame(c: Ctx, w: number, h: number): void {
+  const x = w / 2;
+  c.beginPath();
+  c.moveTo(x, 1);
+  c.bezierCurveTo(x + w * 0.5, h * 0.4, x + w * 0.45, h - 1, x, h - 1);
+  c.bezierCurveTo(x - w * 0.45, h - 1, x - w * 0.5, h * 0.4, x, 1);
+  c.fillStyle = '#ff6a1f';
+  c.fill();
+  c.lineWidth = 1.2;
+  c.strokeStyle = INK;
+  c.stroke();
+  c.beginPath();
+  c.moveTo(x, h * 0.35);
+  c.bezierCurveTo(x + w * 0.28, h * 0.6, x + w * 0.22, h - 3, x, h - 3);
+  c.bezierCurveTo(x - w * 0.22, h - 3, x - w * 0.28, h * 0.6, x, h * 0.35);
+  c.fillStyle = '#ffd34a';
+  c.fill();
+}

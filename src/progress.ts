@@ -4,7 +4,7 @@ import type { SaveData } from './save';
 
 /** Preview builds (VITE_PREVIEW=1, used for the playable preview link) open every stage, and the newest bagels, so they can be tried right away. */
 const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
-const PREVIEW_BAGELS = ['blueberry', 'asiago'];
+const PREVIEW_BAGELS = ['blueberry', 'asiago', 'jalapeno'];
 
 export interface GoalStatus {
   done: boolean;
