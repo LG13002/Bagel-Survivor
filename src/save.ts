@@ -19,6 +19,8 @@ export interface SaveData {
   stage?: string;
   /** Clears per stage id (Full and Quick both count). */
   stageClears?: Record<string, number>;
+  /** Longest survival per stage id, in seconds (a Quick Run clear counts as 3:00). */
+  stageTime?: Record<string, number>;
 }
 
 const KEY = 'everything-bagel-save-v1';

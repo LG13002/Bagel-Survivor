@@ -120,6 +120,14 @@ From the owner's playtest notes:
 - Balance: Freezer contact damage set to 0.94. Bot (level 3 weapons, from 2:00): Stage 1 averages 343 damage taken per minute, the Freezer 392 (+14%). From 3:15 the gap is smaller (+5%, one run).
 - `wbench.cjs` takes a stage and start time: `node tools/bots/wbench.cjs 3 pin stage2 195`.
 
+### Phase 2, M7: Blueberry, Asiago and the Bakery's Extras
+- **Blueberry** (90 health, speed 145, starts with Lox Boomerang). Juicy Dash: a flick (a quick swipe and lift, under 250ms and over 30px) or SPACE dashes 95px in 0.18s. Safe from hits during the dash and 0.15s after. 5s cooldown shown as a purple ring around the bagel that fills, then pulses with a pop when ready. Holding the thumb to steer never dashes. Unlock: clear the Freezer.
+- **Asiago** (100 health, speed 138, starts with Cream Cheese Puddle). Aged: +1% damage per 10s of the stage clock, up to +30%, shown as a gold badge at the top right of the HUD. Unlock: survive 3:00 in the Freezer.
+- New goal kinds `stageclear` and `stagetime` (with `goal.stage`). Survival time per stage is saved in `save.stageTime`; older saves fall back to their bests (a Quick clear counts as 3:00). The menu checks unlocks on opening, so players who already met a goal get the bagel right away. Preview builds unlock both.
+- **Bakery Extras tab** (Basics holds the original four): Lucky Seed (cards for items you own weigh more, gold toaster chance 25% + 5% per rank), Reroll Rack (+1 reroll per rank), Second Bake (one revive per run at 30% to 70% health, 2s of safety, enemies shoved back and enemy shots cleared), Hard Crust (-1 damage per rank, a hit always does at least half).
+- Stage 1 with no new upgrades is unchanged: same scheduled events in the timeline bot, and the weapon bench is within noise of `main`.
+- Bot hit sampling: Hard Crust at ranks 1/3/5 cuts damage taken to about 93%/79%/64% in Stage 1 and 92%/77%/62% in the Freezer. Maxing all four Extras costs 3,100 Dough, so it is a long-term goal.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

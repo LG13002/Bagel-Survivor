@@ -28,6 +28,8 @@ export interface RunSnapshot {
   bossHp: number;
   evolutions: string[];
   healsTaken: number;
+  /** Second Bake already used this run. */
+  revived?: boolean;
 }
 
 const KEY = 'everything-bagel-run-v1';

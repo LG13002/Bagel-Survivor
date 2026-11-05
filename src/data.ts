@@ -246,9 +246,10 @@ export function stageById(id: string | undefined): StageDef {
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 
-export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura';
+export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged';
 
-export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook';
+/** stageclear / stagetime: clear, or survive `target` seconds in, the goal's `stage`. */
+export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook' | 'stageclear' | 'stagetime';
 
 export interface BagelDef {
   id: string;
@@ -257,7 +258,7 @@ export interface BagelDef {
   weapon: WeaponId;
   quirk: string;
   quirkId: Quirk;
-  goal: { kind: GoalKind; target: number; text: string } | null;
+  goal: { kind: GoalKind; target: number; text: string; stage?: StageId } | null;
   hp: number;
   speed: number;
   choices: number;
@@ -343,6 +344,33 @@ export const BAGELS: BagelDef[] = [
     choices: 3,
     allStats: 0,
   },
+  // Phase 2: the Freezer bagels
+  {
+    id: 'blueberry',
+    name: 'Blueberry',
+    tex: 'bagel_blueberry',
+    weapon: 'lox',
+    quirk: 'Juicy Dash: flick to dash, safe from hits (5s cooldown). Starts with Lox Boomerang.',
+    quirkId: 'dash',
+    goal: { kind: 'stageclear', target: 1, stage: 'stage2', text: 'Clear the Freezer' },
+    hp: 90,
+    speed: 145,
+    choices: 3,
+    allStats: 0,
+  },
+  {
+    id: 'asiago',
+    name: 'Asiago',
+    tex: 'bagel_asiago',
+    weapon: 'puddle',
+    quirk: 'Aged: +1% damage every 10s, up to +30%. Starts with Cream Cheese Puddle.',
+    quirkId: 'aged',
+    goal: { kind: 'stagetime', target: 180, stage: 'stage2', text: 'Survive 3:00 in the Freezer' },
+    hp: 100,
+    speed: 138,
+    choices: 3,
+    allStats: 0,
+  },
 ];
 
 export interface UpgradeDef {
@@ -351,6 +379,8 @@ export interface UpgradeDef {
   name: string;
   blurb: string;
   costs: number[];
+  /** Bakery tab: 0 = Basics, 1 = Extras. */
+  tab?: 0 | 1;
 }
 
 export const BAKERY: UpgradeDef[] = [
@@ -358,6 +388,11 @@ export const BAKERY: UpgradeDef[] = [
   { id: 'dmg', icon: 'ic_bk_oven', name: 'Hotter Oven', blurb: '+6% damage per rank', costs: [25, 55, 110, 190, 300] },
   { id: 'speed', icon: 'ic_bk_rise', name: 'Quick Rise', blurb: '+4% move speed per rank', costs: [15, 35, 70, 130, 210] },
   { id: 'magnet', icon: 'ic_bk_sticky', name: 'Sticky Seeds', blurb: '+15% pickup range per rank', costs: [15, 35, 70, 130, 210] },
+  // Extras (Phase 2)
+  { id: 'luck', icon: 'ic_bk_luck', name: 'Lucky Seed', blurb: '+5% luck: better cards', costs: [25, 55, 110, 190, 300], tab: 1 },
+  { id: 'reroll', icon: 'ic_bk_reroll', name: 'Reroll Rack', blurb: '+1 reroll per run', costs: [30, 60, 110, 180, 270], tab: 1 },
+  { id: 'revive', icon: 'ic_bk_revive', name: 'Second Bake', blurb: 'Revive once per run', costs: [60, 120, 200, 300, 420], tab: 1 },
+  { id: 'armor', icon: 'ic_bk_armor', name: 'Hard Crust', blurb: '-1 damage per hit taken', costs: [25, 55, 110, 190, 300], tab: 1 },
 ];
 
 export type EnemyKind =

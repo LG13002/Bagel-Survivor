@@ -63,6 +63,13 @@ const THAW_TIME = 3.5;
 /** How fast you steer on ice (lower = longer slides). */
 const ICE_GRIP = 1.2;
 const MUG_SAFE = 5;
+/** Blueberry's Juicy Dash. */
+const DASH_TIME = 0.18;
+const DASH_DIST = 95;
+const DASH_CD = 5;
+/** Asiago ages: +1% damage every AGE_STEP seconds of the stage clock, up to AGE_MAX%. */
+const AGE_STEP = 10;
+const AGE_MAX = 30;
 /** Ice Cream Scoop melt puddles slow you to this. */
 const MELT_SLOW = 0.6;
 interface IcePatch {
@@ -143,6 +150,7 @@ export class GameScene extends Phaser.Scene implements World {
     timer: Phaser.GameObjects.Text;
     quickBadge: Phaser.GameObjects.Container;
     kills: Phaser.GameObjects.Container;
+    aged: Phaser.GameObjects.Container | null;
     pause: Phaser.GameObjects.Container;
     build: Phaser.GameObjects.Container;
     bossName: Phaser.GameObjects.Text;
@@ -177,6 +185,19 @@ export class GameScene extends Phaser.Scene implements World {
   private pace = 1;
   private resume: RunSnapshot | null = null;
   private healsTaken = 0;
+  /** Bakery ranks read once per run: luck, Second Bake and Hard Crust. */
+  private luck = 0;
+  private reviveRank = 0;
+  private revived = false;
+  private armor = 0;
+  // Blueberry's dash and Asiago's age
+  private dashT = 0;
+  private dashV = { x: 0, y: 0 };
+  private dashReadyAt = 0;
+  private dashFlash = 0;
+  private agedPct = 0;
+  private joyDownAt = 0;
+  private joyDown = { x: 0, y: 0 };
   private raisinKills = 0;
   private mines: { img: Phaser.GameObjects.Image; x: number; y: number; life: number }[] = [];
   private mineT = 0;
@@ -255,7 +276,16 @@ export class GameScene extends Phaser.Scene implements World {
     this.pendingLevels = 0;
     this.kills = 0;
     this.coins = 0;
-    this.rerolls = 1;
+    const up = load().upgrades;
+    this.luck = up.luck ?? 0;
+    this.reviveRank = up.revive ?? 0;
+    this.revived = false;
+    this.armor = up.armor ?? 0;
+    this.dashT = 0;
+    this.dashReadyAt = 0;
+    this.dashFlash = 0;
+    this.agedPct = 0;
+    this.rerolls = 1 + (up.reroll ?? 0);
     this.paused = '';
     this.evolutionsThisRun = [];
     this.miniKilled = false;
@@ -438,7 +468,7 @@ export class GameScene extends Phaser.Scene implements World {
     const t = (id: ToppingId) => this.toppings.get(id) ?? 0;
     const prevMax = this.stats.maxHp;
     this.stats = {
-      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven')),
+      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven')) * (1 + this.agedPct / 100),
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
@@ -460,10 +490,12 @@ export class GameScene extends Phaser.Scene implements World {
 
   private choices(): Choice[] {
     const pool: { c: Choice; w: number }[] = [];
-    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 });
+    // Lucky Seed: cards for what you already own (the road to evolutions) come up more often.
+    const own = 1 + 0.1 * this.luck;
+    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
     if (this.weapons.length < MAX_SLOTS)
       for (const id of Object.keys(WEAPONS)) if (!this.weaponOf(id)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
-    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) pool.push({ c: { kind: 'tup', id }, w: 1 });
+    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) pool.push({ c: { kind: 'tup', id }, w: own });
     if (this.toppings.size < MAX_SLOTS)
       for (const id of Object.keys(TOPPINGS)) if (!this.toppings.has(id as ToppingId)) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
     const out: Choice[] = [];
@@ -604,6 +636,13 @@ export class GameScene extends Phaser.Scene implements World {
   private updateQuirk(dt: number): void {
     const p = this.player;
     const q = this.bagel.quirkId;
+    if (q === 'aged') {
+      const pct = Math.min(AGE_MAX, Math.floor(this.stageT / AGE_STEP));
+      if (pct !== this.agedPct) {
+        this.agedPct = pct;
+        this.recomputeStats();
+      }
+    }
     if (q === 'trail') {
       // Poppy: drop a seed mine every so often while moving.
       this.mineT -= dt;
@@ -675,6 +714,7 @@ export class GameScene extends Phaser.Scene implements World {
       bossHp: this.boss?.alive ? this.boss.hp : 0,
       evolutions: this.evolutionsThisRun,
       healsTaken: this.healsTaken,
+      revived: this.revived,
       buns: this.pickups.filter((it) => it.kind === 'bun').length,
     };
     saveRun(snap);
@@ -706,6 +746,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.bossSpawned = s.bossSpawned;
     this.evolutionsThisRun = s.evolutions;
     this.healsTaken = s.healsTaken;
+    this.revived = !!s.revived;
     for (let i = 0; i < (s.buns ?? 0); i++) this.dropPickup('bun', this.player.x + 60 + i * 30, this.player.y, 1);
     this.recomputeStats();
     this.player.hp = Math.min(this.stats.maxHp, s.hp);
@@ -753,6 +794,17 @@ export class GameScene extends Phaser.Scene implements World {
       const l = Math.hypot(mx, my);
       p.faceX = mx / l;
       p.faceY = my / l;
+    }
+    if (this.dashT > 0) {
+      // Juicy Dash: a quick straight burst that ignores ice and melt.
+      this.dashT -= dt;
+      p.x += this.dashV.x * dt;
+      p.y += this.dashV.y * dt;
+      this.vel.x = this.dashV.x * 0.35;
+      this.vel.y = this.dashV.y * 0.35;
+      if (this.particles < 120 && Math.random() < 0.6) this.burst(p.x, p.y, 0x7d6fd0, 1, 14);
+      if (this.stage.frost) this.updateFrost(dt, true);
+      return;
     }
     const st = this.stage;
     if (!st.ice && !st.frost) {
@@ -836,6 +888,7 @@ export class GameScene extends Phaser.Scene implements World {
   private drawFrost(): void {
     const g = this.frostGfx;
     g.clear();
+    if (this.bagel.quirkId === 'dash') this.drawDashRing(g);
     if (!this.stage.frost) return;
     const p = this.player;
     if (this.frozen) p.sprite.setTint(0xa8dcff);
@@ -848,6 +901,27 @@ export class GameScene extends Phaser.Scene implements World {
     g.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * this.frost, false);
     g.strokePath();
     if (this.frozen) g.fillStyle(0xbfe6fb, 0.25).fillCircle(p.x, p.y, r);
+  }
+
+  /** Blueberry: a ring fills around the bagel while the dash recharges, then pops when it's ready. */
+  private drawDashRing(g: Phaser.GameObjects.Graphics): void {
+    const p = this.player;
+    const left = this.dashReadyAt - this.now;
+    const r = 26;
+    if (left > 0 && this.dashT <= 0) {
+      const frac = 1 - left / DASH_CD;
+      g.lineStyle(4, 0x24160d, 0.6).strokeCircle(p.x, p.y, r);
+      g.lineStyle(2.6, 0x9d8fcf, 1);
+      g.beginPath();
+      g.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac, false);
+      g.strokePath();
+    } else if (this.dashReadyAt > 0 && this.dashFlash < 0.35) {
+      // Ready pulse
+      if (this.dashFlash === 0) sfx('pop');
+      this.dashFlash += 1 / 60;
+      const k = this.dashFlash / 0.35;
+      g.lineStyle(3, 0xd3c9f2, 1 - k).strokeCircle(p.x, p.y, r + k * 10);
+    }
   }
 
   private render2(): void {
@@ -1528,7 +1602,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
     // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
-    if (e.dropsChest) this.dropPickup(e.kind === this.stage.mini.kind || Math.random() < 0.25 ? 'goldchest' : 'chest', e.x, e.y, 1);
+    if (e.dropsChest) this.dropPickup(e.kind === this.stage.mini.kind || Math.random() < 0.25 + 0.05 * this.luck ? 'goldchest' : 'chest', e.x, e.y, 1);
     if (e.dropsBun) {
       // Land on the far side of the boss so it isn't grabbed by accident at the kill.
       const ba = Math.atan2(e.y - this.player.y, e.x - this.player.x);
@@ -1777,6 +1851,8 @@ export class GameScene extends Phaser.Scene implements World {
   private damagePlayer(d: number): void {
     const p = this.player;
     if (DEBUG.god || this.paused || this.now < p.invulnUntil) return;
+    // Hard Crust blocks 1 per rank, but a hit always does at least half.
+    if (this.armor) d = Math.max(d * 0.5, d - this.armor);
     p.hp -= d;
     p.invulnUntil = this.now + 0.9;
     this.cameras.main.shake(110, 0.005);
@@ -1792,10 +1868,38 @@ export class GameScene extends Phaser.Scene implements World {
     });
     p.sprite.setTintFill(0xff5a4a);
     this.tweens.add({ targets: p.sprite, duration: 90, onComplete: () => p.sprite.clearTint() });
+    if (p.hp <= 0 && this.reviveRank > 0 && !this.revived) {
+      this.secondBake();
+      return;
+    }
     if (p.hp <= 0) {
       p.hp = 0;
       this.endRun(false);
     }
+  }
+
+  /** Second Bake: come back once per run with some health, a moment of safety and room to move. */
+  private secondBake(): void {
+    const p = this.player;
+    this.revived = true;
+    p.hp = Math.round(this.stats.maxHp * (0.2 + 0.1 * this.reviveRank));
+    p.invulnUntil = this.now + 2;
+    this.query(p.x, p.y, 170, (e) => {
+      if (e.boss) return;
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const dl = Math.hypot(dx, dy) || 1;
+      e.kx += (dx / dl) * (900 / e.mass);
+      e.ky += (dy / dl) * (900 / e.mass);
+    });
+    for (let i = this.shots.length - 1; i >= 0; i--) {
+      this.shots[i].sprite.destroy();
+      this.shots.splice(i, 1);
+    }
+    this.cameras.main.flash(250, 255, 236, 190);
+    this.burst(p.x, p.y, 0xf8d38c, 18, 90);
+    this.banner('Second Bake!', CSS.gold, 26);
+    sfx('evolve');
   }
 
   // ---------------------------------------------------------------- Pickups
@@ -1936,12 +2040,13 @@ export class GameScene extends Phaser.Scene implements World {
     const timer = this.ui(txt(this, 0, 0, '0:00', 26));
     const quickBadge = this.ui(pill(this, 0, 0, 'ic_bolt', 'QUICK', { size: 11, h: 22, color: CSS.gold }).setVisible(this.quick));
     const kills = this.ui(pill(this, 0, 0, 'en_crumb', '0', { size: 14, h: 28 }));
+    const aged = this.bagel.quirkId === 'aged' ? this.ui(pill(this, 0, 0, 'ic_bk_oven', '+30%', { size: 14, h: 28, color: CSS.gold })) : null;
     const pause = this.ui(button(this, 0, 0, 36 * S, 36 * S, 'II', () => this.openPause(), { color: COLORS.panelLight, textColor: CSS.cream, size: 16, radius: 11 }));
     const build = this.ui(this.add.container(0, 0));
     const bossName = this.ui(txt(this, 0, 0, '', 14, CSS.gold).setVisible(false));
     const bossBg = this.ui(this.add.rectangle(0, 0, 10, 10, 0x1d140d).setVisible(false));
     const bossFill = this.ui(this.add.rectangle(0, 0, 10, 10, COLORS.red).setOrigin(0, 0.5).setVisible(false));
-    this.hud = { xpBar, badge, level, timer, quickBadge, kills, pause, build, bossName, bossBg, bossFill };
+    this.hud = { xpBar, badge, level, timer, quickBadge, kills, aged, pause, build, bossName, bossBg, bossFill };
     this.buildSig = '';
     this.xpShown = 0;
   }
@@ -1969,6 +2074,7 @@ export class GameScene extends Phaser.Scene implements World {
     h.timer.setPosition(W / 2, top + 60 * S);
     h.quickBadge.setPosition(W / 2 + 46 * S + h.quickBadge.width / 2, top + 60 * S);
     h.kills.setPosition(pad + h.kills.width / 2, top + 60 * S);
+    h.aged?.setPosition(W - pad - h.aged.width / 2, top + (this.quick ? 96 : 60) * S);
     h.build.setPosition(pad, top + 90 * S);
     h.bossName.setPosition(W / 2, top + 140 * S);
     const bw = Math.min(W - 40 * S, 320 * S);
@@ -2041,6 +2147,11 @@ export class GameScene extends Phaser.Scene implements World {
     const kt = h.kills.getData('label') as Phaser.GameObjects.Text;
     const ks = `${this.kills}`;
     if (kt.text !== ks) kt.setText(ks);
+    if (h.aged) {
+      const at = h.aged.getData('label') as Phaser.GameObjects.Text;
+      const as = `+${this.agedPct}%`;
+      if (at.text !== as) at.setText(as);
+    }
     this.drawBuildRow();
     const b = this.boss ?? this.mini;
     const show = !!b && b.alive;
@@ -2119,6 +2230,8 @@ export class GameScene extends Phaser.Scene implements World {
       unlockAudio();
       if (this.paused || over.length > 0 || this.joyId !== null) return;
       this.joyId = ptr.id;
+      this.joyDownAt = performance.now();
+      this.joyDown = { x: ptr.x, y: ptr.y };
       this.joyBase = { x: ptr.x, y: ptr.y };
       this.joyVec = { x: 0, y: 0 };
     });
@@ -2145,6 +2258,10 @@ export class GameScene extends Phaser.Scene implements World {
     });
     const release = (ptr: Phaser.Input.Pointer) => {
       if (ptr.id !== this.joyId) return;
+      // A flick (a quick swipe and lift) is Blueberry's dash. Holding the thumb to steer never counts.
+      const dx = ptr.x - this.joyDown.x;
+      const dy = ptr.y - this.joyDown.y;
+      if (performance.now() - this.joyDownAt < 250 && Math.hypot(dx, dy) > 30 * S) this.tryDash(dx, dy);
       this.releaseJoystick();
     };
     this.input.on('pointerup', release);
@@ -2158,7 +2275,27 @@ export class GameScene extends Phaser.Scene implements World {
       >;
       kb.on('keydown-ESC', () => (this.paused ? undefined : this.openPause()));
       kb.on('keydown-P', () => (this.paused ? undefined : this.openPause()));
+      kb.on('keydown-SPACE', () => this.tryDash(this.player.moveX, this.player.moveY));
     }
+  }
+
+  /** Blueberry's Juicy Dash, in the flick's direction (or the way you face). */
+  private tryDash(dx: number, dy: number): void {
+    if (this.bagel.quirkId !== 'dash' || this.paused || this.now < this.dashReadyAt || this.dashT > 0) return;
+    const p = this.player;
+    let l = Math.hypot(dx, dy);
+    if (l < 0.01) {
+      dx = p.faceX;
+      dy = p.faceY;
+      l = Math.hypot(dx, dy) || 1;
+    }
+    this.dashT = DASH_TIME;
+    this.dashV = { x: (dx / l) * (DASH_DIST / DASH_TIME), y: (dy / l) * (DASH_DIST / DASH_TIME) };
+    this.dashReadyAt = this.now + DASH_CD;
+    this.dashFlash = 0;
+    p.invulnUntil = Math.max(p.invulnUntil, this.now + DASH_TIME + 0.15);
+    this.burst(p.x, p.y, 0x9d8fcf, 8, 30);
+    sfx('swoosh');
   }
 
   private releaseJoystick(): void {
@@ -2511,7 +2648,11 @@ export class GameScene extends Phaser.Scene implements World {
     save.dough += dough;
     save.totalKills += this.kills;
     // A Quick Run clear counts as surviving 3:00 for unlock goals.
-    if (!this.practice) save.bestTime = Math.max(save.bestTime, Math.floor(this.now), this.quick && victory ? 180 : 0);
+    if (!this.practice) {
+      const t = Math.max(Math.floor(this.now), this.quick && victory ? 180 : 0);
+      save.bestTime = Math.max(save.bestTime, t);
+      save.stageTime = { ...(save.stageTime ?? {}), [this.stage.id]: Math.max(save.stageTime?.[this.stage.id] ?? 0, t) };
+    }
     clearRun();
     if (victory && !this.practice) {
       save.clears++;

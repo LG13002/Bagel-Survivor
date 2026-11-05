@@ -1172,6 +1172,84 @@ export const UI_ICONS: Record<string, (c: Ctx) => void> = {
     c.fillStyle = 'rgba(255,255,255,0.8)';
     c.fill();
   },
+  // Lucky Seed: a sesame seed with a four-leaf sprout.
+  ic_bk_luck: (c) => {
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * TAU + Math.PI / 4;
+      c.beginPath();
+      c.ellipse(18 + Math.cos(a) * 6, 12 + Math.sin(a) * 6, 5.5, 4, a, 0, TAU);
+      fillInk(c, radial(c, 18 + Math.cos(a) * 6, 12 + Math.sin(a) * 6, 6, [[0, '#b6ec7a'], [1, '#5fa83a']]), 1.6);
+    }
+    c.beginPath();
+    c.moveTo(18, 14);
+    c.quadraticCurveTo(19, 21, 17, 24);
+    c.lineWidth = 2;
+    c.strokeStyle = '#3f7a28';
+    c.stroke();
+    c.beginPath();
+    c.ellipse(17, 27, 7, 4.2, -0.2, 0, TAU);
+    fillInk(c, radial(c, 17, 27, 7, [[0, '#fffaf0'], [1, '#e9d9b4']]), 1.6);
+  },
+  // Reroll Rack: two dice.
+  ic_bk_reroll: (c) => {
+    const die = (x: number, y: number, a: number, pips: [number, number][]) => {
+      c.save();
+      c.translate(x, y);
+      c.rotate(a);
+      rrect(c, -7.5, -7.5, 15, 15, 4);
+      fillInk(c, linear(c, 0, -8, 0, 8, [[0, '#fffaf0'], [1, '#e2d2ae']]), 1.8);
+      c.fillStyle = INK;
+      for (const [px, py] of pips) {
+        c.beginPath();
+        c.arc(px, py, 1.7, 0, TAU);
+        c.fill();
+      }
+      c.restore();
+    };
+    die(12, 21, -0.25, [[-3.5, -3.5], [0, 0], [3.5, 3.5]]);
+    die(23, 14, 0.3, [[-3.5, -3.5], [3.5, -3.5], [-3.5, 3.5], [3.5, 3.5]]);
+  },
+  // Second Bake: a bagel with a curved "again" arrow.
+  ic_bk_revive: (c) => {
+    c.beginPath();
+    c.arc(18, 19, 10, 0, TAU);
+    c.arc(18, 19, 3.5, 0, TAU, true);
+    fillInk(c, radial(c, 18, 19, 10, [[0, '#f8d38c'], [1, '#b0642a']]), 1.8);
+    c.beginPath();
+    c.arc(18, 19, 14.5, -Math.PI * 0.95, -Math.PI * 0.15);
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.lineWidth = 2.8;
+    c.strokeStyle = '#7fbf4d';
+    c.stroke();
+    const ax = 18 + Math.cos(-Math.PI * 0.15) * 14.5;
+    const ay = 19 + Math.sin(-Math.PI * 0.15) * 14.5;
+    c.beginPath();
+    c.moveTo(ax + 4, ay - 4);
+    c.lineTo(ax + 1, ay + 5);
+    c.lineTo(ax - 6, ay - 1);
+    c.closePath();
+    fillInk(c, '#7fbf4d', 1.4);
+  },
+  // Hard Crust: a crusty shield.
+  ic_bk_armor: (c) => {
+    c.beginPath();
+    c.moveTo(18, 4);
+    c.lineTo(29, 9);
+    c.quadraticCurveTo(29, 25, 18, 32);
+    c.quadraticCurveTo(7, 25, 7, 9);
+    c.closePath();
+    fillInk(c, linear(c, 0, 4, 0, 32, [[0, '#e6a75a'], [1, '#8a4c1c']]), 2);
+    c.beginPath();
+    c.moveTo(18, 9);
+    c.lineTo(24.5, 12);
+    c.quadraticCurveTo(24.5, 23, 18, 27.5);
+    c.quadraticCurveTo(11.5, 23, 11.5, 12);
+    c.closePath();
+    c.fillStyle = '#f6d9a2';
+    c.fill();
+  },
   ic_lock: (c) => {
     c.beginPath();
     c.arc(18, 15, 7.5, Math.PI, 0);

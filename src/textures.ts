@@ -32,6 +32,8 @@ export function makeTextures(scene: Phaser.Scene): void {
   bagelTex('bagel_poppy', { ...golden, seeds: ['#1b1f2e', '#323a55'], seedCount: 80, seedSize: 0.75 });
   bagelTex('bagel_cinnamon', { base: '#a8652f', crust: '#6e3a19', hi: '#d9a068', swirl: '#5a2c12', seeds: ['#3d1f2b', '#5e2c40'], seedCount: 10, seedSize: 1.6 });
   bagelTex('bagel_pumpernickel', { base: '#5a3622', crust: '#2a160c', hi: '#8f6146' });
+  bagelTex('bagel_blueberry', { base: '#9d8fcf', crust: '#4f3f86', hi: '#d3c9f2', seeds: ['#2b2766', '#3d3a92', '#252050'], seedCount: 16, seedSize: 1.7 });
+  bagelTex('bagel_asiago', { ...golden, seeds: ['#ffdc73', '#f2c048', '#c9862a'], seedCount: 12, seedSize: 2.2 });
   bagelTex('bagel_onion', { ...golden, seeds: ['#f6e6b6', '#8a5a2a', '#dcbb72'], seedCount: 26, seedSize: 1.45 });
   ctex(scene, 'mine', 10, 10, (c) => drawMine(c, 10));
 
