@@ -21,6 +21,12 @@ export interface SaveData {
   stageClears?: Record<string, number>;
   /** Longest survival per stage id, in seconds (a Quick Run clear counts as 3:00). */
   stageTime?: Record<string, number>;
+  /** Weapons unlocked through goals (the 6 starter weapons are always open). */
+  weapons?: string[];
+  /** Bosses and mini-bosses beaten at least once, by enemy kind. */
+  beaten?: string[];
+  /** Warm Mugs picked up, all runs together. */
+  mugs?: number;
 }
 
 const KEY = 'everything-bagel-save-v1';
@@ -51,6 +57,8 @@ export function load(): SaveData {
   }
   // Saves from before stage select: every clear so far was a Stage 1 clear.
   if (!data.stageClears) data.stageClears = data.clears > 0 ? { stage1: data.clears } : {};
+  // Saves from before M8 that cleared the Freezer beat both of its bosses on the way.
+  if ((data.stageClears.stage2 ?? 0) > 0) data.beaten = [...new Set([...(data.beaten ?? []), 'waffle', 'fburn'])];
   cache = data;
   return data;
 }

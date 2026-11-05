@@ -902,6 +902,175 @@ export function drawMine(c: Ctx, s: number): void {
   c.restore();
 }
 
+
+// ---------- M8 player projectiles (thin warm outlines, like the other player shots) ----------
+const PLINE = '#6b4a22';
+
+/** Butter knife: a rounded silver blade with a smear of butter. Light and friendly, unlike the Stale's dark knives. */
+export function drawButterKnife(c: Ctx, w: number, h: number): void {
+  const m = h / 2;
+  rrect(c, 1, m - 2.2, 11, 4.4, 2.2);
+  c.fillStyle = linear(c, 0, m - 2, 0, m + 2, [
+    [0, '#f8e6c4'],
+    [1, '#d6b27a'],
+  ]);
+  c.fill();
+  ink(c, 1, PLINE);
+  c.beginPath();
+  c.moveTo(11, m - 2.6);
+  c.lineTo(w - 6, m - 3.4);
+  c.quadraticCurveTo(w - 0.8, m - 1.5, w - 1.5, m + 1.2);
+  c.quadraticCurveTo(w - 4, m + 3.4, w - 9, m + 3);
+  c.lineTo(11, m + 2.6);
+  c.closePath();
+  c.fillStyle = linear(c, 0, m - 3.4, 0, m + 3.4, [
+    [0, '#ffffff'],
+    [0.45, '#dfe7ef'],
+    [1, '#9aa8b8'],
+  ]);
+  c.fill();
+  ink(c, 1, PLINE);
+  c.beginPath();
+  c.ellipse(w - 10, m - 0.6, 5, 1.8, -0.05, 0, TAU);
+  c.fillStyle = '#ffe680';
+  c.fill();
+  c.beginPath();
+  c.ellipse(w - 11.5, m - 1.2, 1.8, 0.7, 0, 0, TAU);
+  c.fillStyle = '#fffbe0';
+  c.fill();
+}
+
+/** Grape jam jar with a gingham lid (purple, so it never reads as the pink melt puddles that slow you). */
+export function drawJamJar(c: Ctx, w: number, h: number): void {
+  rrect(c, 2, 5.5, w - 4, h - 7, 4);
+  c.fillStyle = radial(c, w / 2, h * 0.6, w / 2, [
+    [0, '#b98ae0'],
+    [0.6, '#7d3fb4'],
+    [1, '#4f2380'],
+  ]);
+  c.fill();
+  ink(c, 1.1, '#2e1450');
+  rrect(c, 4, 8, 2.2, h - 13, 1.1);
+  c.fillStyle = 'rgba(255,255,255,0.65)';
+  c.fill();
+  rrect(c, 1, 1.5, w - 2, 5, 2);
+  c.fillStyle = '#fbf3e2';
+  c.fill();
+  c.fillStyle = '#e0533d';
+  for (let x = 2.5; x < w - 2; x += 3.2) c.fillRect(x, 2, 1.6, 1.8), c.fillRect(x + 1.6, 3.9, 1.6, 1.8);
+  rrect(c, 1, 1.5, w - 2, 5, 2);
+  ink(c, 1, '#2e1450');
+}
+
+/** Golden buttered toast, much lighter than the Toaster Tyrant's burnt shots. */
+export function drawPlayerToast(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.moveTo(2, s - 2);
+  c.lineTo(2, m - 1);
+  c.bezierCurveTo(1, 1, s - 1, 1, s - 2, m - 1);
+  c.lineTo(s - 2, s - 2);
+  c.closePath();
+  c.fillStyle = '#c98a45';
+  c.fill();
+  ink(c, 1.1, PLINE);
+  c.beginPath();
+  c.moveTo(4, s - 4);
+  c.lineTo(4, m - 0.5);
+  c.bezierCurveTo(3.4, 3.6, s - 3.4, 3.6, s - 4, m - 0.5);
+  c.lineTo(s - 4, s - 4);
+  c.closePath();
+  c.fillStyle = radial(c, m, m, m, [
+    [0, '#fff0bf'],
+    [0.7, '#f6d38c'],
+    [1, '#e9b66a'],
+  ]);
+  c.fill();
+  rrect(c, m - 3, m - 1.5, 6, 5, 1.4);
+  c.fillStyle = '#fff2a0';
+  c.fill();
+  ink(c, 0.8, '#c99a2a');
+}
+
+/** Sticky jam pool (128 × 128, scaled to size). */
+export function drawJamPool(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1, 0, TAU);
+  c.fillStyle = 'rgba(120,52,180,0.42)';
+  c.fill();
+  c.beginPath();
+  c.arc(m, m, m * 0.78, 0, TAU);
+  c.fillStyle = 'rgba(150,84,210,0.4)';
+  c.fill();
+  c.beginPath();
+  c.arc(m, m, m - 2, 0, TAU);
+  c.lineWidth = 3;
+  c.strokeStyle = 'rgba(70,24,120,0.75)';
+  c.stroke();
+  c.fillStyle = 'rgba(222,196,250,0.75)';
+  for (const [x, y, r] of [
+    [0.35, 0.33, 0.1],
+    [0.63, 0.6, 0.06],
+    [0.44, 0.68, 0.045],
+  ]) {
+    c.beginPath();
+    c.arc(s * x, s * y, s * r, 0, TAU);
+    c.fill();
+  }
+  const rand = rng(7);
+  c.fillStyle = 'rgba(40,10,70,0.6)';
+  for (let i = 0; i < 14; i++) {
+    const a = rand() * TAU;
+    const d = rand() * m * 0.75;
+    c.beginPath();
+    c.ellipse(m + Math.cos(a) * d, m + Math.sin(a) * d, 1.6, 1, a, 0, TAU);
+    c.fill();
+  }
+}
+
+/** Waffle Smash footprint: a round golden waffle grid (128 × 128). */
+export function drawStamp(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.save();
+  c.beginPath();
+  c.arc(m, m, m - 2, 0, TAU);
+  c.clip();
+  c.fillStyle = 'rgba(244,196,110,0.55)';
+  c.fillRect(0, 0, s, s);
+  c.strokeStyle = 'rgba(160,98,36,0.75)';
+  c.lineWidth = 5;
+  for (let k = s / 8; k < s; k += s / 8) {
+    c.beginPath();
+    c.moveTo(k, 0);
+    c.lineTo(k, s);
+    c.moveTo(0, k);
+    c.lineTo(s, k);
+    c.stroke();
+  }
+  c.restore();
+  c.beginPath();
+  c.arc(m, m, m - 3, 0, TAU);
+  c.lineWidth = 5;
+  c.strokeStyle = 'rgba(168,106,42,0.9)';
+  c.stroke();
+}
+
+/** Belgian Slam shockwave ring (128 × 128). */
+export function drawShock(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 5, 0, TAU);
+  c.lineWidth = 7;
+  c.strokeStyle = 'rgba(255,236,190,0.95)';
+  c.stroke();
+  c.beginPath();
+  c.arc(m, m, m - 1.5, 0, TAU);
+  c.lineWidth = 2;
+  c.strokeStyle = 'rgba(242,184,75,0.9)';
+  c.stroke();
+}
+
 // ---------- Upgrade icons (36 × 36) ----------
 const IL = 1.7; // icon ink width
 function fillInk(c: Ctx, fill: string | CanvasGradient, w = IL): void {
@@ -910,6 +1079,106 @@ function fillInk(c: Ctx, fill: string | CanvasGradient, w = IL): void {
   ink(c, w);
 }
 export const ICONS: Record<string, (c: Ctx) => void> = {
+  ic_knife: (c) => {
+    c.save();
+    c.translate(18, 18);
+    c.rotate(-0.75);
+    c.scale(1.05, 1.6);
+    c.translate(-16, -5);
+    drawButterKnife(c, 32, 10);
+    c.restore();
+  },
+  ic_jar: (c) => {
+    c.save();
+    c.translate(18, 18);
+    c.rotate(0.15);
+    c.scale(1.45, 1.45);
+    c.translate(-8, -10);
+    drawJamJar(c, 16, 20);
+    c.restore();
+  },
+  ic_toastpop: (c) => {
+    rrect(c, 6, 20, 24, 12, 4);
+    fillInk(c, linear(c, 0, 20, 0, 32, [[0, '#dfe7ef'], [1, '#8a98a8']]));
+    c.save();
+    c.translate(18, 13);
+    c.scale(1.05, 1.05);
+    c.translate(-9, -9);
+    drawPlayerToast(c, 18);
+    c.restore();
+    c.strokeStyle = '#fff3dc';
+    c.lineWidth = 1.6;
+    for (const x of [6, 30]) {
+      c.beginPath();
+      c.moveTo(x, 12);
+      c.lineTo(x + (x < 18 ? -2 : 2), 7);
+      c.stroke();
+    }
+  },
+  ic_iron: (c) => {
+    rrect(c, 5, 5, 26, 26, 6);
+    fillInk(c, radial(c, 18, 18, 14, [[0, '#ffd88e'], [1, '#d08a3a']]));
+    c.strokeStyle = 'rgba(150,90,30,0.85)';
+    c.lineWidth = 2;
+    for (const k of [11.5, 18, 24.5]) {
+      c.beginPath();
+      c.moveTo(k, 7);
+      c.lineTo(k, 29);
+      c.moveTo(7, k);
+      c.lineTo(29, k);
+      c.stroke();
+    }
+  },
+  ic_honey: (c) => {
+    c.beginPath();
+    c.moveTo(18, 5);
+    c.bezierCurveTo(26, 15, 29, 21, 27, 25);
+    c.arc(18, 24, 9, 0.1, Math.PI - 0.1);
+    c.bezierCurveTo(7, 21, 10, 15, 18, 5);
+    fillInk(c, radial(c, 18, 21, 11, [[0, '#ffe58a'], [0.6, '#f2b84b'], [1, '#c98418']]));
+    c.beginPath();
+    c.ellipse(14.5, 20, 2.2, 3.5, 0.3, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.75)';
+    c.fill();
+  },
+  ic_jam: (c) => {
+    c.beginPath();
+    c.ellipse(18, 24, 13, 7, 0, 0, TAU);
+    fillInk(c, radial(c, 18, 24, 13, [[0, '#b98ae0'], [1, '#5a2890']]));
+    c.beginPath();
+    c.arc(18, 14, 7, 0, TAU);
+    fillInk(c, radial(c, 18, 14, 7, [[0, '#c9a0ea'], [1, '#6d34a8']]));
+    c.beginPath();
+    c.ellipse(15.5, 12, 2, 1.3, -0.4, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    c.fill();
+  },
+  ic_seasoning: (c) => {
+    c.beginPath();
+    c.ellipse(18, 25, 13, 6, 0, 0, TAU);
+    fillInk(c, '#7a4a24');
+    const r = rng(11);
+    const cols = ['#fbf3dc', '#2a1f1a', '#f0dca2', '#6b4422', '#ffffff'];
+    for (let i = 0; i < 26; i++) {
+      const a = r() * TAU;
+      const d = r();
+      c.beginPath();
+      c.ellipse(18 + Math.cos(a) * d * 11, 21 + Math.sin(a) * d * 6 - (1 - d) * 6, 1.7, 1, a, 0, TAU);
+      c.fillStyle = cols[i % cols.length];
+      c.fill();
+    }
+  },
+  ic_frosting: (c) => {
+    for (const [y, rx] of [[26, 12], [19, 9], [13, 6]] as const) {
+      c.beginPath();
+      c.ellipse(18, y, rx, 5, 0, 0, TAU);
+      fillInk(c, radial(c, 18, y, rx, [[0, '#ffffff'], [1, '#e6ddc8']]));
+    }
+    c.beginPath();
+    c.moveTo(16, 9);
+    c.quadraticCurveTo(18, 3, 21, 6);
+    ink(c, IL);
+  },
   ic_sesame: (c) => {
     for (const [x, y, k] of [
       [12, 13, 1],

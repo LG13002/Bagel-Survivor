@@ -7,7 +7,8 @@ export type Sfx =
   | 'hit' | 'kill' | 'xp' | 'level' | 'chest' | 'hurt' | 'boss' | 'pin' | 'splash' | 'click' | 'buy'
   | 'shoot' | 'lox' | 'storm' | 'crunch' | 'splat' | 'clatter' | 'pop' | 'basket' | 'gold' | 'evolve'
   | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin'
-  | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge';
+  | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge'
+  | 'knife' | 'jar' | 'toastpop' | 'stamp';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -21,6 +22,7 @@ const minGap: Record<Sfx, number> = {
   shoot: 0.09, lox: 0.25, storm: 2.6, crunch: 0.05, splat: 0.06, clatter: 0.07, pop: 0.12, basket: 0.3, gold: 0.3, evolve: 1,
   heart: 0.85, ding: 0.5, flakes: 0.5, swoosh: 0.12, lock: 0.2, coin: 0.08,
   ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06, icicle: 0.2, roar: 1.5, melt: 0.5, charge: 0.4,
+  knife: 0.12, jar: 0.15, toastpop: 0.2, stamp: 0.25,
 };
 /** Sounds that may be dropped when too many play at once. */
 const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true };
@@ -292,6 +294,23 @@ export function sfx(name: Sfx): void {
     case 'charge': // waffle charge
       noise(0.25, 0.22, 900, { type: 'bandpass', freq1: 300 });
       tone('square', 220, 110, 0.2, 0.08);
+      break;
+    case 'knife': // butter knife: a quick metallic thwip
+      noise(0.08, 0.14, 2500, { type: 'bandpass', freq1: 6000 });
+      tone('triangle', 2400, 3200, 0.05, 0.04);
+      break;
+    case 'jar': // jam jar: a glassy clink and a soft splat
+      tone('sine', 2300, 2300, 0.12, 0.07);
+      tone('sine', 3450, 3450, 0.08, 0.03);
+      noise(0.12, 0.16, 700, { delay: 0.04 });
+      break;
+    case 'toastpop': // toaster pop: a spring boing
+      tone('square', 300, 900, 0.07, 0.06);
+      tone('sine', 900, 600, 0.12, 0.08, 0.05);
+      break;
+    case 'stamp': // waffle smash: a heavy thunk
+      tone('sine', 110, 45, 0.22, 0.32);
+      noise(0.14, 0.24, 350);
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);

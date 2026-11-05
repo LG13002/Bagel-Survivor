@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Enemy, Player, Stats } from './entities';
 import { WEAPONS, type WeaponDef, type WeaponId } from './data';
+import type { Sfx } from './sfx';
 
 /** What weapons need from the game scene. */
 export interface World {
@@ -13,7 +14,7 @@ export interface World {
   img(tex: string, x: number, y: number, depth: number): Phaser.GameObjects.Image;
   tweens: Phaser.Tweens.TweenManager;
   shake(ms: number, intensity: number): void;
-  playSfx(name: 'pin' | 'splash' | 'shoot' | 'lox' | 'storm'): void;
+  playSfx(name: Sfx): void;
 }
 
 export abstract class Weapon {
@@ -71,10 +72,12 @@ class SesameShot extends Weapon {
       const dir = this.aim(440);
       const base = Math.atan2(dir.y, dir.x);
       if (this.evolved) {
-        this.fire(base + (Math.random() - 0.5) * 0.16, 13, 3, 'seed_fire');
+        const n = 1 + s.proj;
+        const jitter = (Math.random() - 0.5) * 0.16;
+        for (let i = 0; i < n; i++) this.fire(base + jitter + (i - (n - 1) / 2) * 0.12, 13, 3, 'seed_fire');
       } else {
-        const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
-        const dmg = 12 * (lv >= 3 ? 1.5 : 1);
+        const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
+        const dmg = 13.2 * (lv >= 3 ? 1.5 : 1);
         for (let i = 0; i < count; i++) this.fire(base + (i - (count - 1) / 2) * 0.16, dmg, lv >= 5 ? 3 : 2, 'seed');
       }
     }
@@ -181,7 +184,7 @@ class CreamPuddle extends Weapon {
       const count = this.evolved ? 3 : 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
       for (let i = 0; i < count; i++) {
         const target = this.randomTarget();
-        const life = this.evolved ? 3.5 : 3 * (lv >= 5 ? 1.5 : 1);
+        const life = (this.evolved ? 3.5 : 3 * (lv >= 5 ? 1.5 : 1)) * s.dur;
         const img = this.w.img('puddle', target.x, target.y, 2);
         const scale = (r * 2) / 128;
         img.setScale(0).setAlpha(0.9);
@@ -262,18 +265,19 @@ class LoxBoomerang extends Weapon {
     const range = (this.evolved ? 150 : 200 * (lv >= 5 ? 1.3 : 1)) * s.area;
     const size = (lv >= 5 || this.evolved ? 1.4 : 1) * s.area;
     const dmg = (this.evolved ? 20 : 16 * (lv >= 3 ? 1.5 : 1)) * s.damage;
-    const T = 1.1;
+    const T = 1.1 * s.dur;
     if (this.evolved) {
-      if (this.rangs.length !== 4) {
+      const n = 4 + s.proj;
+      if (this.rangs.length !== n) {
         this.destroy();
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < n; i++) {
           const img = this.w.img('lox', p.x, p.y, 21);
           img.setScale(img.scaleX * size);
-          this.rangs.push({ img, dx: 0, dy: 0, t: 0, phase: (i / 4) * Math.PI * 2, id: `lox${i}` });
+          this.rangs.push({ img, dx: 0, dy: 0, t: 0, phase: (i / n) * Math.PI * 2, id: `lox${i}` });
         }
       }
     } else if (this.tick(dt, 1.9 * s.cooldown)) {
-      const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
+      const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
       this.w.playSfx('lox');
       const dir = this.aim(320);
       const base = Math.atan2(dir.y, dir.x);
@@ -392,9 +396,9 @@ class RollingPinW extends Weapon {
       const aim = this.aim(420);
       const base = Math.atan2(aim.y, aim.x);
       const angles: number[] = [];
-      if (this.evolved) for (let i = 0; i < 13; i++) angles.push(base + (i / 13) * Math.PI * 2);
+      if (this.evolved) for (let i = 0, n = 13 + s.proj; i < n; i++) angles.push(base + (i / n) * Math.PI * 2);
       else {
-        const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0);
+        const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
         for (let i = 0; i < count; i++) angles.push(base + (i - (count - 1) / 2) * 0.45);
       }
       this.w.shake(60, 0.0015);
@@ -436,6 +440,328 @@ class RollingPinW extends Weapon {
   }
 }
 
+
+/** Up to n different enemies within r of the player, then random spots near it. */
+function pickTargets(w: World, n: number, r: number): { x: number; y: number }[] {
+  const p = w.player;
+  const cands: Enemy[] = [];
+  w.query(p.x, p.y, r, (e) => {
+    if (cands.length < 60) cands.push(e);
+  });
+  for (let i = cands.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cands[i], cands[j]] = [cands[j], cands[i]];
+  }
+  const out: { x: number; y: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i < cands.length) out.push({ x: cands[i].x, y: cands[i].y });
+    else {
+      const a = Math.random() * Math.PI * 2;
+      const d = 50 + Math.random() * r * 0.5;
+      out.push({ x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d });
+    }
+  }
+  return out;
+}
+
+/** Something thrown in an arc that lands after T seconds. */
+interface Lob {
+  img: Phaser.GameObjects.Image;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  t: number;
+  T: number;
+  h: number;
+  spin: number;
+  land: (x: number, y: number) => void;
+}
+
+function updateLobs(lobs: Lob[], dt: number): void {
+  for (let i = lobs.length - 1; i >= 0; i--) {
+    const l = lobs[i];
+    l.t += dt;
+    const k = Math.min(1, l.t / l.T);
+    const x = l.x0 + (l.x1 - l.x0) * k;
+    const y = l.y0 + (l.y1 - l.y0) * k - Math.sin(Math.PI * k) * l.h;
+    l.img.setPosition(x, y).setRotation(l.img.rotation + l.spin * dt);
+    if (k >= 1) {
+      l.img.destroy();
+      lobs.splice(i, 1);
+      l.land(l.x1, l.y1);
+    }
+  }
+}
+
+class ButterKnife extends Weapon {
+  private knives: Bullet[] = [];
+  private fanT = 1;
+  update(dt: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const fast = lv >= 5 || this.evolved;
+    const dmg = this.evolved ? 22 : 14 * (lv >= 3 ? 1.5 : 1);
+    if (this.tick(dt, (this.evolved ? 1.1 : lv >= 5 ? 1.15 : 1.4) * s.cooldown)) {
+      const dir = this.aim(460);
+      const base = Math.atan2(dir.y, dir.x);
+      const n = (this.evolved ? 3 : 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0)) + s.proj;
+      for (let i = 0; i < n; i++) this.throw(base + (i - (n - 1) / 2) * 0.1, dmg, fast);
+      this.w.playSfx('knife');
+    }
+    if (this.evolved) {
+      // Cutlery Drawer: fans of knives in four directions, on top of the normal throws.
+      this.fanT -= dt;
+      if (this.fanT <= 0) {
+        this.fanT += 2.2 * s.cooldown;
+        const p = this.w.player;
+        const base = Math.atan2(p.faceY, p.faceX);
+        const n = 5 + s.proj;
+        for (let d = 0; d < 4; d++) for (let i = 0; i < n; i++) this.throw(base + (d * Math.PI) / 2 + (i - (n - 1) / 2) * 0.16, dmg, true);
+        this.w.playSfx('clatter');
+      }
+    }
+    const p = this.w.player;
+    for (let i = this.knives.length - 1; i >= 0; i--) {
+      const b = this.knives[i];
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.life -= dt;
+      b.img.setPosition(b.x, b.y);
+      this.w.query(b.x, b.y, 10 * s.area, (e) => {
+        if (b.hit.has(e)) return;
+        b.hit.add(e);
+        const d = Math.hypot(b.vx, b.vy) || 1;
+        this.w.hit(e, (b.img.getData('dmg') as number) * s.damage, (b.vx / d) * 50, (b.vy / d) * 50, '', 0);
+      });
+      if (b.life <= 0 || Math.abs(b.x - p.x) > 900 || Math.abs(b.y - p.y) > 900) {
+        b.img.destroy();
+        this.knives.splice(i, 1);
+      }
+    }
+  }
+  private throw(angle: number, dmg: number, fast: boolean): void {
+    const p = this.w.player;
+    const speed = fast ? 640 : 520;
+    const img = this.w.img('knife_w', p.x, p.y, 20);
+    img.setRotation(angle).setData('dmg', dmg);
+    img.setScale(img.scaleX * this.w.stats.area * (fast ? 1.2 : 1));
+    this.knives.push({ img, x: p.x, y: p.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: fast ? 1.15 : 0.9, pierce: 999, hit: new Set() });
+  }
+  destroy(): void {
+    this.knives.forEach((b) => b.img.destroy());
+    this.knives = [];
+  }
+}
+
+interface Pool {
+  img: Phaser.GameObjects.Image;
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+}
+
+class JamJar extends Weapon {
+  private lobs: Lob[] = [];
+  private pools: Pool[] = [];
+  private tickT = 0;
+  update(dt: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const ev = this.evolved;
+    if (this.tick(dt, (ev ? 3 : 2.5) * s.cooldown)) {
+      const n = (ev ? 2 : 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0)) + s.proj;
+      const p = this.w.player;
+      for (const tg of pickTargets(this.w, n, 260)) {
+        const img = this.w.img('jar', p.x, p.y, 22);
+        img.setScale(img.scaleX * 1.2);
+        this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.55, h: 70, spin: 9, land: (x, y) => this.land(x, y) });
+      }
+    }
+    updateLobs(this.lobs, dt);
+    this.tickT -= dt;
+    const doTick = this.tickT <= 0;
+    if (doTick) this.tickT = 0.5;
+    const dmg = (ev ? 10 : 6 * (lv >= 5 ? 1.5 : 1)) * s.damage;
+    for (let i = this.pools.length - 1; i >= 0; i--) {
+      const pl = this.pools[i];
+      pl.life -= dt;
+      this.w.query(pl.x, pl.y, pl.r, (e) => {
+        e.slowUntil = this.w.now + 0.3;
+        if (ev && !e.boss) {
+          // Jam Session: the pool pulls enemies toward its middle.
+          const dx = pl.x - e.x;
+          const dy = pl.y - e.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 6) {
+            const step = Math.min(d - 6, (70 / e.mass) * dt);
+            e.x += (dx / d) * step;
+            e.y += (dy / d) * step;
+          }
+        }
+        if (doTick) this.w.hit(e, dmg, 0, 0, '', 0);
+      });
+      if (pl.life <= 0) {
+        const img = pl.img;
+        this.w.tweens.add({ targets: img, alpha: 0, duration: 250, onComplete: () => img.destroy() });
+        this.pools.splice(i, 1);
+      }
+    }
+  }
+  private land(x: number, y: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const ev = this.evolved;
+    const splashR = (ev ? 60 : 40) * s.area;
+    const dmg = (ev ? 30 : 18 * (lv >= 5 ? 1.5 : 1)) * s.damage;
+    this.w.query(x, y, splashR, (e) => {
+      const d = Math.hypot(e.x - x, e.y - y) || 1;
+      this.w.hit(e, dmg, ((e.x - x) / d) * 80, ((e.y - y) / d) * 80, '', 0);
+    });
+    this.w.playSfx('jar');
+    const r = (ev ? 100 : 46 * (lv >= 3 ? 1.3 : 1)) * s.area;
+    const life = (ev ? 4.5 : 3 * (lv >= 5 ? 1.4 : 1)) * s.dur;
+    const img = this.w.img('jam_pool', x, y, 2);
+    img.setScale(0).setAlpha(0.92);
+    this.w.tweens.add({ targets: img, scale: img.getData('base') * ((r * 2) / 128), duration: 180, ease: 'Back.Out' });
+    this.pools.push({ img, x, y, r, life });
+  }
+  destroy(): void {
+    this.lobs.forEach((l) => l.img.destroy());
+    this.pools.forEach((p) => p.img.destroy());
+    this.lobs = [];
+    this.pools = [];
+  }
+}
+
+class ToasterPop extends Weapon {
+  private lobs: Lob[] = [];
+  update(dt: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const ev = this.evolved;
+    const p = this.w.player;
+    if (this.tick(dt, (ev ? 2.5 : lv >= 5 ? 1.6 : 2) * s.cooldown)) {
+      this.w.playSfx('toastpop');
+      if (ev) {
+        // Toast Barrage: toast rains down all over the screen.
+        for (const tg of pickTargets(this.w, 12 + s.proj, 420)) {
+          const img = this.w.img('ptoast', tg.x, tg.y - 320, 22);
+          img.setScale(img.scaleX * 1.4);
+          this.lobs.push({ img, x0: tg.x + (Math.random() - 0.5) * 60, y0: tg.y - 320, x1: tg.x, y1: tg.y, t: -Math.random() * 0.4, T: 0.45, h: 0, spin: 6, land: (x, y) => this.land(x, y) });
+        }
+      } else {
+        const n = 2 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
+        for (const tg of pickTargets(this.w, n, 240)) {
+          const img = this.w.img('ptoast', p.x, p.y, 22);
+          img.setScale(img.scaleX * 1.4);
+          this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.5, h: 90, spin: 8, land: (x, y) => this.land(x, y) });
+        }
+      }
+    }
+    // A toast that hasn't started falling yet waits off to the side.
+    for (const l of this.lobs) if (l.t < 0) l.img.setVisible(false);
+    updateLobs(this.lobs, dt);
+    for (const l of this.lobs) if (l.t >= 0) l.img.setVisible(true);
+  }
+  private land(x: number, y: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const ev = this.evolved;
+    const r = (ev ? 42 : 34 * (lv >= 5 ? 1.3 : 1)) * s.area;
+    const dmg = (ev ? 30 : 24 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    this.w.query(x, y, r, (e) => {
+      const d = Math.hypot(e.x - x, e.y - y) || 1;
+      this.w.hit(e, dmg, ((e.x - x) / d) * 120, ((e.y - y) / d) * 120, '', 0);
+    });
+    // Crumbs fly out where it lands.
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const img = this.w.img('dot', x, y, 21);
+      img.setTint(0xe9b56a).setScale(img.scaleX * 0.6);
+      this.w.tweens.add({ targets: img, x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, alpha: 0, duration: 260, onComplete: () => img.destroy() });
+    }
+  }
+  destroy(): void {
+    this.lobs.forEach((l) => l.img.destroy());
+    this.lobs = [];
+  }
+}
+
+interface Shock {
+  img: Phaser.GameObjects.Image;
+  x: number;
+  y: number;
+  t: number;
+  hit: Set<Enemy>;
+}
+
+class WaffleSmash extends Weapon {
+  private shocks: Shock[] = [];
+  update(dt: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const ev = this.evolved;
+    const p = this.w.player;
+    if (this.tick(dt, (ev ? 3.2 : lv >= 5 ? 2.4 : 3) * s.cooldown)) {
+      const r = (ev ? 140 : 70 * (lv >= 3 ? 1.25 : 1)) * s.area;
+      const dmg = (ev ? 110 : 46 * (lv >= 2 ? 1.4 : 1)) * s.damage;
+      this.stamp(p.x, p.y, r, dmg);
+      if (lv >= 4 && !ev) {
+        const e = this.w.nearest(p.x, p.y, 260);
+        if (e && Math.hypot(e.x - p.x, e.y - p.y) > r * 0.8) this.stamp(e.x, e.y, r * 0.7, dmg);
+      }
+      if (ev) {
+        const img = this.w.img('shock', p.x, p.y, 3);
+        this.shocks.push({ img, x: p.x, y: p.y, t: 0, hit: new Set() });
+      }
+      this.w.playSfx('stamp');
+      this.w.shake(ev ? 140 : 70, ev ? 0.004 : 0.002);
+    }
+    // Belgian Slam: a ring rolls outward from the stamp.
+    for (let i = this.shocks.length - 1; i >= 0; i--) {
+      const sh = this.shocks[i];
+      sh.t += dt;
+      const k = Math.min(1, sh.t / 0.5);
+      const r = (140 + 150 * k) * s.area;
+      sh.img.setScale(sh.img.getData('base') * ((r * 2) / 128)).setAlpha(1 - k * 0.8);
+      this.w.query(sh.x, sh.y, r, (e) => {
+        if (sh.hit.has(e)) return;
+        const dx = e.x - sh.x;
+        const dy = e.y - sh.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < r - 24) return;
+        sh.hit.add(e);
+        this.w.hit(e, 40 * s.damage, (dx / d) * 260, (dy / d) * 260, '', 0);
+      });
+      if (k >= 1) {
+        sh.img.destroy();
+        this.shocks.splice(i, 1);
+      }
+    }
+  }
+  private stamp(x: number, y: number, r: number, dmg: number): void {
+    const daze = this.level >= 5 || this.evolved;
+    this.w.query(x, y, r, (e) => {
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const d = Math.hypot(dx, dy) || 1;
+      this.w.hit(e, dmg, (dx / d) * 300, (dy / d) * 300, '', 0);
+      if (daze) e.slowUntil = Math.max(e.slowUntil, this.w.now + 0.8);
+    });
+    const img = this.w.img('stamp', x, y, 3);
+    const sc = img.getData('base') * ((r * 2) / 128);
+    img.setScale(sc * 1.25).setAlpha(0.95);
+    this.w.tweens.add({ targets: img, scale: sc, duration: 90, ease: 'Quad.In' });
+    this.w.tweens.add({ targets: img, alpha: 0, delay: 200, duration: 260, onComplete: () => img.destroy() });
+  }
+  destroy(): void {
+    this.shocks.forEach((s) => s.img.destroy());
+    this.shocks = [];
+  }
+}
+
 export function createWeapon(w: World, id: WeaponId): Weapon {
   switch (id) {
     case 'sesame':
@@ -450,5 +776,13 @@ export function createWeapon(w: World, id: WeaponId): Weapon {
       return new CoffeeSplash(w, id);
     case 'pin':
       return new RollingPinW(w, id);
+    case 'knife':
+      return new ButterKnife(w, id);
+    case 'jar':
+      return new JamJar(w, id);
+    case 'toastpop':
+      return new ToasterPop(w, id);
+    case 'iron':
+      return new WaffleSmash(w, id);
   }
 }

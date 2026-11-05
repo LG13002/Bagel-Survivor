@@ -30,6 +30,7 @@ export interface RunSnapshot {
   healsTaken: number;
   /** Second Bake already used this run. */
   revived?: boolean;
+  mugs?: number;
 }
 
 const KEY = 'everything-bagel-run-v1';

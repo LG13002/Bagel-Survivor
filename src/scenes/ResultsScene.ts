@@ -3,7 +3,7 @@ import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { load } from '../save';
 import { button, panel, txt } from '../ui';
 import type { RunResult } from './GameScene';
-import { BAGELS, stageById } from '../data';
+import { BAGELS, WEAPONS, stageById } from '../data';
 import { nearestGoals } from '../progress';
 
 export class ResultsScene extends Phaser.Scene {
@@ -68,9 +68,10 @@ export class ResultsScene extends Phaser.Scene {
     if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newStage) notes.push(`NEW STAGE: ${r.newStage}!`);
     if (r.newUnlock) notes.push(`NEW BAGEL UNLOCKED: ${r.newUnlock}!`);
+    if (r.newWeapon) notes.push(`NEW WEAPON: ${r.newWeapon}!`);
     if (r.evolutions.length) notes.push(`Evolved: ${r.evolutions.join(', ')}`);
     for (const g of nearestGoals(save, 2)) notes.push(`Unlock ${g.bagel.name}: ${g.bagel.goal!.text} (${g.status.progress})`);
-    if (save.cookbook.length < 6) notes.push(`Cookbook ${save.cookbook.length}/6: max a weapon, own its topping, open a chest`);
+    if (save.cookbook.length < 6) notes.push(`Cookbook ${save.cookbook.length}/${Object.keys(WEAPONS).length}: max a weapon, own its topping, open a chest`);
     txt(this, W / 2, top + (compact ? 335 : 375) * S, notes.slice(0, compact ? 2 : 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
 
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
