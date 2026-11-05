@@ -160,6 +160,12 @@ From the owner's playtest notes:
 - Tuning, bot (`wbench.cjs`, level 3, four weapons, damage taken per minute, oven vs Freezer): from 2:00 404 vs 362 (+12%), from 3:20 497 vs 451 (+10%), from 4:25 482 vs 437 (+10%). Overall +11%, on the +10% target, so the Part 1 dials stayed. The Broiler has 7000 health against the Freezer Burn's 6000.
 - After playing Part 2, the owner asked for the 4:00 surprise elite to keep the name Freezer Burn, and for a slightly harder oven: seeds there give 10% less XP (the stage's `xp` dial). Bot (one weapon, no upgrades taken): level at 2:00 went from 7 to 6; level at 4:30 stayed 8.
 
+### Phase 2, M10: Endless and Extra Crispy
+- Change list (approved with all suggestions): https://claude.ai/artifact/EEsQTPuvpDQm2qZ3TxVpaV. The owner renamed the hard toggle from "Burnt" to "Extra Crispy" and chose time-only Endless bests.
+- Menu: the Full / Quick switch gained Endless, and a flame button beside the stage button toggles Extra Crispy. Both are locked per stage until it's cleared (tapping says why). With Extra Crispy on, the stage button and card turn charred, and a stage cleared on it gets a flame star. Practice is off in Endless.
+- Endless: see CLAUDE.md for the rules. Resume saves its extra state (`endlessCleared`, `nextMini`, `nextBoss`, `bossRound`, `crispy`).
+- Extra Crispy tuning: +40% health and +20% spawns alone only raised the bot's damage taken by about 6%, because the bot is already hit about as often as the 0.9s hit immunity allows. So, as a measured deviation from the list, Extra Crispy also multiplies damage you take by 1.25. Bot (`CRISPY=1 node tools/bots/wbench.cjs 3 sesame,coffee,pin,lox <stage> 150`, damage taken per minute, normal vs Extra Crispy): Stage 1 about 408 vs 534 (+31%), Freezer 457 vs 579 (+27%), Oven 472 vs 633 (+34%). Kills per minute drop 15 to 25%.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

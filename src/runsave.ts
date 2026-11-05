@@ -7,6 +7,12 @@ export interface RunSnapshot {
   stage?: string;
   practice: boolean;
   quick?: boolean;
+  endless?: boolean;
+  crispy?: boolean;
+  endlessCleared?: boolean;
+  nextMini?: number;
+  nextBoss?: number;
+  bossRound?: number;
   buns?: number;
   now: number;
   level: number;

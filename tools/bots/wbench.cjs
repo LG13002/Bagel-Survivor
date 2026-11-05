@@ -8,12 +8,12 @@ const PORT = process.env.PORT || 4191;
   for (const wid of (process.argv[3]||'sesame,storm,puddle,lox,coffee,pin').split(',')) {
     const p = await b.newPage({ viewport: { width: 390, height: 760 }, deviceScaleFactor: 1 });
     await p.goto(`http://localhost:${PORT}/?god&speed=6&t=${T0}`, { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1500);
-    await p.evaluate((stage) => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'plain', practice: false, stage }), STAGE);
+    await p.evaluate(([stage, crispy]) => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'plain', practice: false, stage, crispy }), [STAGE, process.env.CRISPY === '1']);
     await p.waitForTimeout(500);
     await p.evaluate(([wid, LV]) => { const g = window.__game.scene.getScene('game');
       g.weapons.forEach(w => w.destroy()); g.weapons = []; g.addWeapon(wid); g.weapons[0].level = Math.min(LV,5); if (LV > 5) g.weapons[0].evolved = true; g.openChest = () => {}; g.openLevelUp = () => { g.pendingLevels = 0; };
       g.gainXp = () => {}; g.__dmg = 0; g.__k0 = g.kills; g.__t0 = g.now;
-      const h = g.hit.bind(g); g.hit = (e, d, ...r) => { const before = e.hp; const ok = h(e, d, ...r); if (ok) g.__dmg += Math.min(d, Math.max(0, before)); return ok; }; g.__hurt = 0; g.__inv = 0; const dp = g.damagePlayer.bind(g); g.damagePlayer = (d) => { if (g.now >= g.__inv && !g.paused) { g.__hurt += d; g.__inv = g.now + 0.9; } dp(d); };
+      const h = g.hit.bind(g); g.hit = (e, d, ...r) => { const before = e.hp; const ok = h(e, d, ...r); if (ok) g.__dmg += Math.min(d, Math.max(0, before)); return ok; }; g.__hurt = 0; g.__inv = 0; const dp = g.damagePlayer.bind(g); g.damagePlayer = (d) => { if (g.now >= g.__inv && !g.paused) { g.__hurt += d * (g.crispy ? 1.25 : 1) /* CRISPY_DMG in GameScene */; g.__inv = g.now + 0.9; } dp(d); };
     }, [wid, LV]);
     await p.keyboard.down('d');
     for (let i = 0; i < 16; i++) { await p.waitForTimeout(800); if (i % 4 === 1) { await p.keyboard.up('d'); await p.keyboard.down('s'); } if (i % 4 === 3) { await p.keyboard.up('s'); await p.keyboard.down('d'); } }
