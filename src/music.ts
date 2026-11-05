@@ -2,7 +2,7 @@
 // the music bus in sfx.ts. No audio files. The run theme adds layers as the run goes on.
 import { audioCtx, musicOn, musicOut, onAudioReady } from './sfx';
 
-type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'bell' | 'wah';
+type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'bell' | 'wah' | 'pad';
 
 interface Track {
   inst: Inst;
@@ -20,10 +20,12 @@ interface Song {
   /** Delay on off-beat steps, as a fraction of a step (jazzy swing). */
   swing?: number;
   loop: boolean;
+  /** Run themes: layers join as the run's intensity rises, and the tempo can be nudged. */
+  layered?: boolean;
   tracks: Track[];
 }
 
-export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale';
+export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss';
 
 /** Bars written as space-separated tokens, joined with "|". */
 function seq(s: string): string[] {
@@ -77,6 +79,7 @@ const SONGS: Record<SongId, Song> = {
     bpm: 132,
     res: 2,
     loop: true,
+    layered: true,
     tracks: [
       {
         inst: 'lead',
@@ -123,6 +126,67 @@ const SONGS: Record<SongId, Song> = {
         inst: 'grit',
         steps: seq(`A2 A2 A3 A2 A2 A2 A3 A2 | F2 F2 F3 F2 F2 F2 F3 F2 | G2 G2 G3 G2 G2 G2 G3 G2 | E2 E2 E3 E2 E2 E2 E3 E2
                     A2 A2 A3 A2 A2 A2 A3 A2 | F2 F2 F3 F2 F2 F2 F3 F2 | G2 G2 G3 G2 G2 G2 G3 G2 | E2 E2 E3 E2 E2 E2 E3 E2`),
+      },
+      { inst: 'kick', steps: seq(rep('x . x . x . x .', 8)) },
+      { inst: 'snare', steps: seq(rep('. . x . . . x .', 7) + ' | . . x . x x x x') },
+      { inst: 'hat', vol: 0.7, steps: seq(rep('. x . x . x . x', 8)) },
+    ],
+  },
+
+  // The Freezer: slower and colder, with bells and a soft pad. Drums and chimes join at 1:00, bass at 2:00.
+  frun: {
+    bpm: 116,
+    res: 2,
+    loop: true,
+    layered: true,
+    tracks: [
+      {
+        inst: 'bell',
+        vol: 0.9,
+        steps: seq(`D5 - F5 - A5 - - - | G5 - F5 - D5 - - - | C5 - F5 - A5 - C6 - | G5 - - - E5 - - -
+                    D5 - F5 - A5 - D6 - | C6 - Bb5 - F5 - - - | G5 - Bb5 - A5 - G5 - | E5 - C#5 - A4 - - -`),
+      },
+      {
+        inst: 'pad',
+        steps: seq(`D4+F4+A4 - - - - - - - | Bb3+D4+F4 - - - - - - - | F3+A3+C4 - - - - - - - | C4+E4+G4 - - - - - - -
+                    D4+F4+A4 - - - - - - - | Bb3+D4+F4 - - - - - - - | G3+Bb3+D4 - - - - - - - | A3+C#4+E4 - - - - - - -`),
+      },
+      { inst: 'bell', layer: 1, vol: 0.35, steps: seq(rep('. . . . . . A6 . | . . . F6 . . . .', 4)) },
+      { inst: 'kick', layer: 1, vol: 0.7, steps: seq(rep('x . . . . . x .', 8)) },
+      { inst: 'snare', layer: 1, vol: 0.5, steps: seq(rep('. . . . x . . .', 8)) },
+      { inst: 'hat', layer: 1, vol: 0.5, steps: seq(rep('. . x . . . x x', 8)) },
+      {
+        inst: 'bass',
+        layer: 2,
+        steps: seq(`D2 - - D3 D2 - A2 - | Bb1 - - Bb2 Bb1 - F2 - | F2 - - F3 F2 - C3 - | C2 - - C3 C2 - G2 -
+                    D2 - - D3 D2 - A2 - | Bb1 - - Bb2 Bb1 - F2 - | G2 - - G3 G2 - D3 - | A1 - - A2 A1 - E2 -`),
+      },
+    ],
+  },
+
+  // The Freezer Burn: heavy, in D minor, with icy bell stabs.
+  fboss: {
+    bpm: 150,
+    res: 2,
+    loop: true,
+    tracks: [
+      {
+        inst: 'lead',
+        vol: 0.9,
+        steps: seq(`D5 - F5 - A5 - G5 F5 | D5 - - - Bb4 - D5 - | C5 - E5 - G5 - F5 E5 | A4 - - - C#5 - E5 -
+                    D6 - A5 - F5 - A5 D6 | Bb5 - F5 - D5 - F5 Bb5 | C6 - G5 - E5 - G5 C6 | C#6 - - - A5 - - -`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.9,
+        steps: seq(`D4+F4+A4 - . . D4+F4+A4 - . . | Bb3+D4+F4 - . . Bb3+D4+F4 - . . | C4+E4+G4 - . . C4+E4+G4 - . . | A3+C#4+E4 - . . A3+C#4+E4 - . .
+                    D4+F4+A4 - . . D4+F4+A4 - . . | Bb3+D4+F4 - . . Bb3+D4+F4 - . . | C4+E4+G4 - . . C4+E4+G4 - . . | A3+C#4+E4 - . . A3+C#4+E4 - . .`),
+      },
+      { inst: 'bell', vol: 0.45, steps: seq(rep('D6+A6 . . . . . . . | . . . . F6 . . .', 4)) },
+      {
+        inst: 'grit',
+        steps: seq(`D2 D2 D3 D2 D2 D2 D3 D2 | Bb1 Bb1 Bb2 Bb1 Bb1 Bb1 Bb2 Bb1 | C2 C2 C3 C2 C2 C2 C3 C2 | A1 A1 A2 A1 A1 A1 A2 A1
+                    D2 D2 D3 D2 D2 D2 D3 D2 | Bb1 Bb1 Bb2 Bb1 Bb1 Bb1 Bb2 Bb1 | C2 C2 C3 C2 C2 C2 C3 C2 | A1 A1 A2 A1 A1 A1 A2 A1`),
       },
       { inst: 'kick', steps: seq(rep('x . x . x . x .', 8)) },
       { inst: 'snare', steps: seq(rep('. . x . . . x .', 7) + ' | . . x . x x x x') },
@@ -232,6 +296,11 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
         peak = 0.12;
         tail = 1.2;
         break;
+      case 'pad':
+        o.type = 'sine';
+        peak = 0.1;
+        tail = Math.max(0.2, dur * 0.98);
+        break;
       case 'wah': {
         o.type = 'sawtooth';
         peak = 0.2;
@@ -263,8 +332,9 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
     }
     if (!(inst === 'wah' && last)) o.frequency.setValueAtTime(f, t);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak * vol, t + 0.008);
-    g.gain.setTargetAtTime(peak * vol * 0.6, t + 0.02, 0.08);
+    const atk = inst === 'pad' ? 0.35 : 0.008;
+    g.gain.exponentialRampToValueAtTime(peak * vol, t + atk);
+    if (inst !== 'pad') g.gain.setTargetAtTime(peak * vol * 0.6, t + 0.02, 0.08);
     g.gain.setTargetAtTime(0.0001, t + tail, 0.03);
     o.connect(g);
     node.connect(out);
@@ -291,7 +361,7 @@ let tempo = 1;
 let timer: number | null = null;
 
 function stepLen(p: Playing): number {
-  return 60 / (p.song.bpm * (p.id === 'run' ? tempo : 1)) / p.song.res;
+  return 60 / (p.song.bpm * (p.song.layered ? tempo : 1)) / p.song.res;
 }
 
 function schedule(): void {
@@ -314,7 +384,7 @@ function schedule(): void {
     // Skip the work entirely while music is switched off.
     if (musicOn()) {
       for (const tr of p.song.tracks) {
-        if ((tr.layer ?? 0) > (p.id === 'run' ? intensity : 9)) continue;
+        if ((tr.layer ?? 0) > (p.song.layered ? intensity : 9)) continue;
         const tok = tr.steps[p.step];
         if (!tok || tok === '.' || tok === '-') continue;
         let hold = 1;
@@ -352,7 +422,7 @@ function start(id: SongId): void {
 export function playMusic(id: SongId | null): void {
   if (id === wanted) return;
   wanted = id;
-  if (id === 'run') {
+  if (id && SONGS[id].layered) {
     intensity = 0;
     tempo = 1;
   }

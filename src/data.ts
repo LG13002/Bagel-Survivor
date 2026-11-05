@@ -141,9 +141,13 @@ export interface StageDef {
   wave: { kinds: [EnemyKind, EnemyKind]; banner: string };
   /** Lines of fast enemies every 20s from 2:00, or null for none. */
   lines: EnemyKind | null;
-  elite: { kind: EnemyKind; banner: string; color: string };
+  /** Elites at 0:45 and every 60s after, taking turns through this list. */
+  elites: { kind: EnemyKind; banner: string; color: string }[];
+  /** One-off surprise elites at a stage time. */
+  extras?: { at: number; kind: EnemyKind; banner: string; color: string }[];
   mini: { kind: EnemyKind; name: string; banner: string };
-  boss: { kind: EnemyKind; name: string; banner: string };
+  /** `card`: a big announcement card when the boss arrives, instead of the plain banner. */
+  boss: { kind: EnemyKind; name: string; banner: string; card?: string };
   music: { run: SongId; boss: SongId };
 }
 
@@ -172,7 +176,7 @@ const BAKERY_STAGE: StageDef = {
   ],
   wave: { kinds: ['moldling', 'crumb'], banner: 'The crumbs close in!' },
   lines: 'ant',
-  elite: { kind: 'elite', banner: 'A Giant Mold appears!', color: '#9fd36a' },
+  elites: [{ kind: 'elite', banner: 'A Giant Mold appears!', color: '#9fd36a' }],
   mini: { kind: 'croissant', name: 'Crusty Croissant', banner: 'Crusty Croissant!' },
   boss: { kind: 'toaster', name: 'The Toaster Tyrant', banner: 'THE TOASTER TYRANT' },
   music: { run: 'run', boss: 'boss' },
@@ -200,6 +204,8 @@ export const STAGES: StageDef[] = [
     mug: true,
     dough: 1.5,
     hpGrowth: 160,
+    // Contact damage trimmed so hazards and the new elites carry the extra difficulty (bot: ~12% more damage taken than Stage 1).
+    dmg: 0.94,
     mix: [
       { until: 45, table: [['fcrumb', 1]] },
       { until: 90, table: [['fcrumb', 65], ['popsicle', 35]] },
@@ -208,7 +214,14 @@ export const STAGES: StageDef[] = [
     ],
     wave: { kinds: ['popsicle', 'fcrumb'], banner: 'The frost closes in!' },
     lines: 'sprinkle',
-    // Part 2 of M6 gives the Freezer its own elites, mini-boss, boss and music. Until then Stage 1's stand in.
+    elites: [
+      { kind: 'scoop', banner: 'An Ice Cream Scoop! Mind the melt.', color: '#f7a8c2' },
+      { kind: 'fcroissant', banner: 'A Frosted Croissant appears!', color: '#bfe6fb' },
+    ],
+    extras: [{ at: 240, kind: 'tyrantjr', banner: 'Tyrant Jr. wants a turn!', color: '#ffb36b' }],
+    mini: { kind: 'waffle', name: 'Frozen Waffle', banner: 'Frozen Waffle!' },
+    boss: { kind: 'fburn', name: 'The Freezer Burn', banner: 'THE FREEZER BURN', card: 'Time to feel the burn!' },
+    music: { run: 'frun', boss: 'fboss' },
   },
   {
     ...BAKERY_STAGE,
@@ -350,7 +363,8 @@ export const BAKERY: UpgradeDef[] = [
 export type EnemyKind =
   | 'crumb' | 'mold' | 'moldling' | 'knife' | 'ant' | 'elite' | 'croissant' | 'toaster'
   // The Freezer
-  | 'fcrumb' | 'icecube' | 'peapod' | 'popsicle' | 'pophalf' | 'fmold' | 'fmoldling' | 'sprinkle';
+  | 'fcrumb' | 'icecube' | 'peapod' | 'popsicle' | 'pophalf' | 'fmold' | 'fmoldling' | 'sprinkle'
+  | 'scoop' | 'fcroissant' | 'tyrantjr' | 'waffle' | 'wafflesq' | 'fburn';
 
 export interface EnemyDef {
   tex: string;
@@ -368,6 +382,8 @@ export interface EnemyDef {
   split?: { kind: EnemyKind; n: number };
   /** Colour of the crumbs it bursts into. */
   burst?: number;
+  /** Elites, mini-bosses and bosses: flat health (no growth over the run), never recycled or capped. */
+  flat?: boolean;
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
@@ -376,9 +392,9 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   moldling: { tex: 'en_moldling', hp: 8, speed: 55, dmg: 5, radius: 8, xp: 1, mass: 1, burst: 0x76a83e },
   knife: { tex: 'en_knife', hp: 26, speed: 50, dmg: 12, radius: 10, xp: 3, mass: 1.3, ai: 'charge', dash: 430, burst: 0xdfe5ea },
   ant: { tex: 'en_ant', hp: 12, speed: 95, dmg: 6, radius: 7, xp: 1, mass: 0.8, ai: 'line' },
-  elite: { tex: 'en_elite', hp: 260, speed: 46, dmg: 14, radius: 24, xp: 15, mass: 5, burst: 0x76a83e },
-  croissant: { tex: 'en_croissant', hp: 1300, speed: 72, dmg: 15, radius: 30, xp: 30, mass: 12 },
-  toaster: { tex: 'en_toaster', hp: 5000, speed: 38, dmg: 25, radius: 36, xp: 0, mass: 40 },
+  elite: { tex: 'en_elite', hp: 260, speed: 46, dmg: 14, radius: 24, xp: 15, mass: 5, burst: 0x76a83e, flat: true },
+  croissant: { tex: 'en_croissant', hp: 1300, speed: 72, dmg: 15, radius: 30, xp: 30, mass: 12, flat: true },
+  toaster: { tex: 'en_toaster', hp: 5000, speed: 38, dmg: 25, radius: 36, xp: 0, mass: 40, flat: true },
   // The Freezer
   fcrumb: { tex: 'en_fcrumb', hp: 8, speed: 71, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0xcfe9f7 },
   icecube: { tex: 'en_icecube', hp: 30, speed: 44, dmg: 13, radius: 12, xp: 3, mass: 2, ai: 'charge', dash: 380, burst: 0xbfe6fb },
@@ -388,6 +404,12 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   fmold: { tex: 'en_fmold', hp: 70, speed: 38, dmg: 10, radius: 16, xp: 5, mass: 3, split: { kind: 'fmoldling', n: 2 }, burst: 0x9cc7b8 },
   fmoldling: { tex: 'en_fmoldling', hp: 10, speed: 52, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0x9cc7b8 },
   sprinkle: { tex: 'en_sprinkle', hp: 10, speed: 105, dmg: 6, radius: 7, xp: 1, mass: 0.8, ai: 'line', burst: 0xffffff },
+  scoop: { tex: 'en_scoop', hp: 300, speed: 40, dmg: 14, radius: 24, xp: 15, mass: 5, burst: 0xf59ab4, flat: true },
+  fcroissant: { tex: 'en_fcroissant', hp: 650, speed: 66, dmg: 14, radius: 23, xp: 20, mass: 8, burst: 0xcfe9f7, flat: true },
+  tyrantjr: { tex: 'en_tyrantjr', hp: 900, speed: 44, dmg: 18, radius: 23, xp: 20, mass: 10, burst: 0xb8c3cc, flat: true },
+  waffle: { tex: 'en_waffle', hp: 1500, speed: 62, dmg: 16, radius: 30, xp: 30, mass: 12, split: { kind: 'wafflesq', n: 4 }, burst: 0xdda04a, flat: true },
+  wafflesq: { tex: 'en_wafflesq', hp: 30, speed: 72, dmg: 7, radius: 11, xp: 2, mass: 1.2, burst: 0xdda04a },
+  fburn: { tex: 'en_fburn', hp: 6000, speed: 34, dmg: 25, radius: 44, xp: 0, mass: 40, burst: 0xd9472e, flat: true },
 };
 
 // Run pacing (seconds)

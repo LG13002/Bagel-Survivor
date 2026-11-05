@@ -23,6 +23,8 @@ export class Enemy {
   flashUntil = 0;
   alive = false;
   boss = false;
+  /** Boss second phase. */
+  enraged = false;
   dropsChest = false;
   dropsBun = false;
   state = 0;

@@ -1448,3 +1448,274 @@ export function drawStickyBun(c: Ctx, s: number): void {
   c.arc(m - r * 0.55, m - r * 0.05, r * 0.09, 0, TAU);
   c.fill();
 }
+
+// ---------- Freezer elites and bosses ----------
+
+/** Ice Cream Scoop (elite): a big strawberry scoop with drips and sprinkles. */
+export function drawScoop(c: Ctx, x: number, y: number, r: number): void {
+  const line = Math.max(2, r * 0.1);
+  const body = () => {
+    c.beginPath();
+    c.arc(x, y - r * 0.08, r * 0.92, Math.PI * 0.95, Math.PI * 2.05);
+    // Drippy wavy base
+    const n = 6;
+    for (let i = 0; i <= n; i++) {
+      const px = x + r * 0.92 - (i / n) * r * 1.84;
+      const drip = i % 2 ? r * 0.42 : r * 0.18;
+      c.quadraticCurveTo(px + r * 0.15, y + drip + r * 0.2, px, y + r * 0.2);
+    }
+    c.closePath();
+  };
+  body();
+  c.fillStyle = radial(c, x, y - r * 0.1, r, [
+    [0, '#ffd2df'],
+    [0.6, '#f59ab4'],
+    [1, '#d9668a'],
+  ]);
+  c.fill();
+  ink(c, line);
+  // Sprinkles
+  const cols = ['#ffffff', '#7fd0f0', '#ffe066', '#9be38a'];
+  const rand = rng(7);
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * (1.1 + rand() * 0.8);
+    const d = r * (0.35 + rand() * 0.45);
+    const px = x + Math.cos(a) * d;
+    const py = y - r * 0.1 + Math.sin(a) * d;
+    c.save();
+    c.translate(px, py);
+    c.rotate(rand() * TAU);
+    rrect(c, -r * 0.09, -r * 0.03, r * 0.18, r * 0.06, r * 0.03);
+    c.fillStyle = cols[i % cols.length];
+    c.fill();
+    c.restore();
+  }
+  // Shine
+  c.beginPath();
+  c.ellipse(x - r * 0.42, y - r * 0.55, r * 0.2, r * 0.1, -0.6, 0, TAU);
+  c.fillStyle = 'rgba(255,255,255,0.7)';
+  c.fill();
+  angryEye(c, x - r * 0.3, y + r * 0.02, r * 0.17, -1, line);
+  angryEye(c, x + r * 0.3, y + r * 0.02, r * 0.17, 1, line);
+  c.beginPath();
+  c.arc(x, y + r * 0.42, r * 0.16, Math.PI * 1.15, Math.PI * 1.85);
+  ink(c, line * 0.8);
+}
+
+/** Melt puddle left by the scoop: pink, with a thick white outline so it reads as a hazard. */
+export function drawMeltPuddle(c: Ctx, w: number, h: number): void {
+  const shape = () => {
+    c.beginPath();
+    c.ellipse(w / 2, h / 2, w / 2 - 4, h / 2 - 4, 0, 0, TAU);
+  };
+  shape();
+  c.fillStyle = 'rgba(245,154,180,0.75)';
+  c.fill();
+  c.lineWidth = 3.5;
+  c.strokeStyle = '#ffffff';
+  c.stroke();
+  c.beginPath();
+  c.ellipse(w * 0.38, h * 0.38, w * 0.12, h * 0.1, 0, 0, TAU);
+  c.fillStyle = 'rgba(255,255,255,0.65)';
+  c.fill();
+}
+
+/** Stage 1's croissant, smaller, glazed with frost and icing. */
+export function drawFrostedCroissant(c: Ctx, w: number, h: number): void {
+  c.save();
+  c.scale(w / 72, h / 56);
+  drawCroissant(c, 72, 56);
+  // Icy blue wash over the pastry only
+  c.globalCompositeOperation = 'source-atop';
+  c.fillStyle = 'rgba(150,205,240,0.38)';
+  c.fillRect(0, 0, 72, 56);
+  c.globalCompositeOperation = 'source-over';
+  // Icing drizzle
+  c.beginPath();
+  c.moveTo(8, 34);
+  for (let i = 0; i < 8; i++) c.lineTo(14 + i * 7, i % 2 ? 36 : 14);
+  c.lineWidth = 2.6;
+  c.strokeStyle = 'rgba(255,255,255,0.92)';
+  c.stroke();
+  c.restore();
+  // Redraw the eyes on top so they stay bright
+  c.save();
+  c.scale(w / 72, h / 56);
+  angryEye(c, 30.5, 21, 4.3, -1, 2);
+  angryEye(c, 41.5, 21, 4.3, 1, 2);
+  c.restore();
+}
+
+/** Tyrant Jr.: a small toaster with a frosty top. */
+export function drawTyrantJr(c: Ctx, w: number, h: number): void {
+  c.save();
+  c.scale(w / 84, h / 76);
+  drawToaster(c, 84, 76);
+  c.restore();
+  // A snow cap on the toast
+  c.beginPath();
+  c.ellipse(w * 0.36, h * 0.07, w * 0.13, h * 0.05, 0, 0, TAU);
+  c.ellipse(w * 0.66, h * 0.07, w * 0.13, h * 0.05, 0, 0, TAU);
+  c.fillStyle = '#f4fbff';
+  c.fill();
+}
+
+/** Frozen Waffle (mini-boss) or one of its squares. */
+export function drawWaffle(c: Ctx, s: number, small = false): void {
+  const line = small ? 1.8 : 3;
+  const pad = line + 1;
+  const sz = s - pad * 2;
+  rrect(c, pad, pad, sz, sz, sz * 0.18);
+  c.fillStyle = linear(c, 0, 0, s, s, [
+    [0, '#f7cd7a'],
+    [0.6, '#dda04a'],
+    [1, '#b37425'],
+  ]);
+  c.fill();
+  ink(c, line);
+  // Grid pockets
+  const n = small ? 2 : 4;
+  const cell = sz / n;
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) {
+      rrect(c, pad + i * cell + cell * 0.18, pad + j * cell + cell * 0.18, cell * 0.64, cell * 0.64, cell * 0.12);
+      c.fillStyle = 'rgba(150,90,30,0.5)';
+      c.fill();
+    }
+  // Frost on top
+  c.save();
+  rrect(c, pad, pad, sz, sz, sz * 0.18);
+  c.clip();
+  c.fillStyle = 'rgba(225,244,255,0.85)';
+  c.beginPath();
+  c.moveTo(pad, pad);
+  c.lineTo(pad + sz, pad);
+  c.lineTo(pad + sz, pad + sz * 0.22);
+  for (let i = 6; i >= 0; i--) c.lineTo(pad + (i / 6) * sz, pad + sz * (i % 2 ? 0.3 : 0.18));
+  c.closePath();
+  c.fill();
+  c.restore();
+  rrect(c, pad, pad, sz, sz, sz * 0.18);
+  ink(c, line);
+  const m = s / 2;
+  angryEye(c, m - sz * 0.2, m + sz * 0.05, sz * (small ? 0.14 : 0.1), -1, line);
+  angryEye(c, m + sz * 0.2, m + sz * 0.05, sz * (small ? 0.14 : 0.1), 1, line);
+  if (!small) {
+    c.beginPath();
+    c.arc(m, m + sz * 0.32, sz * 0.1, Math.PI * 1.15, Math.PI * 1.85);
+    ink(c, line * 0.8);
+  }
+}
+
+/** The Freezer Burn: a huge, angry frozen pizza. */
+export function drawFreezerBurn(c: Ctx, s: number): void {
+  const m = s / 2;
+  const r = m - 4;
+  const line = 3.5;
+  // Crust
+  c.beginPath();
+  c.arc(m, m, r, 0, TAU);
+  c.fillStyle = radial(c, m, m, r, [
+    [0, '#f2c27a'],
+    [1, '#b5762f'],
+  ]);
+  c.fill();
+  ink(c, line);
+  // Sauce and cheese
+  c.beginPath();
+  c.arc(m, m, r * 0.82, 0, TAU);
+  c.fillStyle = '#d9472e';
+  c.fill();
+  blobPath(c, m, m, r * 0.76, 14, 0.18, 5);
+  c.fillStyle = '#ffe08a';
+  c.fill();
+  // Pepperoni
+  const rand = rng(21);
+  for (let i = 0; i < 7; i++) {
+    const a = rand() * TAU;
+    const d = r * (0.42 + rand() * 0.25);
+    const px = m + Math.cos(a) * d;
+    const py = m + Math.sin(a) * d;
+    if (py < m + r * 0.05 && Math.abs(px - m) < r * 0.55) continue; // keep the face clear
+    c.beginPath();
+    c.arc(px, py, r * 0.11, 0, TAU);
+    c.fillStyle = '#b8352a';
+    c.fill();
+    ink(c, 1.4);
+  }
+  // Frost patches
+  c.fillStyle = 'rgba(220,242,255,0.8)';
+  for (const [dx, dy, rx, ry] of [
+    [-0.55, -0.5, 0.2, 0.1],
+    [0.6, -0.35, 0.16, 0.08],
+    [0.1, 0.72, 0.24, 0.08],
+    [-0.62, 0.35, 0.12, 0.07],
+  ]) {
+    c.beginPath();
+    c.ellipse(m + dx * r, m + dy * r, rx * r, ry * r, 0.3, 0, TAU);
+    c.fill();
+  }
+  // Glowing icy eyes
+  for (const d of [-1, 1]) {
+    c.beginPath();
+    c.arc(m + d * r * 0.28, m - r * 0.15, r * 0.2, 0, TAU);
+    c.fillStyle = 'rgba(120,200,255,0.35)';
+    c.fill();
+    angryEye(c, m + d * r * 0.28, m - r * 0.15, r * 0.13, d, line, '#3fa9f5');
+  }
+  // Mouth with icicle teeth
+  c.beginPath();
+  c.moveTo(m - r * 0.36, m + r * 0.22);
+  c.quadraticCurveTo(m, m + r * 0.5, m + r * 0.36, m + r * 0.22);
+  c.closePath();
+  c.fillStyle = '#3a1410';
+  c.fill();
+  ink(c, line * 0.8);
+  c.fillStyle = '#eaf7ff';
+  for (let i = 0; i < 4; i++) {
+    const px = m - r * 0.27 + i * r * 0.18;
+    c.beginPath();
+    c.moveTo(px - r * 0.06, m + r * 0.24);
+    c.lineTo(px + r * 0.06, m + r * 0.24);
+    c.lineTo(px, m + r * 0.36);
+    c.closePath();
+    c.fill();
+  }
+}
+
+/** Icicle projectile, pointing right (rotated to its heading). */
+export function drawIcicle(c: Ctx, w: number, h: number): void {
+  c.beginPath();
+  c.moveTo(w - 1, h / 2);
+  c.lineTo(3, 1.5);
+  c.quadraticCurveTo(0.5, h / 2, 3, h - 1.5);
+  c.closePath();
+  c.fillStyle = linear(c, 0, 0, 0, h, [
+    [0, '#ffffff'],
+    [0.5, '#a8dcff'],
+    [1, '#4f9fd6'],
+  ]);
+  c.fill();
+  ink(c, 1.4);
+}
+
+/** Pizza slice projectile. */
+export function drawPizzaSlice(c: Ctx, s: number): void {
+  c.beginPath();
+  c.moveTo(s / 2, s - 1.5);
+  c.lineTo(1.5, 4);
+  c.quadraticCurveTo(s / 2, 0, s - 1.5, 4);
+  c.closePath();
+  c.fillStyle = '#ffd36b';
+  c.fill();
+  ink(c, 1.4);
+  rrect(c, 1.5, 1.5, s - 3, 4, 2);
+  c.fillStyle = '#c4823a';
+  c.fill();
+  ink(c, 1.2);
+  c.beginPath();
+  c.arc(s * 0.45, s * 0.45, s * 0.1, 0, TAU);
+  c.arc(s * 0.58, s * 0.66, s * 0.07, 0, TAU);
+  c.fillStyle = '#c23b2a';
+  c.fill();
+}

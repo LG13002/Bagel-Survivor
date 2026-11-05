@@ -63,6 +63,8 @@ const THAW_TIME = 3.5;
 /** How fast you steer on ice (lower = longer slides). */
 const ICE_GRIP = 1.2;
 const MUG_SAFE = 5;
+/** Ice Cream Scoop melt puddles slow you to this. */
+const MELT_SLOW = 0.6;
 interface IcePatch {
   x: number;
   y: number;
@@ -73,6 +75,7 @@ interface IcePatch {
 const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = {
   crumb: 'crunch', ant: 'crunch', mold: 'splat', moldling: 'splat', knife: 'clatter', elite: 'pop', croissant: 'pop', toaster: 'pop',
   fcrumb: 'crunch', sprinkle: 'crunch', icecube: 'shatter', popsicle: 'shatter', pophalf: 'crunch', peapod: 'splat', fmold: 'splat', fmoldling: 'splat',
+  scoop: 'pop', fcroissant: 'pop', tyrantjr: 'pop', waffle: 'pop', wafflesq: 'crunch', fburn: 'pop',
 };
 /** Practice runs start at 2:30 with a head start of level-ups. */
 const PRACTICE_START = 150;
@@ -190,6 +193,13 @@ export class GameScene extends Phaser.Scene implements World {
   private frozen = false;
   private mugUntil = 0;
   private frostGfx!: Phaser.GameObjects.Graphics;
+  // Freezer elites and boss
+  private melts: { img: Phaser.GameObjects.Image; x: number; y: number; r: number; life: number }[] = [];
+  private warns: { x: number; y: number; a: number; t: number; n: number }[] = [];
+  private freezes: { img: Phaser.GameObjects.Image; x: number; y: number; r: number; t: number }[] = [];
+  private tempIce: (IcePatch & { life: number })[] = [];
+  private bossGfx!: Phaser.GameObjects.Graphics;
+  private extrasDone = new Set<number>();
 
   /** Where we are on the full run's schedule (the clock the director and music follow). */
   private get stageT(): number {
@@ -221,6 +231,10 @@ export class GameScene extends Phaser.Scene implements World {
     this.frost = 0;
     this.frozen = false;
     this.mugUntil = 0;
+    this.melts = [];
+    this.warns = [];
+    this.freezes = [];
+    this.tempIce = [];
     this.player = new Player();
     this.now = (this.practice ? PRACTICE_START : DEBUG.start) / this.pace;
     this.enemies = [];
@@ -251,6 +265,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.nextAnts = Math.max(RUN.antsFrom, t0 + 10);
     this.nextElite = Math.max(RUN.eliteAt, Math.ceil(t0 / RUN.eliteEvery) * RUN.eliteEvery);
     this.miniSpawned = t0 > RUN.miniBossAt;
+    this.extrasDone = new Set((this.stage.extras ?? []).map((x, i) => (x.at < t0 ? i : -1)));
     this.bossSpawned = false;
     this.boss = null;
     this.mini = null;
@@ -284,6 +299,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.worldLayer.add(this.shadowGfx);
     this.frostGfx = this.add.graphics().setDepth(53);
     this.worldLayer.add(this.frostGfx);
+    this.bossGfx = this.add.graphics().setDepth(3);
+    this.worldLayer.add(this.bossGfx);
 
     this.player.sprite = this.img(this.bagel.tex, 0, 0, 50);
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
@@ -571,6 +588,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.compactEnemies();
     this.updateShots(dt);
     this.updateHazards(dt);
+    this.updateFreezerHazards(dt);
     this.updatePickups(dt);
     this.updateQuirk(dt);
     this.snapT -= dt;
@@ -743,7 +761,7 @@ export class GameScene extends Phaser.Scene implements World {
       return;
     }
     // Freezer: frost slows you, and on ice you keep sliding for a moment when you change direction.
-    const sp = this.stats.speed * (this.frozen ? FROST_SLOW : 1);
+    const sp = this.stats.speed * (this.frozen ? FROST_SLOW : 1) * (this.inMelt(p.x, p.y) ? MELT_SLOW : 1);
     const tx = mx * sp;
     const ty = my * sp;
     const ice = st.ice ? this.iceAt(p.x, p.y) : false;
@@ -798,6 +816,20 @@ export class GameScene extends Phaser.Scene implements World {
         const dy = (y - ip.y) / ip.ry;
         if (dx * dx + dy * dy < 1) return true;
       }
+    for (const ip of this.tempIce) {
+      const dx = (x - ip.x) / ip.rx;
+      const dy = (y - ip.y) / ip.ry;
+      if (dx * dx + dy * dy < 1) return true;
+    }
+    return false;
+  }
+
+  private inMelt(x: number, y: number): boolean {
+    for (const m of this.melts) {
+      const dx = (x - m.x) / m.r;
+      const dy = (y - m.y) / (m.r * 0.66);
+      if (dx * dx + dy * dy < 1) return true;
+    }
     return false;
   }
 
@@ -1027,15 +1059,26 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
     if (t >= this.nextElite && t < RUN.bossAt) {
+      const el = st.elites[Math.max(0, Math.round((this.nextElite - RUN.eliteAt) / RUN.eliteEvery)) % st.elites.length];
       this.nextElite += RUN.eliteEvery;
       const sp = this.spawnPoint();
-      const e = this.spawnEnemy(st.elite.kind, sp.x, sp.y, 1);
+      const e = this.spawnEnemy(el.kind, sp.x, sp.y, 1);
       if (e) {
         e.dropsChest = true;
         // Full runs: the last Giant Mold before the boss carries the second Sticky Bun.
         if (!this.quick && t >= RUN.bossAt - RUN.eliteEvery) e.dropsBun = true;
       }
-      this.banner(st.elite.banner, st.elite.color, 20);
+      this.banner(el.banner, el.color, 20);
+    }
+    if (st.extras && !this.bossSpawned) {
+      st.extras.forEach((x, i) => {
+        if (t < x.at || this.extrasDone.has(i)) return;
+        this.extrasDone.add(i);
+        const sp = this.spawnPoint();
+        const e = this.spawnEnemy(x.kind, sp.x, sp.y, 1);
+        if (e) e.dropsChest = true;
+        this.banner(x.banner, x.color, 20);
+      });
     }
     if (!this.miniSpawned && t >= RUN.miniBossAt) {
       this.miniSpawned = true;
@@ -1057,7 +1100,10 @@ export class GameScene extends Phaser.Scene implements World {
         this.boss = e;
         e.attack2T = 4;
       }
-      this.banner(st.boss.banner, CSS.red, 30);
+      if (st.boss.card) {
+        this.bossCard(st.boss.name, st.boss.card);
+        sfx('roar');
+      } else this.banner(st.boss.banner, CSS.red, 30);
       sfx('boss');
       this.cameras.main.shake(400, 0.006);
     }
@@ -1065,7 +1111,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   private spawnEnemy(kind: EnemyKind, x: number, y: number, hpMult: number): Enemy | null {
     const def = ENEMIES[kind];
-    const special = kind === 'elite' || kind === 'croissant' || kind === 'toaster';
+    const special = !!def.flat;
     if (!special && this.enemies.length >= RUN.maxEnemies + 40) return null;
     const e = this.pool.pop() ?? new Enemy();
     if (!e.sprite) e.sprite = this.img(def.tex, x, y, 30);
@@ -1077,8 +1123,7 @@ export class GameScene extends Phaser.Scene implements World {
     e.kind = kind;
     e.x = x;
     e.y = y;
-    const bossHp = kind === 'croissant' || kind === 'toaster' || kind === 'elite';
-    e.maxHp = e.hp = def.hp * (bossHp ? 1 : hpMult);
+    e.maxHp = e.hp = def.hp * (def.flat ? 1 : hpMult);
     e.speed = def.speed * (0.9 + Math.random() * 0.2);
     e.dmg = def.dmg * this.stage.dmg;
     e.radius = def.radius;
@@ -1088,6 +1133,7 @@ export class GameScene extends Phaser.Scene implements World {
     e.slowUntil = e.flashUntil = 0;
     e.alive = true;
     e.boss = false;
+    e.enraged = false;
     e.dropsChest = false;
     e.dropsBun = false;
     e.state = 0;
@@ -1233,6 +1279,138 @@ export class GameScene extends Phaser.Scene implements World {
             }
           }
           break;
+        case 'scoop':
+          // Ice Cream Scoop: slow, and leaves melt puddles that slow you down.
+          if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
+          e.sprite.setRotation(Math.sin(t * 5 + e.phase) * 0.08);
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = 0.55;
+            this.addMelt(e.x, e.y + e.radius * 0.45, dist < 320);
+          }
+          break;
+        case 'fcroissant':
+          e.sprite.setRotation(Math.sin(t * 3) * 0.25);
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = 2;
+            sfx('flakes');
+            const off = Math.random() * Math.PI;
+            for (let i = 0; i < 7; i++) this.fireShot('flake', e.x, e.y, off + (i / 7) * Math.PI * 2, 120, 9, 6);
+          }
+          break;
+        case 'tyrantjr':
+          e.sprite.setRotation(Math.sin(t * 6) * 0.06);
+          if (e.attackT > 0.45 && e.attackT - dt <= 0.45) sfx('ding');
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = 2.6;
+            const a = Math.atan2(dy, dx);
+            for (let i = -2; i <= 2; i++) this.fireShot('toast', e.x, e.y, a + i * 0.22, 180, 12, 8);
+          }
+          break;
+        case 'waffle': {
+          // Frozen Waffle: shake and flash, charge in a straight line, three times, then rest.
+          e.stateT -= dt;
+          if (e.state === 0) {
+            e.sprite.setRotation(Math.sin(t * 7 + e.phase) * 0.08);
+            if (e.stateT <= 0 && dist < 420) {
+              e.state = 1;
+              e.stateT = 0.8;
+            }
+          } else if (e.state === 1) {
+            mvx = mvy = 0;
+            e.sprite.setRotation(Math.sin(t * 60) * 0.12);
+            if (Math.floor(t * 16) % 2) e.sprite.setTintFill(0xffffff);
+            else e.sprite.clearTint();
+            if (e.stateT <= 0) {
+              e.state = 2;
+              e.stateT = 0.7;
+              e.vx = (dx / dist) * 430;
+              e.vy = (dy / dist) * 430;
+              e.sprite.clearTint();
+              sfx('charge');
+            }
+          } else if (e.state === 2) {
+            mvx = e.vx * slow;
+            mvy = e.vy * slow;
+            e.sprite.setRotation(e.sprite.rotation + dt * 10);
+            if (e.stateT <= 0) {
+              e.sprite.setRotation(0);
+              e.attack2T += 1;
+              if (e.attack2T >= 3) {
+                e.attack2T = 0;
+                e.state = 3;
+                e.stateT = 2.5;
+              } else {
+                e.state = 0;
+                e.stateT = 0.45;
+              }
+            }
+          } else {
+            mvx *= 0.25;
+            mvy *= 0.25;
+            e.sprite.setRotation(Math.sin(t * 2) * 0.05);
+            if (e.stateT <= 0) {
+              e.state = 0;
+              e.stateT = 1.2;
+            }
+          }
+          break;
+        }
+        case 'fburn': {
+          // The Freezer Burn. Phase 1: warned icicle volleys and pizza-slice fans.
+          // Phase 2 (half health): faster volleys, frost circles that freeze the floor, rings of Frosted Crumbs.
+          if (!e.enraged && e.hp < e.maxHp * 0.5) {
+            e.enraged = true;
+            e.attack2T = 1.5;
+            e.stateT = 4;
+            this.banner('The Freezer Burn is thawing out... and furious!', '#bfe6fb', 20);
+            sfx('roar');
+            this.cameras.main.shake(400, 0.007);
+          }
+          e.sprite.setRotation(Math.sin(t * 2) * 0.08 + (e.enraged ? Math.sin(t * 30) * 0.025 : 0));
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = e.enraged ? 1.9 : 2.6;
+            e.state = (e.state + 1) % 3;
+            const a = Math.atan2(dy, dx);
+            if (e.state === 2) {
+              sfx('flakes');
+              for (let i = -3; i <= 3; i++) this.fireShot('slice', e.x, e.y, a + i * 0.18, 190, 12, 8);
+            } else {
+              const lines = e.enraged ? 5 : 3;
+              const spread = e.enraged ? 0.3 : 0.4;
+              for (let i = 0; i < lines; i++) {
+                const la = a + (i - (lines - 1) / 2) * spread;
+                this.warns.push({ x: e.x, y: e.y, a: la, t: 0.8, n: e.enraged ? 4 : 3 });
+              }
+            }
+          }
+          if (e.enraged) {
+            e.attack2T -= dt;
+            if (e.attack2T <= 0) {
+              e.attack2T = 6;
+              this.addFreeze(p.x, p.y);
+              for (let i = 0; i < 3; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const d = 70 + Math.random() * 90;
+                this.addFreeze(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d);
+              }
+            }
+            e.stateT -= dt;
+            if (e.stateT <= 0) {
+              e.stateT = 9;
+              const n = 16;
+              const d = Math.hypot(this.viewW(), this.viewH()) / 2 + 30;
+              for (let i = 0; i < n; i++) {
+                const a = (i / n) * Math.PI * 2;
+                this.spawnEnemy('fcrumb', p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, this.hpMult(this.stageT));
+              }
+            }
+          }
+          break;
+        }
         default:
           if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
           // Waddle while walking.
@@ -1267,7 +1445,7 @@ export class GameScene extends Phaser.Scene implements World {
       }
 
       // Recycle stragglers to the front (keeps pressure on without huge counts).
-      if (!e.boss && e.kind !== 'croissant' && e.kind !== 'elite') {
+      if (!e.boss && !ENEMIES[e.kind].flat) {
         const rx = e.x - p.x;
         const ry = e.y - p.y;
         if (Math.abs(rx) > farX || Math.abs(ry) > farY) {
@@ -1335,10 +1513,16 @@ export class GameScene extends Phaser.Scene implements World {
     const def = ENEMIES[e.kind];
     this.burst(e.x, e.y, def.burst ?? 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
     if (def.split) {
-      for (let i = 0; i < def.split.n; i++) {
-        const m = this.spawnEnemy(def.split.kind, e.x + (i ? 6 : -6), e.y, this.hpMult(this.stageT));
+      const n = def.split.n;
+      for (let i = 0; i < n; i++) {
+        // Two halves fly left and right; more spread evenly around.
+        const a = n === 2 ? (i ? 0 : Math.PI) : (i / n) * Math.PI * 2 + Math.PI / 4;
+        const ox = n === 2 ? (i ? 1 : -1) : Math.cos(a);
+        const oy = n === 2 ? 0 : Math.sin(a);
+        const m = this.spawnEnemy(def.split.kind, e.x + ox * 6, e.y + oy * 6, this.hpMult(this.stageT));
         if (m) {
-          m.kx = (i ? 1 : -1) * 120;
+          m.kx = ox * 120;
+          m.ky = oy * 120;
         }
       }
     }
@@ -1353,7 +1537,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
     // Freezer: every elite drops a Warm Mug, regular enemies now and then (one on the floor at a time).
     if (this.stage.mug) {
-      if (e.kind === this.stage.elite.kind) this.dropPickup('mug', e.x - 14, e.y, 1);
+      if (e.dropsChest && e !== this.mini && !e.boss) this.dropPickup('mug', e.x - 14, e.y, 1);
       else if (!e.dropsChest && Math.random() < 0.006 && !this.pickups.some((it) => it.kind === 'mug')) this.dropPickup('mug', e.x, e.y - 6, 1);
     }
     const r = Math.random();
@@ -1420,9 +1604,10 @@ export class GameScene extends Phaser.Scene implements World {
 
   // ---------------------------------------------------------------- Shots & hazards
 
-  private fireShot(tex: string, x: number, y: number, a: number, speed: number, dmg: number, r: number): void {
+  private fireShot(tex: string, x: number, y: number, a: number, speed: number, dmg: number, r: number, aim = false): void {
     const sprite = this.img(tex, x, y, 45);
-    this.shots.push({ sprite, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r, dmg, life: 5, spin: (Math.random() - 0.5) * 10 });
+    if (aim) sprite.setRotation(a);
+    this.shots.push({ sprite, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r, dmg, life: 5, spin: aim ? 0 : (Math.random() - 0.5) * 10 });
   }
 
   private updateShots(dt: number): void {
@@ -1482,6 +1667,111 @@ export class GameScene extends Phaser.Scene implements World {
         this.hazards.splice(i, 1);
       }
     }
+  }
+
+  // ---------------------------------------------------------------- Freezer elite and boss hazards
+
+  /** A pink melt puddle (outlined in white) that slows the bagel. */
+  private addMelt(x: number, y: number, audible: boolean): void {
+    const r = 26;
+    const img = this.img('melt', x, y, 3);
+    const sc = (r * 2) / 64 / S;
+    img.setScale(sc * 0.3);
+    this.tweens.add({ targets: img, scale: sc, duration: 260, ease: 'Back.Out' });
+    this.melts.push({ img, x, y, r, life: 7 });
+    if (this.melts.length > 16) this.melts.shift()!.img.destroy();
+    if (audible) sfx('melt');
+  }
+
+  /** A frost circle: shows where the floor will freeze, then turns to ice after 1.2s. */
+  private addFreeze(x: number, y: number): void {
+    const r = 46;
+    const img = this.img('frost_ring', x, y, 3);
+    const sc = (r * 2) / 64 / S;
+    img.setScale(sc * 0.2);
+    this.tweens.add({ targets: img, scale: sc, duration: 300, ease: 'Back.Out' });
+    this.freezes.push({ img, x, y, r, t: 1.2 });
+  }
+
+  private updateFreezerHazards(dt: number): void {
+    if (!this.melts.length && !this.warns.length && !this.freezes.length && !this.tempIce.length) {
+      if (this.bossGfx.visible) this.bossGfx.clear().setVisible(false);
+      return;
+    }
+    const p = this.player;
+    for (let i = this.melts.length - 1; i >= 0; i--) {
+      const m = this.melts[i];
+      m.life -= dt;
+      if (m.life < 1) m.img.setAlpha(Math.max(0, m.life));
+      if (m.life <= 0) {
+        m.img.destroy();
+        this.melts.splice(i, 1);
+      }
+    }
+    for (let i = this.freezes.length - 1; i >= 0; i--) {
+      const f = this.freezes[i];
+      f.t -= dt;
+      f.img.setAlpha(0.6 + 0.4 * Math.sin(this.now * 25));
+      if (f.t > 0) continue;
+      const dx = f.x - p.x;
+      const dy = f.y - p.y;
+      if (dx * dx + dy * dy < (f.r + p.radius) ** 2) this.damagePlayer(10);
+      const rx = f.r * 1.25;
+      const ry = f.r * 0.9;
+      const base = this.img('ice_patch', f.x, f.y, 1.5);
+      base.setScale((rx * 2) / 200 / S, (ry * 2) / 120 / S);
+      this.tempIce.push({ x: f.x, y: f.y, rx, ry, imgs: [base], life: 9 });
+      this.burst(f.x, f.y, 0xdff4ff, 10, 55);
+      sfx('frost');
+      f.img.destroy();
+      this.freezes.splice(i, 1);
+    }
+    for (let i = this.tempIce.length - 1; i >= 0; i--) {
+      const ip = this.tempIce[i];
+      ip.life -= dt;
+      if (ip.life < 1) for (const im of ip.imgs) im.setAlpha(Math.max(0, ip.life));
+      if (ip.life <= 0) {
+        for (const im of ip.imgs) im.destroy();
+        this.tempIce.splice(i, 1);
+      }
+    }
+    // Icicle volleys: a blue warning line flashes, then icicles fly along it.
+    const g = this.bossGfx;
+    g.clear().setVisible(this.warns.length > 0);
+    for (let i = this.warns.length - 1; i >= 0; i--) {
+      const w = this.warns[i];
+      w.t -= dt;
+      if (w.t > 0) {
+        const len = 760;
+        const ex = w.x + Math.cos(w.a) * len;
+        const ey = w.y + Math.sin(w.a) * len;
+        const blink = Math.floor(this.now * 12) % 2 ? 0.55 : 0.3;
+        g.lineStyle(16, 0x6cc7f0, blink).lineBetween(w.x, w.y, ex, ey);
+        g.lineStyle(3, 0xffffff, 0.9).lineBetween(w.x, w.y, ex, ey);
+        continue;
+      }
+      sfx('icicle');
+      for (let k = 0; k < w.n; k++) this.fireShot('icicle', w.x, w.y, w.a, 300 - k * 35, 14, 6, true);
+      this.warns.splice(i, 1);
+    }
+  }
+
+  /** Big announcement card for a boss's arrival. */
+  private bossCard(name: string, line: string): void {
+    const W = this.scale.width;
+    const top = safeInsets().top * S;
+    const w = Math.min(W - 32 * S, 340 * S);
+    const h = 100 * S;
+    const g = this.add.graphics();
+    g.fillStyle(0x24160d, 1).fillRoundedRect(-w / 2 - 4 * S, -h / 2 - 4 * S, w + 8 * S, h + 8 * S, 20 * S);
+    g.fillStyle(0x1d3a57, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
+    g.lineStyle(2 * S, 0xbfe6fb, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
+    const t1 = txt(this, 0, -17 * S, name.toUpperCase(), 26, CSS.red);
+    const t2 = txt(this, 0, 22 * S, line, 19, '#dff4ff');
+    const card = this.ui(this.add.container(W / 2, top + 220 * S, [g, t1, t2]));
+    card.setScale(0.5).setAlpha(0);
+    this.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 320, ease: 'Back.Out' });
+    this.tweens.add({ targets: card, alpha: 0, y: card.y - 30 * S, delay: 2600, duration: 500, onComplete: () => card.destroy() });
   }
 
   private damagePlayer(d: number): void {
