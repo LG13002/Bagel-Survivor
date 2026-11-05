@@ -111,6 +111,15 @@ From the owner's playtest notes:
 - `VITE_PREVIEW=1` builds open every built stage, for the preview link.
 - After the owner's first play: ice patches are bigger (radius 80 to 140px) with less grip (longer slides), thawing from fully frozen takes 3.5s of moving so the Warm Mug matters, the loose frozen-peas prop became a printed bag of peas (it read as XP seeds), and the Popsicle is about 5% bigger than the swarm crumbs.
 
+### Phase 2, M6 part 2: the Freezer's elites, bosses and music
+- Elites take turns: Ice Cream Scoop at 0:45 and 2:45 (drops pink melt puddles, outlined in white, that slow you to 60%), Frosted Croissant at 1:45 and 3:45 (a smaller 7-flake ring; the 3:45 one carries the second Sticky Bun in Full Runs). Tyrant Jr. turns up once at 4:00 with a 5-toast fan. Every elite drops a Warm Mug.
+- Frozen Waffle mini-boss at 2:30: shakes and flashes for 0.8s, charges, three times, then rests 2.5s. Splits into 4 waffle squares; drops the gold toaster and the bun.
+- The Freezer Burn at 4:30, 6000 health (Tyrant 5000). It arrives with a "Time to feel the burn!" card (the owner's idea). Phase 1: blue warning lines for 0.8s, then icicles fly along them; every third attack is a pizza-slice fan. Phase 2 at half health: 5 lines and faster attacks, frost circles that become ice patches after 1.2s (10 damage if you're inside), and rings of 16 Frosted Crumbs.
+- Music: `frun` (116 bpm, bells and a soft pad, drums at 1:00, bass at 2:00) and `fboss` (150 bpm, D minor). Run themes are now any song with `layered: true`.
+- Sounds: icicle whoosh, boss roar, melt drip, waffle charge.
+- Balance: Freezer contact damage set to 0.94. Bot (level 3 weapons, from 2:00): Stage 1 averages 343 damage taken per minute, the Freezer 392 (+14%). From 3:15 the gap is smaller (+5%, one run).
+- `wbench.cjs` takes a stage and start time: `node tools/bots/wbench.cjs 3 pin stage2 195`.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

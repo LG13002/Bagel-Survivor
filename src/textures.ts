@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, drawButcherBlock, drawFreezerFloor, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -68,6 +68,13 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'en_fmold', 40, 40, (c) => drawMold(c, 20, 20, 17, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
   ctex(scene, 'en_fmoldling', 24, 24, (c) => drawMold(c, 12, 12, 10, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
   ctex(scene, 'en_sprinkle', 18, 18, (c) => drawSprinkleFlake(c, 18));
+  ctex(scene, 'en_scoop', 64, 62, (c) => drawScoop(c, 32, 30, 28));
+  ctex(scene, 'en_fcroissant', 62, 48, (c) => drawFrostedCroissant(c, 62, 48));
+  ctex(scene, 'en_tyrantjr', 56, 51, (c) => drawTyrantJr(c, 56, 51));
+  ctex(scene, 'en_waffle', 72, 72, (c) => drawWaffle(c, 72));
+  ctex(scene, 'en_wafflesq', 26, 26, (c) => drawWaffle(c, 26, true));
+  ctex(scene, 'en_fburn', 104, 104, (c) => drawFreezerBurn(c, 104));
+  ctex(scene, 'melt', 64, 42, (c) => drawMeltPuddle(c, 64, 42));
 
   // Player projectiles
   ctex(scene, 'seed', 10, 10, (c) => drawSesame(c, 5, 5, 3.9, 2.5));
@@ -82,6 +89,8 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'flake', 12, 12, (c) => drawFlake(c, 12));
   ctex(scene, 'toast', 18, 18, (c) => drawToast(c, 18));
   ctex(scene, 'pea', 16, 16, (c) => drawPea(c, 16));
+  ctex(scene, 'icicle', 30, 11, (c) => drawIcicle(c, 30, 11));
+  ctex(scene, 'slice', 20, 20, (c) => drawPizzaSlice(c, 20));
 
   // Pickups: bright and glowing so they never read as enemies.
   ctex(scene, 'gem1', 16, 16, (c) => drawGem(c, 16, 8, '#45d9f3', '#e6fbff', '#1b6f86'));
@@ -95,6 +104,10 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'mug', 36, 36, (c) => drawWarmMug(c, 36));
   tex(scene, 'dot', 8, 8, (g) => {
     g.fillStyle(0xffffff).fillCircle(4, 4, 4);
+  });
+  tex(scene, 'frost_ring', 64, 64, (g) => {
+    g.fillStyle(0x6cc7f0, 0.25).fillCircle(32, 32, 31);
+    g.lineStyle(3, 0xffffff, 0.95).strokeCircle(32, 32, 30);
   });
   tex(scene, 'ring', 64, 64, (g) => {
     g.fillStyle(0xff3b1f, 0.18).fillCircle(32, 32, 31);

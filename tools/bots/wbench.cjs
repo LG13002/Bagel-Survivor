@@ -1,11 +1,14 @@
 const { chromium } = require('playwright');
 const LV = Number(process.argv[2] || 5);
+const STAGE = process.argv[4] || 'stage1';
+const T0 = Number(process.argv[5] || 120);
+const PORT = process.env.PORT || 4191;
 (async () => {
   const b = await chromium.launch();
   for (const wid of (process.argv[3]||'sesame,storm,puddle,lox,coffee,pin').split(',')) {
     const p = await b.newPage({ viewport: { width: 390, height: 760 }, deviceScaleFactor: 1 });
-    await p.goto('http://localhost:4191/?god&speed=6&t=120', { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1500);
-    await p.evaluate(() => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'plain', practice: false }));
+    await p.goto(`http://localhost:${PORT}/?god&speed=6&t=${T0}`, { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1500);
+    await p.evaluate((stage) => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'plain', practice: false, stage }), STAGE);
     await p.waitForTimeout(500);
     await p.evaluate(([wid, LV]) => { const g = window.__game.scene.getScene('game');
       g.weapons.forEach(w => w.destroy()); g.weapons = []; g.addWeapon(wid); g.weapons[0].level = Math.min(LV,5); if (LV > 5) g.weapons[0].evolved = true; g.openChest = () => {}; g.openLevelUp = () => { g.pendingLevels = 0; };

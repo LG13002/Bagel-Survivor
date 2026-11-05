@@ -7,7 +7,7 @@ export type Sfx =
   | 'hit' | 'kill' | 'xp' | 'level' | 'chest' | 'hurt' | 'boss' | 'pin' | 'splash' | 'click' | 'buy'
   | 'shoot' | 'lox' | 'storm' | 'crunch' | 'splat' | 'clatter' | 'pop' | 'basket' | 'gold' | 'evolve'
   | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin'
-  | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter';
+  | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -20,10 +20,10 @@ const minGap: Record<Sfx, number> = {
   hit: 0.045, kill: 0.04, xp: 0.035, level: 0.2, chest: 0.3, hurt: 0.15, boss: 1, pin: 0.1, splash: 0.1, click: 0.03, buy: 0.15,
   shoot: 0.09, lox: 0.25, storm: 2.6, crunch: 0.05, splat: 0.06, clatter: 0.07, pop: 0.12, basket: 0.3, gold: 0.3, evolve: 1,
   heart: 0.85, ding: 0.5, flakes: 0.5, swoosh: 0.12, lock: 0.2, coin: 0.08,
-  ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06,
+  ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06, icicle: 0.2, roar: 1.5, melt: 0.5, charge: 0.4,
 };
 /** Sounds that may be dropped when too many play at once. */
-const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true };
+const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true };
 const recent: number[] = [];
 let xpPitch = 0;
 let xpPitchAt = 0;
@@ -276,6 +276,22 @@ export function sfx(name: Sfx): void {
     case 'shatter': // ice cubes and popsicles breaking
       noise(0.1, 0.22, 5200, { type: 'highpass' });
       tone('triangle', 2200 + Math.random() * 400, 1400, 0.07, 0.07);
+      break;
+    case 'icicle': // icicle volley whoosh
+      noise(0.22, 0.2, 2500, { type: 'bandpass', freq1: 6000 });
+      tone('sine', 1900, 2600, 0.12, 0.05);
+      break;
+    case 'roar': // the Freezer Burn's roar
+      tone('sawtooth', 120, 55, 0.9, 0.3);
+      tone('square', 80, 40, 0.9, 0.16);
+      noise(0.8, 0.22, 400, { type: 'lowpass', freq1: 150 });
+      break;
+    case 'melt': // ice cream drip
+      tone('sine', 520, 260, 0.09, 0.08);
+      break;
+    case 'charge': // waffle charge
+      noise(0.25, 0.22, 900, { type: 'bandpass', freq1: 300 });
+      tone('square', 220, 110, 0.2, 0.08);
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);
