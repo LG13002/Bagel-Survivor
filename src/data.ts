@@ -304,7 +304,7 @@ export const STAGES: StageDef[] = [
     posts: true,
     dough: 2,
     hpGrowth: 145,
-    // First-pass dials. Part 2 tunes the whole stage once it has its own elites and bosses.
+    // Bot benchmark with the full cast: about 11% more damage taken per minute than the Freezer (target +10%).
     dmg: 1.06,
     spawnRate: 1.04,
     mix: [
@@ -315,7 +315,11 @@ export const STAGES: StageDef[] = [
     ],
     wave: { kinds: ['mscoop', 'ember'], banner: 'The heat closes in!' },
     lines: 'wafflebit',
-    // Part 2 of M9 brings the oven's own elite, mini-boss, boss and music; until then it borrows Stage 1's.
+    elites: [{ kind: 'muffin', banner: 'A Molten Muffin! Mind the fire.', color: '#ff9a3c' }],
+    extras: [{ at: 240, kind: 'fburnt', banner: 'The Freezer Burnt thawed out!', color: '#ff7a5c' }],
+    mini: { kind: 'flapjack', name: 'Flapjack Stack', banner: 'Flapjack Stack!' },
+    boss: { kind: 'broiler', name: 'The Broiler', banner: 'THE BROILER', card: 'Things are heating up!' },
+    music: { run: 'orun', boss: 'oboss' },
   },
 ];
 
@@ -495,7 +499,8 @@ export type EnemyKind =
   | 'fcrumb' | 'icecube' | 'peapod' | 'popsicle' | 'pophalf' | 'fmold' | 'fmoldling' | 'sprinkle'
   | 'scoop' | 'fcroissant' | 'tyrantjr' | 'waffle' | 'wafflesq' | 'fburn'
   // The Toaster Oven
-  | 'ember' | 'btoast' | 'hotsauce' | 'popcorn' | 'popbit' | 'tot' | 'wafflebit' | 'mscoop';
+  | 'ember' | 'btoast' | 'hotsauce' | 'popcorn' | 'popbit' | 'tot' | 'wafflebit' | 'mscoop'
+  | 'muffin' | 'fburnt' | 'flapjack' | 'broiler';
 
 export interface EnemyDef {
   tex: string;
@@ -556,6 +561,10 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   tot: { tex: 'en_tot', hp: 30, speed: 58, dmg: 8, radius: 11, xp: 2, mass: 1.6, burst: 0xb8c3cc },
   wafflebit: { tex: 'en_wafflesq', hp: 14, speed: 100, dmg: 6, radius: 10, xp: 1, mass: 0.9, ai: 'line', burst: 0xdda04a },
   mscoop: { tex: 'en_mscoop', hp: 44, speed: 38, dmg: 9, radius: 13, xp: 3, mass: 2, burst: 0xf59ab4, drip: true },
+  muffin: { tex: 'en_muffin', hp: 340, speed: 44, dmg: 15, radius: 24, xp: 15, mass: 5, burst: 0xff8a3a, flat: true },
+  fburnt: { tex: 'en_fburnt', hp: 950, speed: 40, dmg: 17, radius: 26, xp: 20, mass: 10, burst: 0xd9472e, flat: true },
+  flapjack: { tex: 'en_flap5', hp: 1700, speed: 50, dmg: 16, radius: 30, xp: 30, mass: 12, burst: 0xe0a24a, flat: true },
+  broiler: { tex: 'en_broiler', hp: 7000, speed: 32, dmg: 26, radius: 46, xp: 0, mass: 40, burst: 0xff6a2a, flat: true },
 };
 
 // Run pacing (seconds)

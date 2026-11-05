@@ -87,6 +87,9 @@ const GREASE_DMG = 4;
 const SLICK_LIFE = 3;
 const POST_R = 17;
 /** Jalapeño Cheddar's Spicy: chance per hit, burn time, and burn damage per tick as a share of the hit. */
+/** The Broiler's flame lines. */
+const BEAM_W = 30;
+const BEAM_DMG = 14;
 const SPICY_CHANCE = 0.1;
 const BURN_TIME = 3;
 const BURN_TICK = 0.5;
@@ -108,6 +111,7 @@ const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = {
   fcrumb: 'crunch', sprinkle: 'crunch', icecube: 'shatter', popsicle: 'shatter', pophalf: 'crunch', peapod: 'splat', fmold: 'splat', fmoldling: 'splat',
   scoop: 'pop', fcroissant: 'pop', tyrantjr: 'pop', waffle: 'pop', wafflesq: 'crunch', fburn: 'pop',
   ember: 'crunch', btoast: 'crunch', hotsauce: 'splat', popcorn: 'popcorn', popbit: 'crunch', tot: 'clatter', wafflebit: 'crunch', mscoop: 'splat',
+  muffin: 'pop', fburnt: 'shatter', flapjack: 'pop', broiler: 'pop',
 };
 /** Practice runs start at 2:30 with a head start of level-ups. */
 const PRACTICE_START = 150;
@@ -253,7 +257,11 @@ export class GameScene extends Phaser.Scene implements World {
   private posts: Post[] = [];
   private coils: { x: number; y: number; horiz: boolean; t: number; flare: number }[] = [];
   private greases: { img: Phaser.GameObjects.Image; x: number; y: number; t: number }[] = [];
-  private sparks: { img: Phaser.GameObjects.Image; x: number; y: number; life: number }[] = [];
+  private sparks: { img: Phaser.GameObjects.Image; x: number; y: number; life: number; max: number; dmg: number; size: number }[] = [];
+  /** The Broiler's flame lines: a warning glow, then a burst of fire along the line. */
+  private beams: { x: number; y: number; a: number; t: number; burn: number }[] = [];
+  private beamGfx!: Phaser.GameObjects.Graphics;
+  private coilPatternN = 0;
   private coilNext = 0;
   private greaseNext = 0;
   private ovenGfx!: Phaser.GameObjects.Graphics;
@@ -370,6 +378,13 @@ export class GameScene extends Phaser.Scene implements World {
     this.worldLayer.add(this.bossGfx);
     this.ovenGfx = this.add.graphics().setDepth(2.5);
     this.worldLayer.add(this.ovenGfx);
+    this.beamGfx = this.add.graphics().setDepth(3.2);
+    this.worldLayer.add(this.beamGfx);
+    this.coils = [];
+    this.greases = [];
+    this.sparks = [];
+    this.beams = [];
+    this.coilPatternN = 0;
     // Oven hazards start a little into the run (real seconds, so Quick Runs aren't swamped).
     this.coilNext = this.now + 12;
     this.greaseNext = this.now + 20;
@@ -717,6 +732,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.updateHazards(dt);
     this.updateFreezerHazards(dt);
     this.updateOvenHazards(dt);
+    this.updateBeams(dt);
     this.updatePickups(dt);
     this.updateQuirk(dt);
     this.snapT -= dt;
@@ -1646,6 +1662,116 @@ export class GameScene extends Phaser.Scene implements World {
           }
           break;
         }
+        case 'muffin':
+          // Molten Muffin: slow, and leaves a short trail of fire behind it.
+          if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
+          e.sprite.setRotation(Math.sin(t * 5 + e.phase) * 0.08);
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = 0.42;
+            this.addSpark(e.x - (mvx / (e.speed || 1)) * 18, e.y + e.radius * 0.5, 2.2, 4, 1.25, false);
+          }
+          break;
+        case 'fburnt': {
+          // Freezer Burnt: a smaller frozen pizza. One warned icicle fan at a time.
+          e.sprite.setRotation(Math.sin(t * 2.5 + e.phase) * 0.08);
+          e.attackT -= dt;
+          if (e.attackT <= 0 && dist < 520) {
+            e.attackT = 3.2;
+            const a = Math.atan2(dy, dx);
+            for (let i = -1; i <= 1; i++) this.warns.push({ x: e.x, y: e.y, a: a + i * 0.42, t: 0.9, n: 2 });
+          }
+          break;
+        }
+        case 'flapjack': {
+          // Flapjack Stack: throws spinning pancakes. Every fifth of its health it loses a pancake,
+          // flinging it as a ring of discs, and gets shorter and faster.
+          const layers = Math.max(1, Math.ceil((e.hp / e.maxHp) * 5));
+          // attack2T holds the pancakes shown (0 on spawn or after a resume: set it without the ring).
+          const lost = e.attack2T > 0 && layers < e.attack2T;
+          if (layers !== e.attack2T) {
+            e.attack2T = layers;
+            e.sprite.setTexture(`en_flap${layers}`);
+            e.speed = ENEMIES.flapjack.speed * (1 + 0.14 * (5 - layers));
+            e.radius = ENEMIES.flapjack.radius - (5 - layers) * 2;
+          }
+          if (lost) {
+            sfx('flakes');
+            this.cameras.main.shake(160, 0.004);
+            const off = Math.random() * Math.PI;
+            for (let i = 0; i < 10; i++) this.fireShot('pancake', e.x, e.y, off + (i / 10) * Math.PI * 2, 135, 10, 8);
+          }
+          e.attackT -= dt;
+          // Wobble just before a throw, so you can see it coming.
+          const wind = e.attackT < 0.5;
+          e.sprite.setRotation(wind ? Math.sin(t * 40) * 0.1 : Math.sin(t * 4 + e.phase) * 0.06);
+          if (wind) {
+            mvx *= 0.3;
+            mvy *= 0.3;
+          }
+          if (e.attackT <= 0) {
+            e.attackT = 2.3 - 0.22 * (5 - layers);
+            sfx('flakes');
+            const a = Math.atan2(dy, dx);
+            for (let i = -1; i <= 1; i++) this.fireShot('pancake', e.x, e.y, a + i * 0.24, 200, 12, 8);
+          }
+          break;
+        }
+        case 'broiler': {
+          // The Broiler. Phase 1: sweeping flame lines (each warned with a glow) and fireball fans.
+          // Phase 2 (half health): faster, lights the floor coils in patterns, and calls in Toaster Tots.
+          if (!e.enraged && e.hp < e.maxHp * 0.5) {
+            e.enraged = true;
+            e.attack2T = 1.5;
+            e.stateT = 5;
+            this.banner('The Broiler cranks the heat to max!', '#ffb36b', 20);
+            sfx('roar');
+            this.cameras.main.shake(400, 0.007);
+          }
+          if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
+          e.sprite.setRotation(Math.sin(t * 2) * 0.05 + (e.enraged ? Math.sin(t * 30) * 0.025 : 0));
+          if (e.enraged && Math.floor(t * 4) % 2) e.sprite.setTint(0xffc9a0);
+          else if (e.flashUntil <= t) e.sprite.clearTint();
+          e.attackT -= dt;
+          if (e.attackT <= 0) {
+            e.attackT = e.enraged ? 2.2 : 2.8;
+            e.state = (e.state + 1) % 3;
+            const a = Math.atan2(dy, dx);
+            if (e.state === 2) {
+              sfx('flare');
+              for (let i = -3; i <= 3; i++) this.fireShot('fireball', e.x, e.y, a + i * 0.17, 185, 12, 7);
+            } else {
+              // A sweep: the lines light one after another across where you stand.
+              const n = e.enraged ? 4 : 3;
+              const dir = e.state === 0 ? 1 : -1;
+              const step = 0.34;
+              for (let i = 0; i < n; i++) {
+                const la = a + dir * (i - (n - 1) / 2) * step;
+                this.beams.push({ x: e.x, y: e.y, a: la, t: 0.9 + i * 0.3, burn: 0 });
+              }
+              sfx('hiss');
+            }
+          }
+          if (e.enraged) {
+            e.attack2T -= dt;
+            if (e.attack2T <= 0) {
+              e.attack2T = 7;
+              this.coilPattern(this.coilPatternN++);
+            }
+            e.stateT -= dt;
+            if (e.stateT <= 0) {
+              e.stateT = 10;
+              const n = 12;
+              const d = Math.hypot(this.viewW(), this.viewH()) / 2 + 30;
+              for (let i = 0; i < n; i++) {
+                const a = (i / n) * Math.PI * 2;
+                this.spawnEnemy('tot', p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, this.hpMult(this.stageT));
+              }
+              this.banner('Toaster Tots!', '#d8dee4', 16);
+            }
+          }
+          break;
+        }
         default:
           if (Math.abs(mvx) > 1) e.sprite.setFlipX(mvx < 0);
           // Waddle while walking.
@@ -1765,6 +1891,12 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
     if (def.ember) this.addSpark(e.x, e.y);
+    if (e.kind === 'muffin') {
+      // The Molten Muffin bursts into a ring of embers.
+      sfx('flare');
+      const off = Math.random() * Math.PI;
+      for (let i = 0; i < 8; i++) this.fireShot('fireball', e.x, e.y, off + (i / 8) * Math.PI * 2, 120, 8, 7);
+    }
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
     // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
     if (e.dropsChest) this.dropPickup(e.kind === this.stage.mini.kind || Math.random() < 0.25 + 0.05 * this.luckNow ? 'goldchest' : 'chest', e.x, e.y, 1);
@@ -2112,14 +2244,86 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- Toaster Oven hazards
 
   /** An ember spark where an Ember Crumb died: it stings only if you walk right into it. */
-  private addSpark(x: number, y: number): void {
-    if (this.sparks.length >= 24) this.sparks.shift()!.img.destroy();
+  private addSpark(x: number, y: number, life = 1.1, dmg = 3, size = 1, nudge = true): void {
+    if (this.sparks.length >= 32) this.sparks.shift()!.img.destroy();
     // Drawn above seeds (and nudged off the spot where the seed lands) so it always reads as a red flame.
-    const a = Math.random() * Math.PI * 2;
-    x += Math.cos(a) * 10;
-    y += Math.sin(a) * 10;
+    if (nudge) {
+      const a = Math.random() * Math.PI * 2;
+      x += Math.cos(a) * 10;
+      y += Math.sin(a) * 10;
+    }
     const img = this.img('ember', x, y, 11);
-    this.sparks.push({ img, x, y, life: 1.1 });
+    this.sparks.push({ img, x, y, life, max: life, dmg, size });
+  }
+
+  /** A coil strip at a set spot (the Broiler's patterns). Unlike random flare-ups, these can be right under you. */
+  private addCoilAt(x: number, y: number, horiz: boolean, warn = 1.8): void {
+    this.coils.push({ x, y, horiz, t: warn, flare: 0 });
+  }
+
+  /** The Broiler's floor patterns, centred on you: a box around you, a cross through you, or stripes. */
+  private coilPattern(n: number): void {
+    const p = this.player;
+    const kind = n % 3;
+    if (kind === 0) {
+      // Box: stay inside it.
+      const d = 150;
+      this.addCoilAt(p.x, p.y - d, true);
+      this.addCoilAt(p.x, p.y + d, true);
+      this.addCoilAt(p.x - d, p.y, false);
+      this.addCoilAt(p.x + d, p.y, false);
+    } else if (kind === 1) {
+      this.addCoilAt(p.x, p.y, true);
+      this.addCoilAt(p.x, p.y, false);
+    } else {
+      const horiz = Math.random() < 0.5;
+      for (const o of [-110, 0, 110]) this.addCoilAt(horiz ? p.x : p.x + o, horiz ? p.y + o : p.y, horiz);
+    }
+    sfx('hiss');
+  }
+
+  private updateBeams(dt: number): void {
+    const g = this.beamGfx;
+    if (!this.beams.length) {
+      if (g.visible) g.clear().setVisible(false);
+      return;
+    }
+    g.clear().setVisible(true);
+    const p = this.player;
+    const len = 720;
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      const b = this.beams[i];
+      const ex = b.x + Math.cos(b.a) * len;
+      const ey = b.y + Math.sin(b.a) * len;
+      if (b.t > 0) {
+        b.t -= dt;
+        if (b.t > 1.2) continue; // queued in the sweep, not shown yet
+        // Warning: an orange glow along the line, blinking faster as it gets close.
+        const k = 1 - Math.min(1, b.t / 0.9);
+        const blink = Math.floor(this.now * (8 + k * 12)) % 2 ? 0.55 : 0.3;
+        g.lineStyle(BEAM_W, 0xff7a1f, blink * (0.5 + 0.5 * k)).lineBetween(b.x, b.y, ex, ey);
+        g.lineStyle(3, 0xffffff, 0.9).lineBetween(b.x, b.y, ex, ey);
+        if (b.t <= 0) {
+          b.burn = 0.45;
+          sfx('flare');
+          // Distance from you to the line.
+          const vx = Math.cos(b.a);
+          const vy = Math.sin(b.a);
+          const rx = p.x - b.x;
+          const ry = p.y - b.y;
+          const along = rx * vx + ry * vy;
+          const across = Math.abs(rx * vy - ry * vx);
+          if (along > -20 && along < len && across < BEAM_W / 2 + p.radius * 0.6) this.damagePlayer(BEAM_DMG);
+          for (let j = 1; j <= 6; j++) this.burst(b.x + vx * j * 110, b.y + vy * j * 110, 0xffb03a, 3, 30);
+        }
+        continue;
+      }
+      b.burn -= dt;
+      const a = Math.max(0, b.burn / 0.45);
+      g.lineStyle(BEAM_W + 14, 0xff5a14, 0.55 * a).lineBetween(b.x, b.y, ex, ey);
+      g.lineStyle(BEAM_W - 8, 0xffe08a, 0.95 * a).lineBetween(b.x, b.y, ex, ey);
+      if (b.burn <= 0) this.beams.splice(i, 1);
+    }
   }
 
   /** A coil flare-up: a strip near you (never under you) glows for 1.5s, then flares. */
@@ -2239,10 +2443,10 @@ export class GameScene extends Phaser.Scene implements World {
     for (let i = this.sparks.length - 1; i >= 0; i--) {
       const s = this.sparks[i];
       s.life -= dt;
-      s.img.setScale((0.8 + 0.25 * Math.sin(this.now * 40 + i)) / S).setAlpha(Math.min(1, s.life * 2));
+      s.img.setScale(((0.8 + 0.25 * Math.sin(this.now * 40 + i)) * s.size) / S).setAlpha(Math.min(1, s.life * 2, (s.max - s.life) * 8 + 0.3));
       const dx = s.x - p.x;
       const dy = s.y - p.y;
-      if (dx * dx + dy * dy < (6 + p.radius) ** 2) this.damagePlayer(3);
+      if (dx * dx + dy * dy < (6 * s.size + p.radius) ** 2) this.damagePlayer(s.dmg);
       if (s.life <= 0) {
         s.img.destroy();
         this.sparks.splice(i, 1);
@@ -2258,10 +2462,12 @@ export class GameScene extends Phaser.Scene implements World {
     const h = 100 * S;
     const g = this.add.graphics();
     g.fillStyle(0x24160d, 1).fillRoundedRect(-w / 2 - 4 * S, -h / 2 - 4 * S, w + 8 * S, h + 8 * S, 20 * S);
-    g.fillStyle(0x1d3a57, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
-    g.lineStyle(2 * S, 0xbfe6fb, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
-    const t1 = txt(this, 0, -17 * S, name.toUpperCase(), 26, CSS.red);
-    const t2 = txt(this, 0, 22 * S, line, 19, '#dff4ff');
+    // Themed per stage: icy blue in the Freezer, glowing red-hot in the oven.
+    const hot = !!this.stage.coils;
+    g.fillStyle(hot ? 0x4a170c : 0x1d3a57, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
+    g.lineStyle(2 * S, hot ? 0xffb36b : 0xbfe6fb, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
+    const t1 = txt(this, 0, -17 * S, name.toUpperCase(), 26, hot ? CSS.gold : CSS.red);
+    const t2 = txt(this, 0, 22 * S, line, 19, hot ? '#ffe2c4' : '#dff4ff');
     const card = this.ui(this.add.container(W / 2, top + 220 * S, [g, t1, t2]));
     card.setScale(0.5).setAlpha(0);
     this.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 320, ease: 'Back.Out' });
@@ -2317,6 +2523,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.shots[i].sprite.destroy();
       this.shots.splice(i, 1);
     }
+    this.beams.length = 0;
     this.cameras.main.flash(250, 255, 236, 190);
     this.burst(p.x, p.y, 0xf8d38c, 18, 90);
     this.banner('Second Bake!', CSS.gold, 26);

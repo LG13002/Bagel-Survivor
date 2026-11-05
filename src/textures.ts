@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, drawButcherBlock, drawFreezerFloor, drawOvenFloor, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -96,6 +96,11 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'grease', 48, 48, (c) => drawGreaseSpot(c, 48));
   ctex(scene, 'slick', 120, 80, (c) => drawSlick(c, 120, 80));
   ctex(scene, 'flame', 12, 16, (c) => drawFlame(c, 12, 16));
+  ctex(scene, 'en_muffin', 60, 60, (c) => drawMoltenMuffin(c, 60));
+  ctex(scene, 'en_fburnt', 64, 64, (c) => drawFreezerBurnt(c, 64));
+  // Flapjack Stack: one texture per number of pancakes left (5 down to 1).
+  for (let n = 1; n <= 5; n++) ctex(scene, `en_flap${n}`, 72, 80, (c) => drawFlapjack(c, 72, 80, n));
+  ctex(scene, 'en_broiler', 112, 96, (c) => drawBroiler(c, 112, 96));
 
   // Player projectiles
   ctex(scene, 'seed', 10, 10, (c) => drawSesame(c, 5, 5, 3.9, 2.5));
@@ -123,6 +128,8 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'icicle', 30, 11, (c) => drawIcicle(c, 30, 11));
   ctex(scene, 'slice', 20, 20, (c) => drawPizzaSlice(c, 20));
   ctex(scene, 'sauce', 16, 16, (c) => drawSauceShot(c, 16));
+  ctex(scene, 'pancake', 20, 20, (c) => drawPancakeShot(c, 20));
+  ctex(scene, 'fireball', 16, 16, (c) => drawFireball(c, 16));
 
   // Pickups: bright and glowing so they never read as enemies.
   ctex(scene, 'gem1', 16, 16, (c) => drawGem(c, 16, 8, '#45d9f3', '#e6fbff', '#1b6f86'));

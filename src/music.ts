@@ -2,7 +2,7 @@
 // the music bus in sfx.ts. No audio files. The run theme adds layers as the run goes on.
 import { audioCtx, musicOn, musicOut, onAudioReady } from './sfx';
 
-type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'bell' | 'wah' | 'pad';
+type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'sizzle' | 'bell' | 'wah' | 'pad';
 
 interface Track {
   inst: Inst;
@@ -25,7 +25,7 @@ interface Song {
   tracks: Track[];
 }
 
-export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss';
+export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss';
 
 /** Bars written as space-separated tokens, joined with "|". */
 function seq(s: string): string[] {
@@ -194,6 +194,67 @@ const SONGS: Record<SongId, Song> = {
     ],
   },
 
+  // The Toaster Oven: fast and hot in E minor, with a frying-pan sizzle in the drums. Drums join at 1:00, bass at 2:00.
+  orun: {
+    bpm: 140,
+    res: 2,
+    loop: true,
+    layered: true,
+    tracks: [
+      {
+        inst: 'lead',
+        steps: seq(`E5 - G5 E5 B5 - A5 G5 | F#5 - D5 F#5 A5 - - - | G5 - E5 G5 C6 - B5 A5 | B5 - - - F#5 - D#5 -
+                    E5 - G5 B5 E6 - D6 B5 | C6 - B5 A5 G5 - A5 C6 | B5 - A5 G5 F#5 - G5 A5 | E5 - - - . . B4 .`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.8,
+        steps: seq(`. E4+G4+B4 . E4+G4+B4 . E4+G4+B4 . E4+G4+B4 | . D4+F#4+A4 . D4+F#4+A4 . D4+F#4+A4 . D4+F#4+A4 | . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 | . B3+D#4+F#4 . B3+D#4+F#4 . B3+D#4+F#4 . B3+D#4+F#4
+                    . E4+G4+B4 . E4+G4+B4 . E4+G4+B4 . E4+G4+B4 | . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 | . A3+C4+E4 . A3+C4+E4 . B3+D#4+F#4 . B3+D#4+F#4 | . E4+G4+B4 . E4+G4+B4 . E4+G4+B4 . E4+G4+B4`),
+      },
+      { inst: 'sizzle', vol: 0.5, steps: seq(rep('x . . . x . . .', 8)) },
+      { inst: 'kick', layer: 1, steps: seq(rep('x . . x x . . .', 8)) },
+      { inst: 'snare', layer: 1, steps: seq(rep('. . x . . . x .', 8)) },
+      { inst: 'sizzle', layer: 1, vol: 0.8, steps: seq(rep('. x . x . x . x', 8)) },
+      {
+        inst: 'bass',
+        layer: 2,
+        steps: seq(`E2 E3 E2 E3 E2 E3 E2 E3 | D2 D3 D2 D3 D2 D3 D2 D3 | C2 C3 C2 C3 C2 C3 C2 C3 | B1 B2 B1 B2 B1 B2 B1 B2
+                    E2 E3 E2 E3 E2 E3 E2 E3 | C2 C3 C2 C3 C2 C3 C2 C3 | A1 A2 A1 A2 B1 B2 B1 B2 | E2 E3 E2 E3 E2 E3 E2 E3`),
+      },
+    ],
+  },
+
+  // The Broiler: the heaviest loop in the game. Fast, low and grinding, in E minor with sizzle on every step.
+  oboss: {
+    bpm: 164,
+    res: 2,
+    loop: true,
+    tracks: [
+      {
+        inst: 'lead',
+        vol: 0.9,
+        steps: seq(`E5 - E5 G5 F#5 - E5 - | B4 - - - D5 - E5 - | C5 - C5 E5 D5 - C5 - | B4 - - - D#5 - F#5 -
+                    E6 - B5 - G5 - B5 E6 | C6 - G5 - E5 - G5 C6 | D6 - A5 - F#5 - A5 D6 | D#6 - - - B5 - - -`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.9,
+        steps: seq(`E3+G3+B3 - . E3+G3+B3 - . E3+G3+B3 . | C3+E3+G3 - . C3+E3+G3 - . C3+E3+G3 . | D3+F#3+A3 - . D3+F#3+A3 - . D3+F#3+A3 . | B2+D#3+F#3 - . B2+D#3+F#3 - . B2+D#3+F#3 .
+                    E3+G3+B3 - . E3+G3+B3 - . E3+G3+B3 . | C3+E3+G3 - . C3+E3+G3 - . C3+E3+G3 . | D3+F#3+A3 - . D3+F#3+A3 - . D3+F#3+A3 . | B2+D#3+F#3 - . B2+D#3+F#3 - . B2+D#3+F#3 .`),
+      },
+      {
+        inst: 'grit',
+        vol: 1.1,
+        steps: seq(`E2 E2 E3 E2 E2 E2 F2 E2 | C2 C2 C3 C2 C2 C2 C#2 C2 | D2 D2 D3 D2 D2 D2 D#2 D2 | B1 B1 B2 B1 B1 B1 C2 B1
+                    E2 E2 E3 E2 E2 E2 F2 E2 | C2 C2 C3 C2 C2 C2 C#2 C2 | D2 D2 D3 D2 D2 D2 D#2 D2 | B1 B1 B2 B1 B1 B1 C2 B1`),
+      },
+      { inst: 'kick', steps: seq(rep('x . x x x . x .', 8)) },
+      { inst: 'snare', steps: seq(rep('. . x . . . x .', 7) + ' | . . x . x x x x') },
+      { inst: 'sizzle', vol: 0.9, steps: seq(rep('x x x x x x x x', 8)) },
+    ],
+  },
+
   // Short fanfare for clearing the stage.
   win: {
     bpm: 150,
@@ -232,6 +293,26 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
     o.connect(g).connect(out);
     o.start(t);
     o.stop(t + 0.18);
+    return;
+  }
+  if (inst === 'sizzle') {
+    // A frying-pan sizzle: crackly high noise that swells and fades.
+    const len = 0.2;
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * (len + 0.02)), ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < 0.08 ? 1 : 0.35);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 4200;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16 * vol, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    src.connect(f).connect(g).connect(out);
+    src.start(t);
+    src.stop(t + len + 0.02);
     return;
   }
   if (inst === 'snare' || inst === 'hat') {
