@@ -2533,7 +2533,7 @@ export function drawMoltenMuffin(c: Ctx, s: number): void {
   ink(c, 2);
 }
 
-/** Freezer Burnt (elite): the old boss, shrunk and scorched around the edges. */
+/** The Freezer Burn as the oven's surprise elite: the old boss, shrunk and scorched around the edges. */
 export function drawFreezerBurnt(c: Ctx, s: number): void {
   c.save();
   c.scale(s / 104, s / 104);

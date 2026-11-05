@@ -153,11 +153,12 @@ From the owner's playtest notes:
 
 ### Phase 2, M9 part 2: the oven's elites, bosses and music
 - Molten Muffin elite (0:45, then every 60s): leaves a short trail of little flames and bursts into a ring of embers. The 3:45 one carries the second Sticky Bun in Full Runs.
-- Freezer Burnt, a surprise elite at 4:00: a smaller, scorched Freezer Burn that fires one warned icicle fan at a time.
+- The Freezer Burn returns as a surprise elite at 4:00: smaller and scorched, and fires one warned icicle fan at a time.
 - Flapjack Stack mini-boss (2:30): wobbles, then throws 3 spinning pancakes. Every fifth of its health it loses a pancake (a texture per stack height, `en_flap1`..`en_flap5`), flinging it as a ring of discs and getting shorter and faster.
 - The Broiler boss (4:30, red-hot announcement card). Phase 1: sweeping flame lines (`beams`: a blinking orange warning, then a burst of fire along the line) and fireball fans. Phase 2 at half health: faster, 4-line sweeps, floor coil patterns centred on you every 7s (box, cross, stripes, via `coilPattern`), and rings of Toaster Tots every 10s.
 - Music: `orun` (140 bpm, E minor, a new `sizzle` noise drum; layered like `run`) and `oboss` (164 bpm, the heaviest).
 - Tuning, bot (`wbench.cjs`, level 3, four weapons, damage taken per minute, oven vs Freezer): from 2:00 404 vs 362 (+12%), from 3:20 497 vs 451 (+10%), from 4:25 482 vs 437 (+10%). Overall +11%, on the +10% target, so the Part 1 dials stayed. The Broiler has 7000 health against the Freezer Burn's 6000.
+- After playing Part 2, the owner asked for the 4:00 surprise elite to keep the name Freezer Burn, and for a slightly harder oven: seeds there give 10% less XP (the stage's `xp` dial). Bot (one weapon, no upgrades taken): level at 2:00 went from 7 to 6; level at 4:30 stayed 8.
 
 ## Weapon benchmark (bot, after step 7)
 

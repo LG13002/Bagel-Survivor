@@ -190,6 +190,8 @@ export interface StageDef {
   posts?: boolean;
   /** Dough multiplier for runs on this stage. */
   dough: number;
+  /** XP multiplier for every seed picked up on this stage (default 1). */
+  xp?: number;
   // Difficulty dials
   /** Extra health on regular enemies (bosses and elites excluded). */
   hpBonus: number;
@@ -303,6 +305,8 @@ export const STAGES: StageDef[] = [
     grease: true,
     posts: true,
     dough: 2,
+    // The owner asked for a slightly harder oven after playing Part 2: 10% less XP.
+    xp: 0.9,
     hpGrowth: 145,
     // Bot benchmark with the full cast: about 11% more damage taken per minute than the Freezer (target +10%).
     dmg: 1.06,
@@ -316,7 +320,7 @@ export const STAGES: StageDef[] = [
     wave: { kinds: ['mscoop', 'ember'], banner: 'The heat closes in!' },
     lines: 'wafflebit',
     elites: [{ kind: 'muffin', banner: 'A Molten Muffin! Mind the fire.', color: '#ff9a3c' }],
-    extras: [{ at: 240, kind: 'fburnt', banner: 'The Freezer Burnt thawed out!', color: '#ff7a5c' }],
+    extras: [{ at: 240, kind: 'fburnt', banner: 'The Freezer Burn is back for revenge!', color: '#ff7a5c' }],
     mini: { kind: 'flapjack', name: 'Flapjack Stack', banner: 'Flapjack Stack!' },
     boss: { kind: 'broiler', name: 'The Broiler', banner: 'THE BROILER', card: 'Things are heating up!' },
     music: { run: 'orun', boss: 'oboss' },

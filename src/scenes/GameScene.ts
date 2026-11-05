@@ -1673,7 +1673,7 @@ export class GameScene extends Phaser.Scene implements World {
           }
           break;
         case 'fburnt': {
-          // Freezer Burnt: a smaller frozen pizza. One warned icicle fan at a time.
+          // The Freezer Burn returns as a smaller, scorched elite. One warned icicle fan at a time.
           e.sprite.setRotation(Math.sin(t * 2.5 + e.phase) * 0.08);
           e.attackT -= dt;
           if (e.attackT <= 0 && dist < 520) {
@@ -2651,7 +2651,7 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private gainXp(v: number): void {
-    this.xp += v * (this.quick ? QUICK_XP : 1);
+    this.xp += v * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
     while (this.xp >= this.xpNext) {
       this.xp -= this.xpNext;
       this.level++;
