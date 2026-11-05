@@ -23,7 +23,7 @@ import { bestStage, load, persist, recordBest } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { createWeapon, type Weapon, type World } from '../weapons';
-import { muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
+import { hitSfx, muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
 import { clearRun, loadRun, saveRun, type RunSnapshot } from '../runsave';
@@ -441,7 +441,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number): boolean {
+  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: WeaponId): boolean {
     if (!e.alive) return false;
     if (key && cd > 0) {
       const last = e.hitCd.get(key);
@@ -452,7 +452,10 @@ export class GameScene extends Phaser.Scene implements World {
     e.kx += (kx * 1.5) / e.mass;
     e.ky += (ky * 1.5) / e.mass;
     e.flashUntil = this.now + 0.08;
-    sfx('hit');
+    if (fx) {
+      hitSfx(fx);
+      this.hitSpark(e.x, e.y, fx);
+    } else sfx('hit');
     if (dmg >= 30 && this.now - this.lastHitstop > 0.3) {
       this.lastHitstop = this.now;
       this.hitstop = 0.045;
@@ -1665,6 +1668,109 @@ export class GameScene extends Phaser.Scene implements World {
         this.particles--;
       },
     });
+  }
+
+  /** A little fading dot behind a projectile (weapons at level 5 and evolved). */
+  trailDot(x: number, y: number, color: number): void {
+    if (this.particles > 120) return;
+    const im = this.img('dot', x, y, 18).setTint(color).setAlpha(0.85);
+    im.setScale(0.42 / S);
+    this.particles++;
+    this.tweens.add({
+      targets: im,
+      alpha: 0,
+      scale: 0.1 / S,
+      duration: 240,
+      onComplete: () => {
+        im.destroy();
+        this.particles--;
+      },
+    });
+  }
+
+  /** Each weapon's own small hit spark ("Crisp" flare: quick, small, never hides enemies). */
+  private hitSpark(x: number, y: number, id: WeaponId): void {
+    if (this.particles > 110) return;
+    // Damage-over-time weapons tick a lot, so they spark less often.
+    if ((id === 'puddle' || id === 'jar' || id === 'storm') && Math.random() < 0.6) return;
+    const part = (tex: string, tint: number, scale: number, dx: number, dy: number, ms: number, rot = 0, depth = 41) => {
+      const im = this.img(tex, x, y, depth).setTint(tint).setRotation(rot);
+      im.setScale(scale / S);
+      this.particles++;
+      this.tweens.add({
+        targets: im,
+        x: x + dx,
+        y: y + dy,
+        alpha: 0,
+        scale: (scale * 0.4) / S,
+        duration: ms,
+        ease: 'Cubic.Out',
+        onComplete: () => {
+          im.destroy();
+          this.particles--;
+        },
+      });
+    };
+    const pop = (tex: string, tint: number, from: number, to: number, ms: number, rot = 0) => {
+      const im = this.img(tex, x, y, 41).setTint(tint).setRotation(rot);
+      im.setScale(from / S);
+      this.particles++;
+      this.tweens.add({
+        targets: im,
+        scale: to / S,
+        alpha: 0,
+        duration: ms,
+        ease: 'Quad.Out',
+        onComplete: () => {
+          im.destroy();
+          this.particles--;
+        },
+      });
+    };
+    const rnd = () => Math.random() * Math.PI * 2;
+    const spray = (tex: string, tint: number, n: number, dist: number, scale: number, ms: number, fall = 0) => {
+      for (let i = 0; i < n; i++) {
+        const a = rnd();
+        const d = dist * (0.5 + Math.random() * 0.5);
+        part(tex, tint, scale, Math.cos(a) * d, Math.sin(a) * d + fall, ms, a);
+      }
+    };
+    switch (id) {
+      case 'sesame': // a tiny white twinkle
+        pop('star4', 0xfffbe8, 0.5, 1.1, 140, rnd());
+        break;
+      case 'storm': // golden seed sparks
+        spray('dot', 0xffd34d, 2, 14, 0.35, 200);
+        break;
+      case 'puddle': // soft cream blobs
+        spray('dot', 0xfff8ea, 2, 10, 0.45, 220);
+        break;
+      case 'lox': // a pink swipe
+        pop('streak', 0xff9a7a, 0.7, 1.3, 160, rnd());
+        break;
+      case 'coffee': // hot brown droplets that fall
+        spray('dot', 0x7a3f1c, 3, 14, 0.35, 260, 10);
+        break;
+      case 'pin': // wood chips and a white bonk ring
+        spray('chip', 0xffffff, 3, 22, 0.8, 300, 6);
+        pop('hitring', 0xffffff, 0.3, 0.75, 160);
+        break;
+      case 'knife': // a silver glint
+        pop('streak', 0xe6f4ff, 0.6, 1.4, 130, rnd());
+        pop('star4', 0xffffff, 0.4, 0.9, 120, rnd());
+        break;
+      case 'jar': // purple jam splats
+        spray('dot', 0x8a4fc8, 2, 12, 0.4, 240, 4);
+        break;
+      case 'toastpop': // golden crumbs and a small ring
+        spray('dot', 0xe9b56a, 2, 14, 0.35, 220, 6);
+        pop('hitring', 0xffe2a0, 0.25, 0.6, 150);
+        break;
+      case 'iron': // dusty puff
+        pop('hitring', 0xffd27a, 0.35, 0.9, 200);
+        spray('dot', 0xf0dcb0, 2, 16, 0.45, 260);
+        break;
+    }
   }
 
   private burst(x: number, y: number, color: number, n: number, dist: number): void {

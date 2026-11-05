@@ -136,6 +136,12 @@ From the owner's playtest notes:
 - Bot bench (level 3, then evolved; useful damage/sec): Butter Knife 158 / 314, Jam Jar 268 / 353, Toaster Pop 249 / 326, Waffle Smash 161 (after a buff from 135) / 360. Sesame Shot level 3: 104 (was 97).
 - Style board for the flare pass (part 2): https://claude.ai/artifact/3SvXccvywF63eTFsDociyw
 
+### Phase 2, M8 part 2: "Crisp" weapon flare
+- The owner picked style A (Crisp) on the style board: a hit spark and a quiet hit sound unique to each weapon, nothing else (no pop words, no extra shake).
+- Level 5 projectiles glow gold; evolved ones change color and leave a trail. The knife's trail is silver, because blue dots read as XP seeds.
+- Sparks share the particle budget and skip when it is busy; damage-over-time weapons spark less often. Bot bench unchanged within noise (Seed Gatling 310, Everything Inferno 399).
+- Honey also gives +4% damage per level (the owner asked for a benefit at every level).
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

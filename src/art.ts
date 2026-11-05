@@ -1071,6 +1071,39 @@ export function drawShock(c: Ctx, s: number): void {
   c.stroke();
 }
 
+// ---------- Hit sparks (drawn white, tinted per weapon) ----------
+export function drawStar4(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const r = i % 2 ? m * 0.28 : m - 0.5;
+    const a = (i / 8) * TAU;
+    c.lineTo(m + Math.cos(a) * r, m + Math.sin(a) * r);
+  }
+  c.closePath();
+  c.fillStyle = '#ffffff';
+  c.fill();
+}
+export function drawStreak(c: Ctx, w: number, h: number): void {
+  c.beginPath();
+  c.ellipse(w / 2, h / 2, w / 2 - 0.5, h / 2 - 0.5, 0, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+}
+export function drawChip(c: Ctx, w: number, h: number): void {
+  rrect(c, 1, 1, w - 2, h - 2, 1.2);
+  c.fillStyle = '#e9c38e';
+  c.fill();
+  ink(c, 1, PLINE);
+}
+export function drawHitRing(c: Ctx, s: number): void {
+  c.beginPath();
+  c.arc(s / 2, s / 2, s / 2 - 2, 0, TAU);
+  c.lineWidth = 2.5;
+  c.strokeStyle = '#ffffff';
+  c.stroke();
+}
+
 // ---------- Upgrade icons (36 × 36) ----------
 const IL = 1.7; // icon ink width
 function fillInk(c: Ctx, fill: string | CanvasGradient, w = IL): void {
