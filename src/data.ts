@@ -148,7 +148,7 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   oven: { id: 'oven', name: 'Hot Oven', icon: 'ic_oven', blurb: '+10% damage' },
   salt: { id: 'salt', name: 'Salt Crystals', icon: 'ic_salt', blurb: '+25% pickup range' },
   glaze: { id: 'glaze', name: 'Glaze', icon: 'ic_glaze', blurb: '+7% move speed' },
-  honey: { id: 'honey', name: 'Honey', icon: 'ic_honey', blurb: '+1 projectile (at levels 1 and 4)', weapon: 'knife' },
+  honey: { id: 'honey', name: 'Honey', icon: 'ic_honey', blurb: '+4% damage; +1 projectile at levels 1 and 4', weapon: 'knife' },
   jam: { id: 'jam', name: 'Jam', icon: 'ic_jam', blurb: '+15% duration: puddles, pools, boomerangs', weapon: 'jar' },
   seasoning: { id: 'seasoning', name: 'Everything Seasoning', icon: 'ic_seasoning', blurb: '+luck: better cards and chests', weapon: 'toastpop' },
   frosting: { id: 'frosting', name: 'Cream Cheese Frosting', icon: 'ic_frosting', blurb: '-1 damage from every hit', weapon: 'iron' },
