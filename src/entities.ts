@@ -33,6 +33,12 @@ export class Enemy {
   attack2T = 0;
   hitCd = new Map<string, number>();
   gridNext: Enemy | null = null;
+  /** Jalapeño Cheddar's Spicy: on fire until this time, ticking burnDmg every half second. */
+  burnUntil = 0;
+  burnT = 0;
+  burnDmg = 0;
+  burnShown = false;
+  flame: Phaser.GameObjects.Image | null = null;
 }
 
 export class Player {

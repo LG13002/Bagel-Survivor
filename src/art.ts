@@ -2099,3 +2099,363 @@ export function drawPizzaSlice(c: Ctx, s: number): void {
   c.fillStyle = '#c23b2a';
   c.fill();
 }
+
+// ---------- Toaster Oven enemies and hazards ----------
+// Hot and bright, but enemies keep their ink outlines and angry eyes, and hazards get a white edge.
+
+/** A crumb with glowing ember cracks. */
+export function drawEmberCrumb(c: Ctx, x: number, y: number, r: number): void {
+  c.beginPath();
+  c.arc(x, y, r * 1.22, 0, TAU);
+  c.fillStyle = 'rgba(255,120,30,0.5)';
+  c.fill();
+  drawCrumb(c, x, y, r);
+  c.strokeStyle = '#ff9a2e';
+  c.lineWidth = Math.max(1.2, r * 0.13);
+  c.beginPath();
+  c.moveTo(x - r * 0.55, y + r * 0.25);
+  c.lineTo(x - r * 0.15, y + r * 0.5);
+  c.lineTo(x + r * 0.1, y + r * 0.3);
+  c.moveTo(x + r * 0.3, y + r * 0.6);
+  c.lineTo(x + r * 0.6, y + r * 0.2);
+  c.stroke();
+  c.strokeStyle = '#ffe28a';
+  c.lineWidth = Math.max(0.6, r * 0.05);
+  c.stroke();
+  const line = Math.max(1.5, r * 0.19);
+  angryEye(c, x - r * 0.33, y - r * 0.06, r * 0.21, -1, line, '#ffb22e');
+  angryEye(c, x + r * 0.33, y - r * 0.06, r * 0.21, 1, line, '#ffb22e');
+}
+
+/** Outline of a toast slice (bread-shaped top), shrunk by `inset`. */
+function toastShape(c: Ctx, w: number, h: number, inset: number): void {
+  const x = w / 2;
+  c.beginPath();
+  c.moveTo(4 + inset, h - 3 - inset);
+  c.lineTo(4 + inset, h * 0.42);
+  c.bezierCurveTo(1 + inset, h * 0.12 + inset, x - w * 0.2, 2 + inset, x, h * 0.1 + inset);
+  c.bezierCurveTo(x + w * 0.2, 2 + inset, w - 1 - inset, h * 0.12 + inset, w - 4 - inset, h * 0.42);
+  c.lineTo(w - 4 - inset, h - 3 - inset);
+  c.quadraticCurveTo(w - 4 - inset, h - 1 - inset, w - 7 - inset, h - 1 - inset);
+  c.lineTo(7 + inset, h - 1 - inset);
+  c.quadraticCurveTo(4 + inset, h - 1 - inset, 4 + inset, h - 3 - inset);
+  c.closePath();
+}
+
+/** Burnt Toast: a classic slice with a dark crust edge, burnt patches and a wisp of smoke. */
+export function drawBurntToast(c: Ctx, w: number, h: number): void {
+  toastShape(c, w, h, 0);
+  c.fillStyle = '#6b3514';
+  c.fill();
+  ink(c, 2.2);
+  toastShape(c, w, h, 4);
+  c.fillStyle = radial(c, w / 2, h * 0.6, w * 0.55, [[0, '#e9b56a'], [0.55, '#c47c36'], [1, '#5a2c10']]);
+  c.fill();
+  // burnt patches
+  c.fillStyle = 'rgba(40,18,6,0.65)';
+  c.beginPath();
+  c.ellipse(w * 0.25, h * 0.32, w * 0.12, h * 0.07, 0.4, 0, TAU);
+  c.ellipse(w * 0.76, h * 0.82, w * 0.12, h * 0.06, -0.3, 0, TAU);
+  c.fill();
+  // toasty pores
+  const rand = rng(5);
+  c.fillStyle = 'rgba(110,55,20,0.6)';
+  for (let i = 0; i < 9; i++) { c.beginPath(); c.arc(w * (0.25 + rand() * 0.5), h * (0.4 + rand() * 0.45), 0.8 + rand() * 0.6, 0, TAU); c.fill(); }
+  // Smoke: a few small wavy squiggles rising off the top (the texture leaves room above the slice).
+  c.strokeStyle = 'rgba(225,225,225,0.8)';
+  c.lineWidth = 1.3;
+  for (const [x0, y0, len] of [
+    [0.3, 0.12, 0.2],
+    [0.55, 0.06, 0.22],
+    [0.78, 0.12, 0.18],
+  ]) {
+    const x = w * x0;
+    const y = h * y0;
+    c.beginPath();
+    c.moveTo(x, y);
+    c.bezierCurveTo(x + w * 0.06, y - h * len * 0.33, x - w * 0.06, y - h * len * 0.66, x, y - h * len);
+    c.stroke();
+  }
+  angryEye(c, w * 0.34, h * 0.56, w * 0.11, -1, 2);
+  angryEye(c, w * 0.66, h * 0.56, w * 0.11, 1, 2);
+}
+
+/** Hot Sauce Drop: a small hot sauce bottle with a green cap and a chili label (so it never reads as blood). */
+export function drawHotSauce(c: Ctx, w: number, h: number): void {
+  const x = w / 2;
+  // cap
+  rrect(c, x - w * 0.14, 1.5, w * 0.28, h * 0.16, 2.5);
+  c.fillStyle = '#4f9a2a';
+  c.fill();
+  ink(c, 1.8);
+  // neck + body
+  c.beginPath();
+  c.moveTo(x - w * 0.11, h * 0.16);
+  c.lineTo(x - w * 0.11, h * 0.3);
+  c.quadraticCurveTo(x - w * 0.36, h * 0.38, x - w * 0.36, h * 0.52);
+  c.lineTo(x - w * 0.36, h - 5);
+  c.quadraticCurveTo(x - w * 0.36, h - 2, x - w * 0.3, h - 2);
+  c.lineTo(x + w * 0.3, h - 2);
+  c.quadraticCurveTo(x + w * 0.36, h - 2, x + w * 0.36, h - 5);
+  c.lineTo(x + w * 0.36, h * 0.52);
+  c.quadraticCurveTo(x + w * 0.36, h * 0.38, x + w * 0.11, h * 0.3);
+  c.lineTo(x + w * 0.11, h * 0.16);
+  c.closePath();
+  c.fillStyle = radial(c, x, h * 0.6, w * 0.5, [[0, '#ff6a4a'], [0.7, '#e0331f'], [1, '#a8170e']]);
+  c.fill();
+  ink(c, 2);
+  // label
+  rrect(c, x - w * 0.3, h * 0.66, w * 0.6, h * 0.22, 3);
+  c.fillStyle = '#fff3dc';
+  c.fill();
+  ink(c, 1.2);
+  c.beginPath();
+  c.moveTo(x - w * 0.14, h * 0.74);
+  c.quadraticCurveTo(x, h * 0.86, x + w * 0.16, h * 0.76);
+  c.lineWidth = 2.4;
+  c.strokeStyle = '#e0331f';
+  c.stroke();
+  c.beginPath();
+  c.moveTo(x - w * 0.14, h * 0.74);
+  c.lineTo(x - w * 0.2, h * 0.7);
+  c.lineWidth = 1.4;
+  c.strokeStyle = '#4f9a2a';
+  c.stroke();
+  // shine
+  rrect(c, x - w * 0.27, h * 0.42, w * 0.08, h * 0.18, 2);
+  c.fillStyle = 'rgba(255,255,255,0.6)';
+  c.fill();
+  angryEye(c, x - w * 0.13, h * 0.53, w * 0.09, -1, 1.8, '#ffd34a');
+  angryEye(c, x + w * 0.13, h * 0.53, w * 0.09, 1, 1.8, '#ffd34a');
+}
+
+/** Hot Sauce Drop's shot: a big red blob with a thick white rim, easy to see on the dark rack. */
+export function drawSauceShot(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1.5, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+  ink(c, 1.4);
+  c.beginPath();
+  c.arc(m, m, m - 3.6, 0, TAU);
+  c.fillStyle = radial(c, m, m, m, [
+    [0, '#ff8a6a'],
+    [1, '#e0221a'],
+  ]);
+  c.fill();
+  c.beginPath();
+  c.arc(m - m * 0.25, m - m * 0.28, m * 0.18, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+}
+
+/** Popcorn Kernel: a fluffy popped piece, six buttery lumps with brown hull flakes. */
+export function drawPopcorn(c: Ctx, w: number, h: number): void {
+  const line = 1.8;
+  const lumps: [number, number, number][] = [[0.3, 0.42, 0.24], [0.68, 0.38, 0.25], [0.5, 0.24, 0.24], [0.28, 0.68, 0.23], [0.7, 0.68, 0.23], [0.5, 0.56, 0.27]];
+  c.beginPath();
+  for (const [x, y, r] of lumps) { c.moveTo(x * w + r * w, y * h); c.arc(x * w, y * h, r * w, 0, TAU); }
+  c.lineWidth = line * 2;
+  c.strokeStyle = INK;
+  c.stroke();
+  for (const [x, y, r] of lumps) {
+    c.beginPath();
+    c.arc(x * w, y * h, r * w, 0, TAU);
+    c.fillStyle = radial(c, x * w, y * h, r * w, [[0, '#fffdf3'], [0.7, '#fff1c6'], [1, '#f2d27c']]);
+    c.fill();
+  }
+  // brown hull flakes
+  c.fillStyle = '#b8741a';
+  for (const [x, y, a] of [[0.4, 0.86, 0.3], [0.62, 0.84, -0.4]]) {
+    c.save();
+    c.translate(x * w, y * h);
+    c.rotate(a);
+    rrect(c, -w * 0.09, -h * 0.04, w * 0.18, h * 0.08, 2);
+    c.fill();
+    ink(c, 1);
+    c.restore();
+  }
+  angryEye(c, w * 0.38, h * 0.52, w * 0.09, -1, line);
+  angryEye(c, w * 0.62, h * 0.52, w * 0.09, 1, line);
+}
+
+/** One fast popcorn bit: a small fluffy lump with tiny eyes. */
+export function drawPopBit(c: Ctx, s: number): void {
+  const w = s;
+  const lumps: [number, number, number][] = [[0.34, 0.4, 0.22], [0.66, 0.4, 0.22], [0.5, 0.64, 0.24], [0.5, 0.26, 0.2]];
+  c.beginPath();
+  for (const [x, y, r] of lumps) { c.moveTo(x * w + r * w, y * w); c.arc(x * w, y * w, r * w, 0, TAU); }
+  c.lineWidth = 3;
+  c.strokeStyle = INK;
+  c.stroke();
+  for (const [x, y, r] of lumps) {
+    c.beginPath();
+    c.arc(x * w, y * w, r * w, 0, TAU);
+    c.fillStyle = radial(c, x * w, y * w, r * w, [[0, '#fffdf3'], [1, '#f6dc8e']]);
+    c.fill();
+  }
+  angryEye(c, w * 0.4, w * 0.5, w * 0.09, -1, 1);
+  angryEye(c, w * 0.6, w * 0.5, w * 0.09, 1, 1);
+}
+
+/** Toaster Tot: the old Tyrant, shrunk down to swarm size, a little scorched. */
+export function drawTot(c: Ctx, w: number, h: number): void {
+  c.save();
+  c.scale(w / 84, h / 76);
+  drawToaster(c, 84, 76);
+  c.globalCompositeOperation = 'source-atop';
+  c.fillStyle = 'rgba(80,40,20,0.18)';
+  c.fillRect(0, 0, 84, 76);
+  c.globalCompositeOperation = 'source-over';
+  angryEye(c, 30, 41, 6.6, -1, 2.8, '#ff3b1f');
+  angryEye(c, 54, 41, 6.6, 1, 2.8, '#ff3b1f');
+  c.restore();
+}
+
+/** Rack post, drawn as a big oven knob in a chrome ring: solid, and clearly part of the oven. */
+export function drawRackPost(c: Ctx, s: number): void {
+  const m = s / 2;
+  const r = m - 3;
+  // chrome rim
+  c.beginPath();
+  c.arc(m, m, r, 0, TAU);
+  c.fillStyle = radial(c, m, m, r, [[0, '#f4f2ef'], [0.6, '#b9b4ae'], [1, '#6b655f']]);
+  c.fill();
+  ink(c, 3);
+  // black knob with grip
+  c.beginPath();
+  c.arc(m, m, r * 0.72, 0, TAU);
+  c.fillStyle = radial(c, m, m, r * 0.72, [[0, '#5a4f49'], [1, '#231b17']]);
+  c.fill();
+  ink(c, 2);
+  rrect(c, m - r * 0.16, m - r * 0.66, r * 0.32, r * 1.32, r * 0.14);
+  c.fillStyle = '#3d3430';
+  c.fill();
+  ink(c, 1.6);
+  // pointer
+  c.beginPath();
+  c.moveTo(m, m - r * 0.58);
+  c.lineTo(m, m - r * 0.3);
+  c.strokeStyle = '#ff8a3a';
+  c.lineWidth = 2.6;
+  c.stroke();
+  // tick marks on the rim
+  c.strokeStyle = INK;
+  c.lineWidth = 1.4;
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI * 1.25 + (i / 6) * Math.PI * 1.5;
+    c.beginPath();
+    c.moveTo(m + Math.cos(a) * r * 0.8, m + Math.sin(a) * r * 0.8);
+    c.lineTo(m + Math.cos(a) * r * 0.94, m + Math.sin(a) * r * 0.94);
+    c.stroke();
+  }
+  c.beginPath();
+  c.arc(m - r * 0.25, m - r * 0.3, r * 0.1, 0, TAU);
+  c.fillStyle = 'rgba(255,255,255,0.6)';
+  c.fill();
+}
+
+/** Ember Crumb spark: a little white-edged flame (a hazard, not loot). */
+export function drawEmberSpark(c: Ctx, w: number, h: number, coal = false): void {
+  const x = w / 2;
+  const base = coal ? h * 0.78 : h - 2;
+  const g = c.createRadialGradient(x, base - h * 0.25, 0, x, base - h * 0.25, h * 0.6);
+  g.addColorStop(0, 'rgba(255,150,40,0.45)');
+  g.addColorStop(1, 'rgba(255,150,40,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, w, h);
+  const shape = (k: number, top: number) => {
+    c.beginPath();
+    c.moveTo(x + w * 0.04 * k, top);
+    c.bezierCurveTo(x + w * 0.1 * k, top + h * 0.18, x + w * 0.42 * k, base - h * 0.42, x + w * 0.36 * k, base - h * 0.14);
+    c.bezierCurveTo(x + w * 0.3 * k, base, x - w * 0.3 * k, base, x - w * 0.36 * k, base - h * 0.14);
+    c.bezierCurveTo(x - w * 0.4 * k, base - h * 0.34, x - w * 0.18 * k, base - h * 0.42, x - w * 0.1 * k, base - h * 0.5);
+    c.bezierCurveTo(x - w * 0.06 * k, base - h * 0.36, x + 0, base - h * 0.4, x + w * 0.04 * k, top);
+    c.closePath();
+  };
+  shape(1, 3);
+  c.fillStyle = '#ff5a1a';
+  c.fill();
+  c.lineWidth = 2.2;
+  c.strokeStyle = '#ffffff';
+  c.stroke();
+  shape(0.62, h * 0.3);
+  c.fillStyle = '#ffb02e';
+  c.fill();
+  shape(0.32, h * 0.52);
+  c.fillStyle = '#fff1a8';
+  c.fill();
+  if (coal) {
+    c.beginPath();
+    c.ellipse(x, h * 0.84, w * 0.36, h * 0.1, 0, 0, TAU);
+    c.fillStyle = '#3a2418';
+    c.fill();
+    ink(c, 1.6);
+    c.fillStyle = '#ff7a2a';
+    c.fillRect(x - w * 0.15, h * 0.83, w * 0.1, 2);
+    c.fillRect(x + w * 0.06, h * 0.85, w * 0.12, 2);
+  }
+}
+
+/** A bubbling grease spot: golden-brown with a thick white outline and bubbles. */
+export function drawGreaseSpot(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 3, 0, TAU);
+  c.fillStyle = 'rgba(214,150,40,0.7)';
+  c.fill();
+  c.lineWidth = 3;
+  c.strokeStyle = '#ffffff';
+  c.stroke();
+  for (const [dx, dy, r] of [
+    [-0.3, -0.2, 0.18],
+    [0.25, 0.1, 0.22],
+    [-0.05, 0.38, 0.12],
+  ]) {
+    c.beginPath();
+    c.arc(m + dx * m, m + dy * m, r * m, 0, TAU);
+    c.fillStyle = 'rgba(255,230,150,0.85)';
+    c.fill();
+    c.lineWidth = 1.4;
+    c.strokeStyle = 'rgba(255,255,255,0.9)';
+    c.stroke();
+  }
+}
+
+/** Grease slick left by a pop: shiny amber with a dashed white edge, slippery like Freezer ice. */
+export function drawSlick(c: Ctx, w: number, h: number): void {
+  c.beginPath();
+  c.ellipse(w / 2, h / 2, w / 2 - 4, h / 2 - 4, 0, 0, TAU);
+  c.fillStyle = 'rgba(232,170,60,0.5)';
+  c.fill();
+  c.setLineDash([9, 6]);
+  c.lineWidth = 3;
+  c.strokeStyle = 'rgba(255,255,255,0.9)';
+  c.stroke();
+  c.setLineDash([]);
+  c.beginPath();
+  c.ellipse(w * 0.36, h * 0.38, w * 0.14, h * 0.1, -0.3, 0, TAU);
+  c.fillStyle = 'rgba(255,248,220,0.6)';
+  c.fill();
+}
+
+/** A small flame that flickers on a burning enemy (Jalapeño Cheddar's Spicy). */
+export function drawFlame(c: Ctx, w: number, h: number): void {
+  const x = w / 2;
+  c.beginPath();
+  c.moveTo(x, 1);
+  c.bezierCurveTo(x + w * 0.5, h * 0.4, x + w * 0.45, h - 1, x, h - 1);
+  c.bezierCurveTo(x - w * 0.45, h - 1, x - w * 0.5, h * 0.4, x, 1);
+  c.fillStyle = '#ff6a1f';
+  c.fill();
+  c.lineWidth = 1.2;
+  c.strokeStyle = INK;
+  c.stroke();
+  c.beginPath();
+  c.moveTo(x, h * 0.35);
+  c.bezierCurveTo(x + w * 0.28, h * 0.6, x + w * 0.22, h - 3, x, h - 3);
+  c.bezierCurveTo(x - w * 0.22, h - 3, x - w * 0.28, h * 0.6, x, h * 0.35);
+  c.fillStyle = '#ffd34a';
+  c.fill();
+}

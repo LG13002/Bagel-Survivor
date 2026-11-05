@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, DEBUG, S, ZOOM, fmtTime, safeInsets } from '../config';
-import { COUNTER_PROPS, FREEZER_PROPS, type PropDef } from '../floors';
+import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, type PropDef } from '../floors';
 import { rng } from '../art';
 import {
   BAGELS,
@@ -55,7 +55,7 @@ export interface RunResult {
 }
 
 const CELL = 48;
-const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS, freezer: FREEZER_PROPS };
+const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS, freezer: FREEZER_PROPS, oven: OVEN_PROPS };
 /** Freezer frost: seconds standing still before frost starts, seconds to fill, slow when full. */
 const FROST_DELAY = 2;
 const FROST_FILL = 2;
@@ -74,6 +74,28 @@ const AGE_STEP = 10;
 const AGE_MAX = 30;
 /** Ice Cream Scoop melt puddles slow you to this. */
 const MELT_SLOW = 0.6;
+/** Toaster Oven coil flare-ups: warning time, strip size, damage to you and to enemies on it. */
+const COIL_WARN = 1.5;
+const COIL_LEN = 300;
+const COIL_W = 40;
+const COIL_DMG = 8;
+const COIL_ENEMY_DMG = 45;
+/** Grease pops: wobble time, damage, and how long the slick lasts. */
+const GREASE_WARN = 1.4;
+const GREASE_R = 22;
+const GREASE_DMG = 4;
+const SLICK_LIFE = 3;
+const POST_R = 17;
+/** Jalapeño Cheddar's Spicy: chance per hit, burn time, and burn damage per tick as a share of the hit. */
+const SPICY_CHANCE = 0.1;
+const BURN_TIME = 3;
+const BURN_TICK = 0.5;
+const BURN_SHARE = 0.3;
+interface Post {
+  x: number;
+  y: number;
+  img: Phaser.GameObjects.Image;
+}
 interface IcePatch {
   x: number;
   y: number;
@@ -85,6 +107,7 @@ const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = {
   crumb: 'crunch', ant: 'crunch', mold: 'splat', moldling: 'splat', knife: 'clatter', elite: 'pop', croissant: 'pop', toaster: 'pop',
   fcrumb: 'crunch', sprinkle: 'crunch', icecube: 'shatter', popsicle: 'shatter', pophalf: 'crunch', peapod: 'splat', fmold: 'splat', fmoldling: 'splat',
   scoop: 'pop', fcroissant: 'pop', tyrantjr: 'pop', waffle: 'pop', wafflesq: 'crunch', fburn: 'pop',
+  ember: 'crunch', btoast: 'crunch', hotsauce: 'splat', popcorn: 'popcorn', popbit: 'crunch', tot: 'clatter', wafflebit: 'crunch', mscoop: 'splat',
 };
 /** Practice runs start at 2:30 with a head start of level-ups. */
 const PRACTICE_START = 150;
@@ -225,6 +248,15 @@ export class GameScene extends Phaser.Scene implements World {
   private tempIce: (IcePatch & { life: number })[] = [];
   private bossGfx!: Phaser.GameObjects.Graphics;
   private extrasDone = new Set<number>();
+  // Toaster Oven hazards
+  private postChunks = new Map<string, Post[]>();
+  private posts: Post[] = [];
+  private coils: { x: number; y: number; horiz: boolean; t: number; flare: number }[] = [];
+  private greases: { img: Phaser.GameObjects.Image; x: number; y: number; t: number }[] = [];
+  private sparks: { img: Phaser.GameObjects.Image; x: number; y: number; life: number }[] = [];
+  private coilNext = 0;
+  private greaseNext = 0;
+  private ovenGfx!: Phaser.GameObjects.Graphics;
 
   /** Where we are on the full run's schedule (the clock the director and music follow). */
   private get stageT(): number {
@@ -336,6 +368,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.worldLayer.add(this.frostGfx);
     this.bossGfx = this.add.graphics().setDepth(3);
     this.worldLayer.add(this.bossGfx);
+    this.ovenGfx = this.add.graphics().setDepth(2.5);
+    this.worldLayer.add(this.ovenGfx);
+    // Oven hazards start a little into the run (real seconds, so Quick Runs aren't swamped).
+    this.coilNext = this.now + 12;
+    this.greaseNext = this.now + 20;
 
     this.player.sprite = this.img(this.bagel.tex, 0, 0, 50);
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
@@ -449,9 +486,15 @@ export class GameScene extends Phaser.Scene implements World {
       e.hitCd.set(key, this.now);
     }
     e.hp -= dmg;
+    if (key === 'burn') {
+      // Burn ticks are quiet: no flash, no sound, so the orange glow stays visible.
+      if (e.hp <= 0) this.killEnemy(e);
+      return true;
+    }
     e.kx += (kx * 1.5) / e.mass;
     e.ky += (ky * 1.5) / e.mass;
     e.flashUntil = this.now + 0.08;
+    if (this.bagel.quirkId === 'spicy' && e.hp > 0 && dmg > 0 && Math.random() < SPICY_CHANCE) this.ignite(e, dmg);
     if (fx) {
       hitSfx(fx);
       this.hitSpark(e.x, e.y, fx);
@@ -462,6 +505,41 @@ export class GameScene extends Phaser.Scene implements World {
     }
     if (e.hp <= 0) this.killEnemy(e);
     return true;
+  }
+
+  /** Spicy: set an enemy on fire. A new flame refreshes the timer and keeps the bigger burn. */
+  private ignite(e: Enemy, dmg: number): void {
+    const burning = e.burnUntil > this.now;
+    if (!burning) {
+      e.burnT = BURN_TICK;
+      e.burnDmg = 0;
+      sfx('ignite');
+    }
+    e.burnUntil = this.now + BURN_TIME;
+    e.burnDmg = Math.max(e.burnDmg, 3, dmg * BURN_SHARE);
+  }
+
+  /** Burning enemies tick damage and show a flickering flame and a hot orange tint. */
+  private updateBurn(e: Enemy, dt: number): void {
+    const burning = e.burnUntil > this.now;
+    if (burning) {
+      e.burnT -= dt;
+      if (!e.flame) e.flame = this.img('flame', e.x, e.y, 36);
+      const f = e.flame;
+      const flick = 1 + 0.18 * Math.sin(this.now * 31 + e.phase) + 0.1 * Math.sin(this.now * 53);
+      const sc = Math.max(0.8, e.radius / 10) / S;
+      f.setVisible(true).setPosition(e.x + e.radius * 0.35, e.y - e.radius * 0.55).setScale(sc * 0.9, sc * flick);
+      if (this.particles < 100 && Math.random() < 0.08) this.burst(e.x, e.y - e.radius * 0.5, 0xff8a2a, 1, 14);
+      if (e.burnT <= 0) {
+        e.burnT += BURN_TICK;
+        this.hit(e, e.burnDmg, 0, 0, 'burn', 0);
+      }
+    } else if (e.flame?.visible) e.flame.setVisible(false);
+    if (burning !== e.burnShown) {
+      e.burnShown = burning;
+      if (!burning) e.sprite.clearTint();
+    }
+    if (burning && e.alive && e.flashUntil <= this.now) e.sprite.setTint(0xffa070);
   }
 
   private cellKey(cx: number, cy: number): number {
@@ -629,6 +707,7 @@ export class GameScene extends Phaser.Scene implements World {
   private step(dt: number): void {
     this.now += dt;
     this.updatePlayer(dt);
+    if (this.posts.length) this.pushOut(this.player, this.player.radius);
     this.director(dt);
     this.rebuildGrid();
     this.updateEnemies(dt);
@@ -637,6 +716,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.updateShots(dt);
     this.updateHazards(dt);
     this.updateFreezerHazards(dt);
+    this.updateOvenHazards(dt);
     this.updatePickups(dt);
     this.updateQuirk(dt);
     this.snapT -= dt;
@@ -825,7 +905,7 @@ export class GameScene extends Phaser.Scene implements World {
       return;
     }
     const st = this.stage;
-    if (!st.ice && !st.frost) {
+    if (!st.ice && !st.frost && !st.grease) {
       p.x += mx * this.stats.speed * dt;
       p.y += my * this.stats.speed * dt;
       return;
@@ -834,8 +914,9 @@ export class GameScene extends Phaser.Scene implements World {
     const sp = this.stats.speed * (this.frozen ? FROST_SLOW : 1) * (this.inMelt(p.x, p.y) ? MELT_SLOW : 1);
     const tx = mx * sp;
     const ty = my * sp;
-    const ice = st.ice ? this.iceAt(p.x, p.y) : false;
-    if (ice && !this.onIce) sfx('ice');
+    // Grease slicks (Toaster Oven) slide like ice; they live in tempIce.
+    const ice = st.ice || st.grease ? this.iceAt(p.x, p.y) : false;
+    if (ice && !this.onIce && st.ice) sfx('ice');
     this.onIce = ice;
     if (ice) {
       const k = 1 - Math.exp(-ICE_GRIP * dt);
@@ -1006,6 +1087,7 @@ export class GameScene extends Phaser.Scene implements World {
         }
         this.propChunks.set(key, list);
         if (this.stage.ice) this.iceChunks.set(key, this.makeIce(cx, cy, C));
+        if (this.stage.posts) this.postChunks.set(key, this.makePosts(cx, cy, C));
       }
     for (const [key, list] of this.propChunks)
       if (!keep.has(key)) {
@@ -1013,7 +1095,42 @@ export class GameScene extends Phaser.Scene implements World {
         this.propChunks.delete(key);
         for (const ip of this.iceChunks.get(key) ?? []) ip.imgs.forEach((im) => im.destroy());
         this.iceChunks.delete(key);
+        for (const po of this.postChunks.get(key) ?? []) po.img.destroy();
+        this.postChunks.delete(key);
       }
+    if (this.stage.posts) this.posts = [...this.postChunks.values()].flat();
+  }
+
+  /** Seeded rack posts (drawn as oven knobs) for one floor chunk: about 1 on average, never near where a run starts. */
+  private makePosts(cx: number, cy: number, C: number): Post[] {
+    const h = (Math.imul(cx, 49979687) ^ Math.imul(cy, 1500450271)) >>> 0;
+    const rand = rng((h % 2147483646) + 1);
+    rand();
+    const r = rand();
+    const n = r < 0.2 ? 2 : r < 0.8 ? 1 : 0;
+    const out: Post[] = [];
+    for (let i = 0; i < n; i++) {
+      const x = (cx + 0.15 + rand() * 0.7) * C;
+      const y = (cy + (i + 0.2 + rand() * 0.6) / Math.max(1, n)) * C;
+      if (Math.hypot(x, y) < 240) continue;
+      out.push({ x, y, img: this.img('post', x, y, 29) });
+    }
+    return out;
+  }
+
+  /** Slide something out of any rack post it overlaps. */
+  private pushOut(o: { x: number; y: number }, r: number): void {
+    for (const po of this.posts) {
+      const dx = o.x - po.x;
+      const dy = o.y - po.y;
+      const rr = r + POST_R;
+      if (Math.abs(dx) > rr || Math.abs(dy) > rr) continue;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr) continue;
+      const d = Math.sqrt(d2) || 0.01;
+      o.x = po.x + (dx / d) * rr;
+      o.y = po.y + (dy / d) * rr;
+    }
   }
 
   /** Seeded ice patches for one floor chunk: 0 to 2, never near where a run starts. */
@@ -1057,6 +1174,7 @@ export class GameScene extends Phaser.Scene implements World {
       const r = e.radius;
       g.fillEllipse(e.x, e.y + r * 0.85, r * 2, r * 0.6);
     }
+    for (const po of this.posts) g.fillEllipse(po.x + 4, po.y + 13, 34, 10);
     for (const it of this.pickups) {
       if (it.kind !== 'chest' && it.kind !== 'goldchest' && it.kind !== 'bun') continue;
       g.fillEllipse(it.x, it.y + 12, 24, 6);
@@ -1232,6 +1350,8 @@ export class GameScene extends Phaser.Scene implements World {
     e.stateT = 0;
     e.attackT = 1.5;
     e.attack2T = 0;
+    e.burnUntil = 0;
+    e.burnShown = false;
     e.hitCd.clear();
     this.enemies.push(e);
     if (isBig) this.bigs.push(e);
@@ -1266,6 +1386,18 @@ export class GameScene extends Phaser.Scene implements World {
       let mvy = (dy / dist) * e.speed * slow;
 
       const ai = ENEMIES[e.kind].ai;
+      if (ENEMIES[e.kind].drip) {
+        // Melting Scoop: small melt puddles behind it as it walks.
+        e.attack2T -= dt;
+        if (e.attack2T <= 0) {
+          e.attack2T = 1.4;
+          this.addMelt(e.x, e.y + e.radius * 0.5, false, 15, 3.5);
+        }
+      }
+      if (e.burnUntil > 0) {
+        this.updateBurn(e, dt);
+        if (!e.alive) continue;
+      }
       switch (ai === 'line' ? 'line' : ai === 'charge' ? 'charge' : ai === 'shoot' ? 'shoot' : e.kind) {
         case 'line':
           mvx = e.vx * slow;
@@ -1303,9 +1435,12 @@ export class GameScene extends Phaser.Scene implements World {
           } else if (e.state === 2) {
             mvx = e.vx * slow;
             mvy = e.vy * slow;
+            // Burnt Toast flips end over end as it charges.
+            if (e.kind === 'btoast') e.sprite.setRotation(e.sprite.rotation + dt * 16);
             if (e.stateT <= 0) {
               e.state = 3;
               e.stateT = 0.8;
+              if (e.kind === 'btoast') e.sprite.setRotation(0);
             }
           } else {
             mvx *= 0.3;
@@ -1327,10 +1462,18 @@ export class GameScene extends Phaser.Scene implements World {
           e.sprite.setRotation(Math.sin(t * 6 + e.phase) * 0.1);
           e.attackT -= dt;
           if (e.attackT <= 0) {
-            e.attackT = 2.5;
+            const shot = ENEMIES[e.kind].shot;
+            e.attackT = shot?.every ?? 2.5;
             if (dist < 300) {
-              sfx('pea');
-              this.fireShot('pea', e.x, e.y, Math.atan2(dy, dx), 120, 8, 7);
+              const a = Math.atan2(dy, dx);
+              if (shot) {
+                // Hot Sauce Drop: a 3-shot spread of big red blobs.
+                sfx('sauce');
+                for (let i = 0; i < shot.n; i++) this.fireShot(shot.tex, e.x, e.y, a + (i - (shot.n - 1) / 2) * shot.spread, shot.speed, shot.dmg, shot.r);
+              } else {
+                sfx('pea');
+                this.fireShot('pea', e.x, e.y, a, 120, 8, 7);
+              }
             }
           }
           break;
@@ -1536,6 +1679,8 @@ export class GameScene extends Phaser.Scene implements World {
         }
       }
 
+      if (this.posts.length && !e.boss) this.pushOut(e, e.radius);
+
       // Recycle stragglers to the front (keeps pressure on without huge counts).
       if (!e.boss && !ENEMIES[e.kind].flat) {
         const rx = e.x - p.x;
@@ -1579,6 +1724,7 @@ export class GameScene extends Phaser.Scene implements World {
   private removeEnemy(e: Enemy): void {
     e.alive = false;
     e.sprite.setVisible(false);
+    e.flame?.setVisible(false);
   }
 
   private compactEnemies(): void {
@@ -1618,6 +1764,7 @@ export class GameScene extends Phaser.Scene implements World {
         }
       }
     }
+    if (def.ember) this.addSpark(e.x, e.y);
     if (e.xp > 0) this.dropXp(e.x, e.y, e.xp);
     // Bread basket normally; the Croissant always drops a gold toaster, elites 1 in 4.
     if (e.dropsChest) this.dropPickup(e.kind === this.stage.mini.kind || Math.random() < 0.25 + 0.05 * this.luckNow ? 'goldchest' : 'chest', e.x, e.y, 1);
@@ -1821,6 +1968,18 @@ export class GameScene extends Phaser.Scene implements World {
         this.damagePlayer(s.dmg);
         dead = true;
       }
+      // Rack posts block enemy shots (but never yours), so you can duck behind one.
+      if (!dead && this.posts.length)
+        for (const po of this.posts) {
+          const px = s.x - po.x;
+          const py = s.y - po.y;
+          if (px * px + py * py < (POST_R + s.r) ** 2) {
+            dead = true;
+            sfx('clang');
+            this.burst(s.x, s.y, 0xd8d4d0, 4, 18);
+            break;
+          }
+        }
       if (dead) {
         s.sprite.destroy();
         this.shots.splice(i, 1);
@@ -1867,13 +2026,12 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- Freezer elite and boss hazards
 
   /** A pink melt puddle (outlined in white) that slows the bagel. */
-  private addMelt(x: number, y: number, audible: boolean): void {
-    const r = 26;
+  private addMelt(x: number, y: number, audible: boolean, r = 26, life = 7): void {
     const img = this.img('melt', x, y, 3);
     const sc = (r * 2) / 64 / S;
     img.setScale(sc * 0.3);
     this.tweens.add({ targets: img, scale: sc, duration: 260, ease: 'Back.Out' });
-    this.melts.push({ img, x, y, r, life: 7 });
+    this.melts.push({ img, x, y, r, life });
     if (this.melts.length > 16) this.melts.shift()!.img.destroy();
     if (audible) sfx('melt');
   }
@@ -1948,6 +2106,147 @@ export class GameScene extends Phaser.Scene implements World {
       sfx('icicle');
       for (let k = 0; k < w.n; k++) this.fireShot('icicle', w.x, w.y, w.a, 300 - k * 35, 14, 6, true);
       this.warns.splice(i, 1);
+    }
+  }
+
+  // ---------------------------------------------------------------- Toaster Oven hazards
+
+  /** An ember spark where an Ember Crumb died: it stings only if you walk right into it. */
+  private addSpark(x: number, y: number): void {
+    if (this.sparks.length >= 24) this.sparks.shift()!.img.destroy();
+    // Drawn above seeds (and nudged off the spot where the seed lands) so it always reads as a red flame.
+    const a = Math.random() * Math.PI * 2;
+    x += Math.cos(a) * 10;
+    y += Math.sin(a) * 10;
+    const img = this.img('ember', x, y, 11);
+    this.sparks.push({ img, x, y, life: 1.1 });
+  }
+
+  /** A coil flare-up: a strip near you (never under you) glows for 1.5s, then flares. */
+  private addCoil(): void {
+    const p = this.player;
+    const horiz = Math.random() < 0.5;
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const off = side * (55 + Math.random() * 110);
+    const along = (Math.random() - 0.5) * 160 + (horiz ? p.moveX : p.moveY) * 90;
+    const x = horiz ? p.x + along : p.x + off;
+    const y = horiz ? p.y + off : p.y + along;
+    this.coils.push({ x, y, horiz, t: COIL_WARN, flare: 0 });
+    sfx('hiss');
+  }
+
+  private inCoil(c: { x: number; y: number; horiz: boolean }, x: number, y: number, pad: number): boolean {
+    const hw = (c.horiz ? COIL_LEN : COIL_W) / 2 + pad;
+    const hh = (c.horiz ? COIL_W : COIL_LEN) / 2 + pad;
+    return Math.abs(x - c.x) < hw && Math.abs(y - c.y) < hh;
+  }
+
+  /** A grease spot that wobbles and bubbles, then pops and leaves a slick. */
+  private addGrease(): void {
+    if (this.greases.length >= 4) return;
+    const p = this.player;
+    const moving = Math.hypot(p.moveX, p.moveY) > 0.3;
+    const a = moving && Math.random() < 0.6 ? Math.atan2(p.moveY, p.moveX) + (Math.random() - 0.5) * 1.6 : Math.random() * Math.PI * 2;
+    const d = 90 + Math.random() * 130;
+    const x = p.x + Math.cos(a) * d;
+    const y = p.y + Math.sin(a) * d;
+    const img = this.img('grease', x, y, 3);
+    img.setScale(((GREASE_R * 2) / 48 / S) * 0.3);
+    this.greases.push({ img, x, y, t: GREASE_WARN });
+    sfx('bubble');
+  }
+
+  private updateOvenHazards(dt: number): void {
+    const st = this.stage;
+    const p = this.player;
+    const g = this.ovenGfx;
+    if (st.coils || st.grease) {
+      // More often as the run goes on; a little calmer while the boss is out.
+      const k = Math.min(1, this.stageT / RUN.bossAt);
+      const calm = this.boss ? 1.4 : 1;
+      if (st.coils && this.now >= this.coilNext) {
+        this.coilNext = this.now + (8 - 3.5 * k) * calm;
+        this.addCoil();
+      }
+      if (st.grease && this.now >= this.greaseNext) {
+        this.greaseNext = this.now + (6 - 2 * k) * calm;
+        this.addGrease();
+        if (k > 0.5 && Math.random() < 0.5) this.addGrease();
+      }
+    }
+    if (!this.coils.length && !this.greases.length && !this.sparks.length) {
+      if (g.visible) g.clear().setVisible(false);
+      return;
+    }
+    g.clear().setVisible(true);
+    for (let i = this.coils.length - 1; i >= 0; i--) {
+      const c = this.coils[i];
+      const w = c.horiz ? COIL_LEN : COIL_W;
+      const h = c.horiz ? COIL_W : COIL_LEN;
+      const x0 = c.x - w / 2;
+      const y0 = c.y - h / 2;
+      if (c.t > 0) {
+        c.t -= dt;
+        // Warning: an orange glow that brightens and blinks faster as it gets close.
+        const k = 1 - Math.max(0, c.t) / COIL_WARN;
+        const blink = Math.floor(this.now * (6 + k * 14)) % 2 ? 1 : 0.7;
+        g.fillStyle(0xff7a1f, (0.18 + 0.32 * k) * blink).fillRoundedRect(x0, y0, w, h, 10);
+        g.lineStyle(3, 0xffffff, 0.85).strokeRoundedRect(x0, y0, w, h, 10);
+        g.lineStyle(4, 0xffc04a, 0.5 + 0.5 * k);
+        if (c.horiz) g.lineBetween(x0 + 8, c.y, x0 + w - 8, c.y);
+        else g.lineBetween(c.x, y0 + 8, c.x, y0 + h - 8);
+        if (c.t <= 0) {
+          // Flare: burns you and every enemy on the strip.
+          c.flare = 0.35;
+          sfx('flare');
+          if (this.inCoil(c, p.x, p.y, p.radius * 0.6)) this.damagePlayer(COIL_DMG);
+          for (const e of this.enemies)
+            if (e.alive && this.inCoil(c, e.x, e.y, e.radius * 0.5)) this.hit(e, COIL_ENEMY_DMG, 0, 0, 'coil', 0.5);
+          for (let j = 0; j < 5; j++) {
+            const f = (j + 0.5) / 5 - 0.5;
+            this.burst(c.horiz ? c.x + f * w : c.x, c.horiz ? c.y : c.y + f * h, 0xffb03a, 4, 34);
+          }
+        }
+        continue;
+      }
+      c.flare -= dt;
+      const a = Math.max(0, c.flare / 0.35);
+      g.fillStyle(0xff5a14, 0.55 * a).fillRoundedRect(x0 - 6, y0 - 6, w + 12, h + 12, 14);
+      g.fillStyle(0xffe08a, 0.9 * a).fillRoundedRect(x0 + 4, y0 + 4, w - 8, h - 8, 8);
+      if (c.flare <= 0) this.coils.splice(i, 1);
+    }
+    for (let i = this.greases.length - 1; i >= 0; i--) {
+      const gs = this.greases[i];
+      gs.t -= dt;
+      const base = (GREASE_R * 2) / 48 / S;
+      const k = 1 - Math.max(0, gs.t) / GREASE_WARN;
+      const wob = 1 + 0.12 * Math.sin(this.now * (14 + k * 16));
+      gs.img.setScale(base * Math.min(1, 0.3 + k * 2) * wob, base * Math.min(1, 0.3 + k * 2) / wob);
+      if (gs.t > 0) continue;
+      sfx('grease');
+      const dx = gs.x - p.x;
+      const dy = gs.y - p.y;
+      if (dx * dx + dy * dy < (GREASE_R + p.radius) ** 2) this.damagePlayer(GREASE_DMG);
+      this.burst(gs.x, gs.y, 0xffd27a, 8, 40);
+      const rx = 52;
+      const ry = 36;
+      const slick = this.img('slick', gs.x, gs.y, 1.5);
+      slick.setScale((rx * 2) / 120 / S, (ry * 2) / 80 / S);
+      this.tempIce.push({ x: gs.x, y: gs.y, rx, ry, imgs: [slick], life: SLICK_LIFE });
+      gs.img.destroy();
+      this.greases.splice(i, 1);
+    }
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      const s = this.sparks[i];
+      s.life -= dt;
+      s.img.setScale((0.8 + 0.25 * Math.sin(this.now * 40 + i)) / S).setAlpha(Math.min(1, s.life * 2));
+      const dx = s.x - p.x;
+      const dy = s.y - p.y;
+      if (dx * dx + dy * dy < (6 + p.radius) ** 2) this.damagePlayer(3);
+      if (s.life <= 0) {
+        s.img.destroy();
+        this.sparks.splice(i, 1);
+      }
     }
   }
 

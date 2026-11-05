@@ -179,11 +179,15 @@ export interface StageDef {
   /** False until the stage's content exists: shown as "Coming soon" and can't be picked. */
   built: boolean;
   floor: string; // tiling texture, 256 × 256
-  props: 'counter' | 'freezer';
+  props: 'counter' | 'freezer' | 'oven';
   /** Freezer hazards: slippery ice patches on the floor, frost when standing still, Warm Mug drops. */
   ice?: boolean;
   frost?: boolean;
   mug?: boolean;
+  /** Toaster Oven hazards: coil flare-ups (warned strips that burn), grease pops (leave a slick), solid rack posts. */
+  coils?: boolean;
+  grease?: boolean;
+  posts?: boolean;
   /** Dough multiplier for runs on this stage. */
   dough: number;
   // Difficulty dials
@@ -242,7 +246,6 @@ const BAKERY_STAGE: StageDef = {
   music: { run: 'run', boss: 'boss' },
 };
 
-// Stage 3 borrows Stage 1's cast and floor until its own content is built (M9).
 // Their difficulty dials are first guesses, tuned with the bot benchmark when each stage is built.
 export const STAGES: StageDef[] = [
   BAKERY_STAGE,
@@ -293,9 +296,26 @@ export const STAGES: StageDef[] = [
     pips: 3,
     unlockAfter: 'stage2',
     unlockText: 'Beat the Freezer Burn',
-    built: false,
+    built: true,
+    floor: 'floor_stage3',
+    props: 'oven',
+    coils: true,
+    grease: true,
+    posts: true,
     dough: 2,
     hpGrowth: 145,
+    // First-pass dials. Part 2 tunes the whole stage once it has its own elites and bosses.
+    dmg: 1.06,
+    spawnRate: 1.04,
+    mix: [
+      { until: 45, table: [['ember', 1]] },
+      { until: 90, table: [['ember', 62], ['popcorn', 38]] },
+      { until: 120, table: [['ember', 44], ['popcorn', 24], ['btoast', 18], ['hotsauce', 14]] },
+      { until: Infinity, table: [['ember', 30], ['popcorn', 20], ['btoast', 16], ['hotsauce', 12], ['tot', 14], ['mscoop', 8]] },
+    ],
+    wave: { kinds: ['mscoop', 'ember'], banner: 'The heat closes in!' },
+    lines: 'wafflebit',
+    // Part 2 of M9 brings the oven's own elite, mini-boss, boss and music; until then it borrows Stage 1's.
   },
 ];
 
@@ -306,7 +326,7 @@ export function stageById(id: string | undefined): StageDef {
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 
-export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged';
+export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy';
 
 /** stageclear / stagetime: clear, or survive `target` seconds in, the goal's `stage`. */
 export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook' | 'stageclear' | 'stagetime';
@@ -431,6 +451,20 @@ export const BAGELS: BagelDef[] = [
     choices: 3,
     allStats: 0,
   },
+  // Phase 2: the Toaster Oven bagel
+  {
+    id: 'jalapeno',
+    name: 'Jalapeño Cheddar',
+    tex: 'bagel_jalapeno',
+    weapon: 'coffee',
+    quirk: 'Spicy: hits have a 10% chance to set enemies on fire. Starts with Hot Coffee Splash.',
+    quirkId: 'spicy',
+    goal: { kind: 'stageclear', target: 1, stage: 'stage3', text: 'Clear the Toaster Oven' },
+    hp: 95,
+    speed: 140,
+    choices: 3,
+    allStats: 0,
+  },
 ];
 
 export interface UpgradeDef {
@@ -459,7 +493,9 @@ export type EnemyKind =
   | 'crumb' | 'mold' | 'moldling' | 'knife' | 'ant' | 'elite' | 'croissant' | 'toaster'
   // The Freezer
   | 'fcrumb' | 'icecube' | 'peapod' | 'popsicle' | 'pophalf' | 'fmold' | 'fmoldling' | 'sprinkle'
-  | 'scoop' | 'fcroissant' | 'tyrantjr' | 'waffle' | 'wafflesq' | 'fburn';
+  | 'scoop' | 'fcroissant' | 'tyrantjr' | 'waffle' | 'wafflesq' | 'fburn'
+  // The Toaster Oven
+  | 'ember' | 'btoast' | 'hotsauce' | 'popcorn' | 'popbit' | 'tot' | 'wafflebit' | 'mscoop';
 
 export interface EnemyDef {
   tex: string;
@@ -479,6 +515,12 @@ export interface EnemyDef {
   burst?: number;
   /** Elites, mini-bosses and bosses: flat health (no growth over the run), never recycled or capped. */
   flat?: boolean;
+  /** Shooters: what they fire (default: one Pea Pod pea). */
+  shot?: { tex: string; n: number; spread: number; speed: number; dmg: number; r: number; every: number };
+  /** Leaves a small, short-lived ember spark where it dies. */
+  ember?: boolean;
+  /** Drips small melt puddles as it walks. */
+  drip?: boolean;
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
@@ -505,6 +547,15 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   waffle: { tex: 'en_waffle', hp: 1500, speed: 62, dmg: 16, radius: 30, xp: 30, mass: 12, split: { kind: 'wafflesq', n: 4 }, burst: 0xdda04a, flat: true },
   wafflesq: { tex: 'en_wafflesq', hp: 30, speed: 72, dmg: 7, radius: 11, xp: 2, mass: 1.2, burst: 0xdda04a },
   fburn: { tex: 'en_fburn', hp: 6000, speed: 34, dmg: 25, radius: 44, xp: 0, mass: 40, burst: 0xd9472e, flat: true },
+  // The Toaster Oven
+  ember: { tex: 'en_ember', hp: 9, speed: 72, dmg: 5, radius: 9, xp: 1, mass: 1, burst: 0xff8a3a, ember: true },
+  btoast: { tex: 'en_btoast', hp: 36, speed: 44, dmg: 14, radius: 13, xp: 3, mass: 2.2, ai: 'charge', dash: 360, burst: 0x5a2f14 },
+  hotsauce: { tex: 'en_hotsauce', hp: 22, speed: 50, dmg: 6, radius: 11, xp: 3, mass: 1.2, ai: 'shoot', burst: 0xe0331f, shot: { tex: 'sauce', n: 3, spread: 0.26, speed: 125, dmg: 7, r: 7, every: 2.9 } },
+  popcorn: { tex: 'en_popcorn', hp: 22, speed: 48, dmg: 8, radius: 11, xp: 2, mass: 1.3, split: { kind: 'popbit', n: 3 }, burst: 0xffe9a8 },
+  popbit: { tex: 'en_popbit', hp: 7, speed: 84, dmg: 4, radius: 7.5, xp: 1, mass: 0.8, burst: 0xfff6d8 },
+  tot: { tex: 'en_tot', hp: 30, speed: 58, dmg: 8, radius: 11, xp: 2, mass: 1.6, burst: 0xb8c3cc },
+  wafflebit: { tex: 'en_wafflesq', hp: 14, speed: 100, dmg: 6, radius: 10, xp: 1, mass: 0.9, ai: 'line', burst: 0xdda04a },
+  mscoop: { tex: 'en_mscoop', hp: 44, speed: 38, dmg: 9, radius: 13, xp: 3, mass: 2, burst: 0xf59ab4, drip: true },
 };
 
 // Run pacing (seconds)

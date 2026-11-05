@@ -8,7 +8,8 @@ export type Sfx =
   | 'shoot' | 'lox' | 'storm' | 'crunch' | 'splat' | 'clatter' | 'pop' | 'basket' | 'gold' | 'evolve'
   | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin'
   | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge'
-  | 'knife' | 'jar' | 'toastpop' | 'stamp';
+  | 'knife' | 'jar' | 'toastpop' | 'stamp'
+  | 'hiss' | 'flare' | 'bubble' | 'grease' | 'sauce' | 'popcorn' | 'ignite' | 'clang';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -23,9 +24,10 @@ const minGap: Record<Sfx, number> = {
   heart: 0.85, ding: 0.5, flakes: 0.5, swoosh: 0.12, lock: 0.2, coin: 0.08,
   ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06, icicle: 0.2, roar: 1.5, melt: 0.5, charge: 0.4,
   knife: 0.12, jar: 0.15, toastpop: 0.2, stamp: 0.25,
+  hiss: 0.4, flare: 0.25, bubble: 0.6, grease: 0.2, sauce: 0.2, popcorn: 0.06, ignite: 0.15, clang: 0.12,
 };
 /** Sounds that may be dropped when too many play at once. */
-const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true };
+const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
 const recent: number[] = [];
 let xpPitch = 0;
 let xpPitchAt = 0;
@@ -360,6 +362,36 @@ export function sfx(name: Sfx): void {
     case 'stamp': // waffle smash: a heavy thunk
       tone('sine', 110, 45, 0.22, 0.32);
       noise(0.14, 0.24, 350);
+      break;
+    case 'hiss': // a coil about to flare: a rising hiss over 1.5s
+      noise(1.5, 0.12, 1500, { type: 'highpass', freq1: 7000 });
+      tone('sine', 220, 660, 1.4, 0.04);
+      break;
+    case 'flare': // the coil flares: a hot whoomp
+      noise(0.45, 0.3, 300, { type: 'lowpass', freq1: 2400 });
+      tone('sawtooth', 160, 60, 0.3, 0.1);
+      break;
+    case 'bubble': // grease bubbling
+      for (let i = 0; i < 4; i++) tone('sine', 380 + Math.random() * 220, 700, 0.05, 0.06, i * 0.09);
+      break;
+    case 'grease': // grease pop
+      tone('sine', 900, 200, 0.07, 0.14);
+      noise(0.18, 0.14, 3200, { type: 'highpass', delay: 0.02 });
+      break;
+    case 'sauce': // hot sauce spit
+      tone('sine', 520, 180, 0.1, 0.14);
+      noise(0.08, 0.1, 1200);
+      break;
+    case 'popcorn': // a kernel popping
+      tone('square', 1300 + Math.random() * 300, 500, 0.04, 0.08);
+      noise(0.04, 0.12, 2500, { type: 'bandpass' });
+      break;
+    case 'ignite': // an enemy catches fire (Spicy)
+      noise(0.16, 0.1, 2000, { type: 'bandpass', freq1: 600 });
+      break;
+    case 'clang': // an enemy shot hits a rack post
+      tone('triangle', 1250, 1180, 0.12, 0.06);
+      tone('sine', 2500, 2400, 0.08, 0.03);
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);
