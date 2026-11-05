@@ -2459,3 +2459,246 @@ export function drawFlame(c: Ctx, w: number, h: number): void {
   c.fillStyle = '#ffd34a';
   c.fill();
 }
+
+// ---------- Toaster Oven elites and bosses ----------
+
+/** Molten Muffin (elite): a dark muffin top with glowing lava cracks, in a paper cup. */
+export function drawMoltenMuffin(c: Ctx, s: number): void {
+  const m = s / 2;
+  const line = 3;
+  // Paper cup with ridges
+  c.beginPath();
+  c.moveTo(m - s * 0.32, m + s * 0.02);
+  c.lineTo(m + s * 0.32, m + s * 0.02);
+  c.lineTo(m + s * 0.24, s - 4);
+  c.lineTo(m - s * 0.24, s - 4);
+  c.closePath();
+  c.fillStyle = linear(c, 0, m, 0, s, [
+    [0, '#e8d6b8'],
+    [1, '#b99e78'],
+  ]);
+  c.fill();
+  ink(c, line);
+  c.strokeStyle = 'rgba(120,90,60,0.7)';
+  c.lineWidth = 1.4;
+  for (let i = -3; i <= 3; i++) {
+    c.beginPath();
+    c.moveTo(m + i * s * 0.085, m + s * 0.04);
+    c.lineTo(m + i * s * 0.065, s - 6);
+    c.stroke();
+  }
+  // Muffin top
+  const top = () => {
+    c.beginPath();
+    c.moveTo(m - s * 0.4, m + s * 0.06);
+    c.bezierCurveTo(m - s * 0.5, m - s * 0.28, m - s * 0.2, m - s * 0.44, m, m - s * 0.42);
+    c.bezierCurveTo(m + s * 0.2, m - s * 0.44, m + s * 0.5, m - s * 0.28, m + s * 0.4, m + s * 0.06);
+    c.closePath();
+  };
+  top();
+  c.fillStyle = radial(c, m, m - s * 0.15, s * 0.42, [
+    [0, '#8a4a22'],
+    [0.7, '#5a2c12'],
+    [1, '#3e1c0a'],
+  ]);
+  c.fill();
+  ink(c, line);
+  // Lava cracks
+  c.save();
+  top();
+  c.clip();
+  for (const [col, wdt] of [
+    ['#ff7a1f', 3.2],
+    ['#ffd34a', 1.3],
+  ] as [string, number][]) {
+    c.strokeStyle = col;
+    c.lineWidth = wdt;
+    c.beginPath();
+    c.moveTo(m - s * 0.3, m - s * 0.2);
+    c.lineTo(m - s * 0.16, m - s * 0.08);
+    c.lineTo(m - s * 0.22, m + s * 0.04);
+    c.moveTo(m + s * 0.05, m - s * 0.38);
+    c.lineTo(m + s * 0.02, m - s * 0.24);
+    c.lineTo(m + s * 0.12, m - s * 0.16);
+    c.moveTo(m + s * 0.32, m - s * 0.12);
+    c.lineTo(m + s * 0.22, m - s * 0.02);
+    c.stroke();
+  }
+  c.restore();
+  // Face on the cup's top edge
+  angryEye(c, m - s * 0.12, m - s * 0.08, s * 0.07, -1, 2.2, '#ffb22e');
+  angryEye(c, m + s * 0.12, m - s * 0.08, s * 0.07, 1, 2.2, '#ffb22e');
+  c.beginPath();
+  c.arc(m, m + s * 0.12, s * 0.06, Math.PI * 1.15, Math.PI * 1.85);
+  ink(c, 2);
+}
+
+/** The Freezer Burn as the oven's surprise elite: the old boss, shrunk and scorched around the edges. */
+export function drawFreezerBurnt(c: Ctx, s: number): void {
+  c.save();
+  c.scale(s / 104, s / 104);
+  drawFreezerBurn(c, 104);
+  c.globalCompositeOperation = 'source-atop';
+  const g = c.createRadialGradient(52, 52, 26, 52, 52, 52);
+  g.addColorStop(0, 'rgba(40,20,10,0)');
+  g.addColorStop(1, 'rgba(40,20,10,0.55)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 104, 104);
+  c.globalCompositeOperation = 'source-over';
+  c.restore();
+}
+
+/** Flapjack Stack (mini-boss): `n` pancakes with butter and syrup on top and a face on the front. */
+export function drawFlapjack(c: Ctx, w: number, h: number, n: number): void {
+  const x = w / 2;
+  const cakeH = 10;
+  const rx = w * 0.44;
+  const base = h - 6;
+  // Plate
+  c.beginPath();
+  c.ellipse(x, base, w * 0.48, 5, 0, 0, TAU);
+  c.fillStyle = '#f4efe6';
+  c.fill();
+  ink(c, 2);
+  for (let i = 0; i < n; i++) {
+    const y = base - 4 - i * cakeH;
+    c.beginPath();
+    c.ellipse(x, y, rx - (i % 2) * 1.5, 6, 0, 0, Math.PI);
+    c.lineTo(x - rx + (i % 2) * 1.5, y - cakeH + 2);
+    c.ellipse(x, y - cakeH + 2, rx - (i % 2) * 1.5, 6, 0, Math.PI, 0, false);
+    c.closePath();
+    c.fillStyle = linear(c, 0, y - cakeH, 0, y + 6, [
+      [0, '#f2b862'],
+      [1, '#b8742c'],
+    ]);
+    c.fill();
+    ink(c, 2.2);
+  }
+  // Top face
+  const topY = base - 2 - n * cakeH;
+  c.beginPath();
+  c.ellipse(x, topY, rx, 7, 0, 0, TAU);
+  c.fillStyle = '#e9a24a';
+  c.fill();
+  ink(c, 2.2);
+  // Syrup drips and a butter pat
+  c.beginPath();
+  c.ellipse(x, topY, rx * 0.6, 4.5, 0, 0, TAU);
+  c.fillStyle = 'rgba(150,70,20,0.85)';
+  c.fill();
+  for (const dx of [-0.5, 0.15, 0.6]) {
+    rrect(c, x + dx * rx - 2, topY + 2, 4, 8 + Math.abs(dx) * 6, 2);
+    c.fill();
+  }
+  rrect(c, x - 6, topY - 5, 12, 7, 2);
+  c.fillStyle = '#ffe98a';
+  c.fill();
+  ink(c, 1.4);
+  // Face on the top pancake's front
+  const fy = topY + cakeH * 0.75;
+  angryEye(c, x - rx * 0.3, fy, 4, -1, 2);
+  angryEye(c, x + rx * 0.3, fy, 4, 1, 2);
+}
+
+/** Flapjack Stack's thrown pancake: a golden disc with a white rim so it reads on the dark rack. */
+export function drawPancakeShot(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1.5, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+  ink(c, 1.4);
+  c.beginPath();
+  c.arc(m, m, m - 3.6, 0, TAU);
+  c.fillStyle = radial(c, m, m, m, [
+    [0, '#ffd27a'],
+    [1, '#c47c36'],
+  ]);
+  c.fill();
+  rrect(c, m - 2.5, m - 2, 5, 4, 1);
+  c.fillStyle = '#fff2a0';
+  c.fill();
+}
+
+/** The Broiler's fireball: an orange core with a thick white rim. */
+export function drawFireball(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1.5, 0, TAU);
+  c.fillStyle = '#ffffff';
+  c.fill();
+  ink(c, 1.4);
+  c.beginPath();
+  c.arc(m, m, m - 3.6, 0, TAU);
+  c.fillStyle = radial(c, m, m, m, [
+    [0, '#fff1a8'],
+    [0.5, '#ff9a2e'],
+    [1, '#e0441a'],
+  ]);
+  c.fill();
+}
+
+/** The Broiler (boss): a living oven tray with a grill-bar mouth and glowing element brows. */
+export function drawBroiler(c: Ctx, w: number, h: number): void {
+  const line = 3.5;
+  // Tray body
+  rrect(c, 4, 10, w - 8, h - 18, 16);
+  c.fillStyle = linear(c, 0, 10, 0, h, [
+    [0, '#6a6460'],
+    [0.5, '#3f3a37'],
+    [1, '#2a2522'],
+  ]);
+  c.fill();
+  ink(c, line);
+  // Inner tray rim
+  rrect(c, 12, 18, w - 24, h - 34, 10);
+  c.strokeStyle = 'rgba(255,255,255,0.18)';
+  c.lineWidth = 2;
+  c.stroke();
+  // Heating-element brows
+  for (const d of [-1, 1]) {
+    c.beginPath();
+    c.moveTo(w / 2 + d * w * 0.06, h * 0.3);
+    c.lineTo(w / 2 + d * w * 0.36, h * 0.2);
+    c.strokeStyle = INK;
+    c.lineWidth = 7;
+    c.stroke();
+    c.strokeStyle = '#ff7a1f';
+    c.lineWidth = 4;
+    c.stroke();
+    c.strokeStyle = '#ffd34a';
+    c.lineWidth = 1.5;
+    c.stroke();
+  }
+  // Eyes with a hot glow
+  for (const d of [-1, 1]) {
+    c.beginPath();
+    c.arc(w / 2 + d * w * 0.2, h * 0.4, 13, 0, TAU);
+    c.fillStyle = 'rgba(255,90,30,0.3)';
+    c.fill();
+    angryEye(c, w / 2 + d * w * 0.2, h * 0.4, 8.5, d, 3, '#ff3b1f');
+  }
+  // Grill mouth
+  rrect(c, w * 0.22, h * 0.56, w * 0.56, h * 0.22, 8);
+  c.fillStyle = '#ff7a1f';
+  c.fill();
+  ink(c, 3);
+  c.save();
+  rrect(c, w * 0.22, h * 0.56, w * 0.56, h * 0.22, 8);
+  c.clip();
+  const g = c.createLinearGradient(0, h * 0.56, 0, h * 0.78);
+  g.addColorStop(0, '#ffd34a');
+  g.addColorStop(1, '#e0441a');
+  c.fillStyle = g;
+  c.fillRect(w * 0.22, h * 0.56, w * 0.56, h * 0.22);
+  c.fillStyle = '#2a2522';
+  for (let i = 1; i < 6; i++) c.fillRect(w * 0.22 + (i * w * 0.56) / 6 - 2, h * 0.56, 4, h * 0.22);
+  c.restore();
+  // Handles
+  for (const d of [-1, 1]) {
+    rrect(c, d < 0 ? 0 : w - 10, h * 0.42, 10, h * 0.18, 4);
+    c.fillStyle = '#8d8781';
+    c.fill();
+    ink(c, 2);
+  }
+}
