@@ -1651,6 +1651,35 @@ export const UI_ICONS: Record<string, (c: Ctx) => void> = {
     c.fillStyle = '#fff1b0';
     c.fill();
   },
+  // Goals page: a finished goal.
+  ic_check: (c) => {
+    c.beginPath();
+    c.arc(18, 18, 14, 0, TAU);
+    fillInk(c, radial(c, 15, 14, 16, [[0, '#b6e57e'], [1, '#5f9e36']]), 2.4);
+    c.beginPath();
+    c.moveTo(10.5, 18.5);
+    c.lineTo(15.5, 23.5);
+    c.lineTo(25.5, 12.5);
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.lineWidth = 6.5;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.lineWidth = 3.6;
+    c.strokeStyle = '#fff3dc';
+    c.stroke();
+  },
+  // Goals page: a secret not found yet.
+  ic_secret: (c) => {
+    c.beginPath();
+    c.arc(18, 18, 14, 0, TAU);
+    fillInk(c, radial(c, 15, 14, 16, [[0, '#6a5444'], [1, '#3d2e22']]), 2.4);
+    c.font = 'bold 20px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = '#f2b84b';
+    c.fillText('?', 18, 19.5);
+  },
 };
 
 // ---------- Chests ----------

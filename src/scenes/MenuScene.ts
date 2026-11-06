@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
-import { BAGELS, BAKERY, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
+import { BAGELS, BAKERY, ENEMIES, ENEMY_BOOK, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
+import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { bestStage, getBest, load, persist, type BestScore, type RunMode, type SaveData } from '../save';
@@ -40,7 +41,8 @@ export class MenuScene extends Phaser.Scene {
     playMusic('menu');
     const save = load();
     // Goals met by older saves (or handed out in preview builds) unlock on opening the game.
-    if (checkUnlocks(save).length + checkWeaponUnlocks(save).length) persist();
+    // Challenges already done by older saves pay out here too (the Goals button gets a red dot).
+    if (checkUnlocks(save).length + checkWeaponUnlocks(save).length + claimGoals(save).length) persist();
     this.idx = Math.max(0, BAGELS.findIndex((b) => b.id === save.selected));
     this.build();
     const onResize = () => this.build();
@@ -293,21 +295,29 @@ export class MenuScene extends Phaser.Scene {
     }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
     c.add(play);
     if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    const bw = (Math.min(W - 60 * S, 280 * S) - 10 * S) / 2;
-    c.add(
-      button(this, W / 2 - bw / 2 - 5 * S, playY + 80 * S, bw, 54 * S, 'BAKERY', () => this.openBakery(), {
+    // Bottom row: Bakery, Goals and Cookbook. A red dot on Goals means a challenge was just finished.
+    const rowW = Math.min(W - 40 * S, 300 * S);
+    const bw = (rowW - 16 * S) / 3;
+    const bottomRow: [string, () => void][] = [
+      ['BAKERY', () => this.openBakery()],
+      ['GOALS', () => this.openGoals(unseenGoals(save).length ? 1 : 0)],
+      ['COOKBOOK', () => this.openCookbook()],
+    ];
+    bottomRow.forEach(([label, fn], i) => {
+      const b = button(this, W / 2 + (i - 1) * (bw + 8 * S), playY + 80 * S, bw, 54 * S, label, fn, {
         color: COLORS.panelLight,
         textColor: CSS.cream,
-        size: 19,
-      }),
-    );
-    c.add(
-      button(this, W / 2 + bw / 2 + 5 * S, playY + 80 * S, bw, 54 * S, 'COOKBOOK', () => this.openCookbook(), {
-        color: COLORS.panelLight,
-        textColor: CSS.cream,
-        size: 19,
-      }),
-    );
+        size: bw < 96 * S ? 15 : 17,
+      });
+      c.add(b);
+      if (label === 'GOALS' && unseenGoals(save).length) {
+        const dot = this.add.graphics();
+        dot.fillStyle(0x24160d, 1).fillCircle(bw / 2 - 6 * S, -27 * S + 4 * S, 9 * S);
+        dot.fillStyle(COLORS.red, 1).fillCircle(bw / 2 - 6 * S, -27 * S + 4 * S, 6.5 * S);
+        b.add(dot);
+        this.tweens.add({ targets: dot, alpha: 0.55, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      }
+    });
     const stats = [
       pill(this, 0, bottom - 24 * S, 'ic_clock', `Best ${fmtTime(save.bestTime)}`, { size: 13, h: 26 }),
       pill(this, 0, bottom - 24 * S, 'ic_crown', `${save.clears} clears`, { size: 13, h: 26 }),
@@ -525,7 +535,160 @@ export class MenuScene extends Phaser.Scene {
     );
   }
 
+  /** Scales an icon (any texture: bagel, weapon icon, stage picture) to fit a square box. */
+  private fitIcon(x: number, y: number, key: string, box: number): Phaser.GameObjects.Image {
+    const im = this.add.image(x, y, key);
+    im.setScale(Math.min(box / im.width, box / im.height));
+    return im;
+  }
+
+  /** The Goals page: Unlocks (bagels, weapons, stages), Challenges (one-time Dough rewards) and Secrets. */
+  private openGoals(tab = 0, page = 0): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const save = load();
+    this.bakery?.destroy();
+    const c = this.add.container(0, 0);
+    this.bakery = c;
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    interface Row { icon: string; dark?: boolean; name: string; sub: string; frac: number; done: boolean; reward?: number; isNew?: boolean }
+    let rows: Row[] = [];
+    let sub = '';
+    if (tab === 0) {
+      for (const b of BAGELS) {
+        if (!b.goal) continue;
+        const st = goalStatus(save, b);
+        const done = save.unlocked.includes(b.id);
+        rows.push({ icon: b.tex, dark: !done, name: b.name, sub: done ? 'Unlocked' : `${b.goal.text}: ${st.progress}`, frac: done ? 1 : st.frac, done });
+      }
+      for (const w of Object.values(WEAPONS)) {
+        if (!w.unlock) continue;
+        const st = weaponGoalStatus(save, w);
+        const done = weaponOpen(save, w.id);
+        rows.push({ icon: w.icon, dark: !done, name: w.name, sub: done ? 'Unlocked' : `${w.unlock.text}: ${st.progress}`, frac: done ? 1 : st.frac, done });
+      }
+      for (const st of STAGES) {
+        if (!st.unlockAfter || !st.built) continue;
+        const done = stageUnlocked(save, st);
+        rows.push({ icon: `${st.thumb}_sm`, dark: !done, name: `Stage ${st.num}: ${st.name}`, sub: done ? 'Unlocked' : st.unlockText, frac: done ? 1 : 0, done });
+      }
+      sub = `${rows.filter((r) => r.done).length} of ${rows.length} unlocked`;
+    } else if (tab === 1) {
+      const fresh = new Set(unseenGoals(save));
+      rows = CHALLENGES.map((ch) => {
+        const st = ch.status(save);
+        const done = (save.goalsPaid ?? []).includes(ch.id);
+        return { icon: ch.icon, name: ch.name, sub: done ? `Done! +${ch.reward} Dough` : st.progress, frac: done ? 1 : st.frac, done, reward: ch.reward, isNew: fresh.has(ch.id) };
+      });
+      const earned = CHALLENGES.filter((ch) => (save.goalsPaid ?? []).includes(ch.id)).reduce((a, ch) => a + ch.reward, 0);
+      sub = `${rows.filter((r) => r.done).length} of ${rows.length} done · ${earned} Dough earned`;
+      // Seen now: the red dot on the Goals button goes away.
+      if (fresh.size) {
+        save.goalsSeen = [...(save.goalsPaid ?? [])];
+        persist();
+      }
+    } else {
+      rows = [
+        { icon: 'ic_secret', name: '???', sub: 'A secret bagel. Keep clearing stages to find it.', frac: 0, done: false },
+        { icon: 'ic_secret', name: '???', sub: 'A secret recipe. Keep evolving weapons to find it.', frac: 0, done: false },
+      ];
+      sub = `0 of ${rows.length} secrets found`;
+    }
+    const PER = 5;
+    const pages = Math.max(1, Math.ceil(rows.length / PER));
+    page = Math.min(page, pages - 1);
+    const shown = rows.slice(page * PER, page * PER + PER);
+    const pw = Math.min(W - 24 * S, 400 * S);
+    const rowH = 68 * S;
+    const ph = 150 * S + PER * rowH + 52 * S + 66 * S;
+    c.add(panel(this, W / 2, H / 2, pw, ph));
+    const top = H / 2 - ph / 2;
+    c.add(txt(this, W / 2, top + 36 * S, 'GOALS', 28, CSS.gold));
+    c.add(txt(this, W / 2, top + 64 * S, sub, 14, CSS.cream, { bold: false }));
+    const cw = pw - 28 * S;
+    const tw = (cw - 16 * S) / 3;
+    const unseen = unseenGoals(save).length > 0;
+    ['Unlocks', 'Challenges', 'Secrets'].forEach((label, i) => {
+      const on = i === tab;
+      const b = button(this, W / 2 + (i - 1) * (tw + 8 * S), top + 104 * S, tw, 38 * S, label, () => {
+        if (!on) this.openGoals(i);
+      }, { size: tw < 110 * S ? 14 : 16, muted: !on });
+      c.add(b);
+      if (i === 1 && unseen && !on) {
+        const dot = this.add.graphics();
+        dot.fillStyle(0x24160d, 1).fillCircle(tw / 2 - 5 * S, -16 * S, 7 * S);
+        dot.fillStyle(COLORS.red, 1).fillCircle(tw / 2 - 5 * S, -16 * S, 5 * S);
+        b.add(dot);
+      }
+    });
+    const lx = W / 2 - pw / 2 + 20 * S;
+    const textX = lx + 46 * S;
+    const rightW = 58 * S;
+    const textW = pw - 40 * S - 46 * S - rightW;
+    shown.forEach((r, i) => {
+      const y = top + 150 * S + i * rowH + rowH / 2;
+      const ic = this.fitIcon(lx + 16 * S, y - 2 * S, r.icon, 32 * S);
+      if (r.dark) ic.setTint(0x55504a);
+      c.add(ic);
+      const name = txt(this, textX, y - 29 * S, r.name, 14, r.done ? CSS.gold : CSS.cream, { stroke: false, wrap: textW / S, align: 'left' }).setOrigin(0, 0);
+      c.add(name);
+      const note = txt(this, textX, name.y + name.height + 1 * S, r.sub, 12, r.done ? '#c9e6a8' : CSS.muted, { bold: false, stroke: false, wrap: textW / S, align: 'left' }).setOrigin(0, 0);
+      c.add(note);
+      // Progress bar along the bottom of the row.
+      const barY = Math.max(y + 22 * S, note.y + note.height + 4 * S);
+      const g = this.add.graphics();
+      g.fillStyle(0x1d140d, 1).fillRoundedRect(textX, barY - 3 * S, textW, 6 * S, 3 * S);
+      if (r.frac > 0) g.fillStyle(r.done ? COLORS.green : COLORS.gold, 1).fillRoundedRect(textX, barY - 3 * S, Math.max(6 * S, textW * r.frac), 6 * S, 3 * S);
+      c.add(g);
+      const rx = W / 2 + pw / 2 - 20 * S - rightW / 2;
+      if (r.done) c.add(this.add.image(rx, y, 'ic_check').setScale(0.8));
+      else if (r.reward) {
+        c.add(this.add.image(rx - 16 * S, y, 'coin').setScale(1.1));
+        c.add(txt(this, rx - 6 * S, y, `+${r.reward}`, 14, CSS.gold, { stroke: false }).setOrigin(0, 0.5));
+      } else if (tab === 0) c.add(this.add.image(rx, y, 'ic_lock').setScale(0.6).setAlpha(0.7));
+      if (r.isNew) {
+        const tag = txt(this, rx, y - 22 * S, 'NEW!', 11, CSS.red);
+        c.add(tag);
+        this.tweens.add({ targets: tag, scale: 1.15, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      }
+    });
+    let by = top + 150 * S + PER * rowH + 22 * S;
+    if (pages > 1) {
+      const go = (d: number) => this.openGoals(tab, (page + d + pages) % pages);
+      c.add(button(this, W / 2 - 60 * S, by, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
+      c.add(txt(this, W / 2, by, `${page + 1} / ${pages}`, 15, CSS.cream));
+      c.add(button(this, W / 2 + 60 * S, by, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
+    }
+    by += 46 * S;
+    c.add(
+      button(this, W / 2, by + 20 * S, 160 * S, 46 * S, 'Done', () => {
+        c.destroy();
+        this.bakery = null;
+        this.build();
+      }, { size: 20 }),
+    );
+  }
+
+  /** The Cookbook's three tabs: Evolutions, Weapons and Enemies. */
+  private cookbookTabs(c: Phaser.GameObjects.Container, tab: number, top: number, pw: number): void {
+    const W = this.scale.width;
+    const cw = pw - 28 * S;
+    const tw = (cw - 16 * S) / 3;
+    ['Evolutions', 'Weapons', 'Enemies'].forEach((label, i) => {
+      const on = i === tab;
+      c.add(
+        button(this, W / 2 + (i - 1) * (tw + 8 * S), top + 104 * S, tw, 38 * S, label, () => {
+          if (!on) this.openCookbook(i);
+        }, { size: tw < 110 * S ? 14 : 16, muted: !on }),
+      );
+    });
+  }
+
   private openCookbook(tab = 0, page = 0): void {
+    if (tab === 2) {
+      this.openEnemies(page);
+      return;
+    }
     const W = this.scale.width;
     const H = this.scale.height;
     const save = load();
@@ -548,16 +711,7 @@ export class MenuScene extends Phaser.Scene {
     const opened = locked.filter((id) => weaponOpen(save, id)).length;
     const sub = tab === 0 ? `${save.cookbook.length} of ${all.length} evolutions found` : `${opened} of ${locked.length} weapons unlocked`;
     c.add(txt(this, W / 2, top + 64 * S, sub, 14, CSS.cream, { bold: false }));
-    const cw = pw - 28 * S;
-    const tw = (cw - 10 * S) / 2;
-    ['Evolutions', 'Weapons'].forEach((label, i) => {
-      const on = i === tab;
-      c.add(
-        button(this, W / 2 + (i ? 1 : -1) * (tw / 2 + 5 * S), top + 104 * S, tw, 38 * S, label, () => {
-          if (!on) this.openCookbook(i);
-        }, { size: 16, muted: !on }),
-      );
-    });
+    this.cookbookTabs(c, tab, top, pw);
     const lx = W / 2 - pw / 2 + 20 * S;
     const small = (x: number, y: number, s: string, wrap: number) =>
       txt(this, x, y, s, 12, CSS.muted, { bold: false, stroke: false, wrap, align: 'left' }).setOrigin(0, 0.5);
@@ -596,6 +750,98 @@ export class MenuScene extends Phaser.Scene {
     }
     c.add(
       button(this, W / 2, by + 28 * S, 160 * S, 46 * S, 'Done', () => {
+        c.destroy();
+        this.bakery = null;
+      }, { size: 20 }),
+    );
+  }
+
+  /** Cookbook Enemies tab: one page per stage. Enemies not met yet are dark shapes; beaten bosses get a crown. Tap one to read about it. */
+  private openEnemies(stageIdx: number, pick = 0): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const save = load();
+    this.bakery?.destroy();
+    const c = this.add.container(0, 0);
+    this.bakery = c;
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    const st = STAGES[stageIdx];
+    const list = ENEMY_BOOK[st.id];
+    const beaten = new Set(save.beaten ?? []);
+    // A beaten boss was certainly met (older saves recorded wins before meetings).
+    const met = new Set([...(save.met ?? []), ...beaten]);
+    const COLS = 5;
+    const pw = Math.min(W - 24 * S, 400 * S);
+    const cellW = (pw - 28 * S) / COLS;
+    const cellH = 70 * S;
+    const gridRows = 3; // the biggest cast (the Freezer, 14) fits in 3 rows
+    const infoH = 70 * S;
+    const ph = 150 * S + gridRows * cellH + infoH + 62 * S + 66 * S;
+    c.add(panel(this, W / 2, H / 2, pw, ph));
+    const top = H / 2 - ph / 2;
+    c.add(txt(this, W / 2, top + 36 * S, 'THE COOKBOOK', 28, CSS.gold));
+    const total = Object.values(ENEMY_BOOK).flat();
+    c.add(txt(this, W / 2, top + 64 * S, `${total.filter((e) => met.has(e.kind)).length} of ${total.length} enemies met`, 14, CSS.cream, { bold: false }));
+    this.cookbookTabs(c, 2, top, pw);
+    const gx = W / 2 - pw / 2 + 14 * S;
+    const gy = top + 140 * S;
+    const info = this.add.container(0, 0);
+    c.add(info);
+    const sel = this.add.graphics();
+    c.add(sel);
+    const showInfo = (i: number) => {
+      info.removeAll(true);
+      sel.clear();
+      const e = list[i];
+      if (!e) return;
+      const cx = gx + (i % COLS) * cellW;
+      const cy = gy + Math.floor(i / COLS) * cellH;
+      sel.lineStyle(2.5 * S, COLORS.gold, 1).strokeRoundedRect(cx + 2 * S, cy + 2 * S, cellW - 4 * S, cellH - 4 * S, 10 * S);
+      const known = met.has(e.kind);
+      const iy = gy + gridRows * cellH + 8 * S;
+      const g = this.add.graphics();
+      g.fillStyle(0x1d140d, 0.8).fillRoundedRect(gx, iy, pw - 28 * S, infoH - 8 * S, 12 * S);
+      info.add(g);
+      const title = known ? e.name + (e.role && beaten.has(e.kind) ? '  ♛' : '') : '???';
+      info.add(txt(this, W / 2, iy + 17 * S, title, 16, known ? CSS.gold : CSS.muted, { stroke: false }));
+      const line = known ? e.blurb : `Not met yet. Look for it in ${st.name}.`;
+      info.add(txt(this, W / 2, iy + 38 * S, line, 12, '#e8d8c0', { bold: false, stroke: false, wrap: (pw - 48 * S) / S }).setOrigin(0.5, 0));
+    };
+    list.forEach((e, i) => {
+      const cx = gx + (i % COLS) * cellW + cellW / 2;
+      const cy = gy + Math.floor(i / COLS) * cellH;
+      const known = met.has(e.kind);
+      const big = e.role === 'mini' || e.role === 'boss';
+      const g = this.add.graphics();
+      g.fillStyle(big ? 0x5a4126 : 0x4a3828, 1).fillRoundedRect(cx - cellW / 2 + 4 * S, cy + 4 * S, cellW - 8 * S, cellH - 8 * S, 9 * S);
+      if (big) g.lineStyle(2 * S, COLORS.gold, 0.8).strokeRoundedRect(cx - cellW / 2 + 4 * S, cy + 4 * S, cellW - 8 * S, cellH - 8 * S, 9 * S);
+      c.add(g);
+      const pic = this.fitIcon(cx, cy + 26 * S, ENEMIES[e.kind].tex, (big ? 40 : 32) * S);
+      if (!known) pic.setTintFill(0x1d140d);
+      c.add(pic);
+      const short = known ? e.name.replace(/^The /, '') : '???';
+      c.add(txt(this, cx, cy + 54 * S, short, 9, known ? CSS.cream : CSS.muted, { stroke: false, wrap: (cellW - 8 * S) / S }).setOrigin(0.5, 0.5).setLineSpacing(-2 * S));
+      if (e.role && beaten.has(e.kind)) c.add(this.add.image(cx + cellW / 2 - 13 * S, cy + 13 * S, 'ic_crown').setScale(0.45));
+      const z = this.add.zone(cx, cy + cellH / 2, cellW, cellH).setInteractive();
+      z.on('pointerup', () => {
+        sfx('click');
+        showInfo(i);
+      });
+      c.add(z);
+    });
+    c.bringToTop(sel);
+    showInfo(Math.min(pick, list.length - 1));
+    // Flip between stages.
+    const ny = gy + gridRows * cellH + infoH + 30 * S;
+    const go = (d: number) => {
+      sfx('swoosh');
+      this.openEnemies((stageIdx + d + STAGES.length) % STAGES.length);
+    };
+    c.add(button(this, W / 2 - pw / 2 + 44 * S, ny, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
+    c.add(txt(this, W / 2, ny, `Stage ${st.num}: ${st.name}`, 15, CSS.cream));
+    c.add(button(this, W / 2 + pw / 2 - 44 * S, ny, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
+    c.add(
+      button(this, W / 2, ny + 66 * S, 160 * S, 46 * S, 'Done', () => {
         c.destroy();
         this.bakery = null;
       }, { size: 20 }),

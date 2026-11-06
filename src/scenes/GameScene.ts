@@ -26,6 +26,7 @@ import { createWeapon, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
+import { claimGoals } from '../goals';
 import { clearRun, loadRun, saveRun, type RunSnapshot } from '../runsave';
 
 type PauseReason = '' | 'levelup' | 'pause' | 'chest' | 'over';
@@ -56,6 +57,8 @@ export interface RunResult {
   newStage: string;
   newBest: boolean;
   evolutions: string[];
+  /** Challenges finished this run, with the Dough each paid. */
+  goals: { name: string; reward: number }[];
 }
 
 const CELL = 48;
@@ -244,6 +247,10 @@ export class GameScene extends Phaser.Scene implements World {
   private pace = 1;
   private resume: RunSnapshot | null = null;
   private healsTaken = 0;
+  /** No hits taken since the current boss arrived (for the no-hit challenge). */
+  private bossClean = false;
+  /** A boss fell this run without landing a hit. */
+  private noHitBoss = false;
   /** Bakery ranks read once per run: luck, Second Bake and Hard Crust. */
   private luck = 0;
   private reviveRank = 0;
@@ -321,6 +328,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.bossRound = 0;
     this.pace = this.quick ? QUICK_PACE : 1;
     this.healsTaken = 0;
+    this.bossClean = false;
+    this.noHitBoss = false;
     this.raisinKills = 0;
     this.mines = [];
     this.mineT = 0;
@@ -876,6 +885,8 @@ export class GameScene extends Phaser.Scene implements World {
       bossHp: this.boss?.alive ? this.boss.hp : 0,
       evolutions: this.evolutionsThisRun,
       healsTaken: this.healsTaken,
+      bossClean: this.bossClean,
+      noHitBoss: this.noHitBoss,
       revived: this.revived,
       mugs: this.runMugs,
       buns: this.pickups.filter((it) => it.kind === 'bun').length,
@@ -913,6 +924,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.bossRound = s.bossRound ?? 0;
     this.evolutionsThisRun = s.evolutions;
     this.healsTaken = s.healsTaken;
+    this.noHitBoss = !!s.noHitBoss;
     this.revived = !!s.revived;
     this.runMugs = s.mugs ?? 0;
     for (let i = 0; i < (s.buns ?? 0); i++) this.dropPickup('bun', this.player.x + 60 + i * 30, this.player.y, 1);
@@ -937,6 +949,7 @@ export class GameScene extends Phaser.Scene implements World {
         e.boss = true;
         e.attack2T = 4;
         this.boss = e;
+        this.bossClean = !!s.bossClean;
       }
     }
     // Start paused so there's time to get a thumb on the screen.
@@ -1384,6 +1397,7 @@ export class GameScene extends Phaser.Scene implements World {
         e.maxHp = e.hp = e.maxHp * Math.pow(ENDLESS_BOSS_HP, this.bossRound);
         e.boss = true;
         this.boss = e;
+        this.bossClean = true;
         e.attack2T = 4;
       }
       this.banner(`${st.boss.name} returns, tougher!`, CSS.red, 26);
@@ -1409,6 +1423,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (e) {
         e.boss = true;
         this.boss = e;
+        this.bossClean = true;
         e.attack2T = 4;
       }
       if (st.boss.card) {
@@ -1422,6 +1437,12 @@ export class GameScene extends Phaser.Scene implements World {
 
   private spawnEnemy(kind: EnemyKind, x: number, y: number, hpMult: number): Enemy | null {
     const def = ENEMIES[kind];
+    // The Cookbook's Enemies tab: the first sighting reveals it.
+    const save = load();
+    if (!save.met?.includes(kind)) {
+      save.met = [...(save.met ?? []), kind];
+      persist();
+    }
     const special = !!def.flat;
     if (!special && this.enemies.length >= RUN.maxEnemies + 40) return null;
     const e = this.pool.pop() ?? new Enemy();
@@ -2006,6 +2027,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
     if (e === this.boss) {
       this.boss = null;
+      if (this.bossClean) this.noHitBoss = true;
       this.cameras.main.shake(600, 0.012);
       this.cameras.main.flash(300, 255, 240, 200);
       for (let i = 0; i < 4; i++) this.burst(e.x + (Math.random() - 0.5) * 60, e.y + (Math.random() - 0.5) * 60, 0xff7a2a, 16, 90);
@@ -2587,6 +2609,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (armor) d = Math.max(d * 0.5, d - armor);
     p.hp -= d;
     p.invulnUntil = this.now + 0.9;
+    if (this.boss) this.bossClean = false;
     this.cameras.main.shake(110, 0.005);
     sfx('hurt');
     // Shove nearby enemies away so there is room to escape.
@@ -3403,6 +3426,18 @@ export class GameScene extends Phaser.Scene implements World {
       if (this.healsTaken === 0) save.noHealClear = true;
     }
     if (!this.practice) {
+      const r = { ...(save.records ?? {}) };
+      r.kills = Math.max(r.kills ?? 0, this.kills);
+      r.level = Math.max(r.level ?? 1, this.level);
+      r.evos = Math.max(r.evos ?? 0, this.evolutionsThisRun.length);
+      if (this.endless) {
+        r.endless = Math.max(r.endless ?? 0, Math.floor(this.now));
+        r.endlessBosses = Math.max(r.endlessBosses ?? 0, this.bossRound);
+      }
+      save.records = r;
+      if (this.noHitBoss) save.noHitBoss = true;
+    }
+    if (!this.practice) {
       const beaten = new Set(save.beaten ?? []);
       if (this.miniKilled) beaten.add(this.stage.mini.kind);
       if (cleared) beaten.add(this.stage.boss.kind);
@@ -3417,6 +3452,8 @@ export class GameScene extends Phaser.Scene implements World {
         { time: Math.floor(this.now), kills: this.kills, cleared, ...(this.endless ? { endless: true } : {}) },
         bestStage(this.stage.id, this.endless ? 'endless' : this.quick ? 'quick' : 'full', this.crispy),
       );
+    // Challenges pay their Dough as soon as they're done.
+    const goals = this.practice ? [] : claimGoals(save).map((g) => ({ name: g.name, reward: g.reward }));
     const opened = playableStages(save).filter((id) => !openBefore.includes(id));
     if (opened.length) save.stage = opened[0];
     persist();
@@ -3438,6 +3475,7 @@ export class GameScene extends Phaser.Scene implements World {
       newStage: opened.length ? stageById(opened[0]).name : '',
       newBest,
       evolutions: this.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),
+      goals,
     };
     const p = this.player.sprite;
     if (!victory && !quit) {
