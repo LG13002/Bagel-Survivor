@@ -11,7 +11,7 @@ npm run build
 
 | Script | What it does | Run |
 | --- | --- | --- |
-| `wbench.cjs` | Gives Plain Jane one weapon at a set level (6 = evolved) in god mode, then reports useful damage/sec (overkill removed), kills/min and damage taken/min. | `node tools/bots/wbench.cjs 6 pin,sesame [stage] [startSecs]` (defaults `stage1 120`; `PORT=` env for another server) |
+| `wbench.cjs` | Gives Plain Jane one weapon at a set level (6 = evolved) in god mode, then reports useful damage/sec (overkill removed), kills/min and damage taken/min. | `node tools/bots/wbench.cjs 6 pin,sesame [stage] [startSecs]` (defaults `stage1 120`; `PORT=` env for another server; `CRISPY=1` turns on Extra Crispy) |
 | `buntest.cjs` | Plays a Quick Run and a Full Run to the boss. Logs Sticky Bun drops and the seeds left on the floor when the boss arrives. Saves screenshots to the folder you pass. | `node tools/bots/buntest.cjs /tmp/out` |
 | `qtest.cjs` | Plays a Quick Run to the boss, forces a win, then prints the resulting save data. | `node tools/bots/qtest.cjs /tmp/out` |
 

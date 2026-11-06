@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
-import { checkUnlocks, checkWeaponUnlocks, goalStatus, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
+import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
-import { bestStage, getBest, load, persist, type SaveData } from '../save';
+import { bestStage, getBest, load, persist, type BestScore, type RunMode, type SaveData } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { musicOn, setMusic, setSound, sfx, soundOn, unlockAudio } from '../sfx';
@@ -12,6 +12,15 @@ import { playMusic } from '../music';
 /** Height of the menu's stage button row, in CSS px. */
 const STAGE_ROW = 48;
 const STAGE_ROW_COMPACT = 40;
+/** Charred brown for the stage button and card frame when Extra Crispy is on. */
+const CRISPY_COLOR = 0x6b2e14;
+
+/** One best line: "Endless: 12:34", "Full: ♛ cleared · 412 kills", ... */
+function bestText(label: string, best: BestScore | undefined, endless: boolean): string {
+  if (!best) return `${label}: no runs yet`;
+  if (endless) return `${label}: ${fmtTime(best.time)}`;
+  return best.cleared ? `${label}: ♛ cleared · ${best.kills} kills` : `${label}: ${fmtTime(best.time)} · ${best.kills} kills`;
+}
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
@@ -51,6 +60,10 @@ export class MenuScene extends Phaser.Scene {
     const bottom = H - ins.bottom * S;
     const save = load();
     const stage = pickedStage(save);
+    // Endless and Extra Crispy open per stage after a clear; until then the run is Full or Quick.
+    const open = modesOpen(save, stage);
+    const mode: RunMode = save.endless && open ? 'endless' : save.quick ? 'quick' : 'full';
+    const crispy = !!save.crispy && open;
     const c = this.add.container(0, 0);
     this.root = c;
 
@@ -72,7 +85,7 @@ export class MenuScene extends Phaser.Scene {
     c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40 * k, CSS.gold));
     c.add(txt(this, W / 2, titleY + 44 * k * S, 'BAGEL', 54 * k, CSS.cream));
     // Short screens skip the tagline to make room for the bagel.
-    if (!compact) c.add(txt(this, W / 2, titleY + 86 * k * S, save.quick ? 'Survive the Stale for 3 minutes' : 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
+    if (!compact) c.add(txt(this, W / 2, titleY + 86 * k * S, mode === 'endless' ? 'Survive the Stale as long as you can' : mode === 'quick' ? 'Survive the Stale for 3 minutes' : 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
 
     // Bagel picker
     const bagel = BAGELS[this.idx];
@@ -116,9 +129,15 @@ export class MenuScene extends Phaser.Scene {
     // Short screens have no room for a locked bagel's progress bar: its progress goes in the best line's place.
     if (gs && compact) c.add(txt(this, W / 2, by + R + 72 * sp * S, gs.progress, 14, CSS.muted, { bold: false }));
     if (!locked) {
-      const best = getBest(save, bagel.id, bestStage(stage.id, !!save.quick));
-      const label = `Stage ${stage.num}${save.quick ? ' Quick' : ''}`;
-      const line = !best ? `${label} best: no runs yet` : best.cleared ? `♛ ${label} cleared  ·  ${best.kills} kills` : `${label} best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
+      const best = getBest(save, bagel.id, bestStage(stage.id, mode, crispy));
+      const label = `Stage ${stage.num}${mode === 'quick' ? ' Quick' : mode === 'endless' ? ' Endless' : ''}${crispy ? ' Crispy' : ''}`;
+      const line = !best
+        ? `${label} best: no runs yet`
+        : mode === 'endless'
+          ? `${label} best: ${fmtTime(best.time)}`
+          : best.cleared
+            ? `♛ ${label} cleared  ·  ${best.kills} kills`
+            : `${label} best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
       c.add(txt(this, W / 2, by + R + 72 * sp * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
     }
     c.add(desc);
@@ -193,7 +212,7 @@ export class MenuScene extends Phaser.Scene {
     const saved = loadRun();
     if (saved) {
       const name = BAGELS.find((b) => b.id === saved.bagel)?.name ?? 'run';
-      const label = `Resume ${saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}, ${fmtTime(saved.now)}`;
+      const label = `Resume ${saved.endless ? 'Endless ' : saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}, ${fmtTime(saved.now)}`;
       const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 300 * S), 44 * S, label, () => {
         unlockAudio();
         this.cameras.main.fadeOut(200, 18, 12, 8);
@@ -201,52 +220,76 @@ export class MenuScene extends Phaser.Scene {
       }, { color: COLORS.green, textColor: CSS.dark, size: label.length > 34 ? 14 : 16, radius: 12 });
       c.add(rb);
     } else {
-      toggle(W / 2 - tw - 8 * S, () => `Practice: ${save.practice ? 'On' : 'Off'}`, () => {
+      // Practice is off in Endless.
+      toggle(W / 2 - tw - 8 * S, () => `Practice: ${save.practice && mode !== 'endless' ? 'On' : 'Off'}`, () => {
+        if (mode === 'endless') {
+          sfx('lock');
+          this.toast('No practice runs in Endless', playY - 66 * S - 40 * S);
+          return;
+        }
         save.practice = !save.practice;
         persist();
       });
       toggle(W / 2, () => `Music: ${musicOn() ? 'On' : 'Off'}`, () => setMusic(!musicOn()));
       toggle(W / 2 + tw + 8 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
     }
-    // Full / Quick switch: a two-part pill above the toggles. Remembers the last choice.
+    // Full / Quick / Endless switch: a three-part pill above the toggles. Remembers the last choice.
     {
       const sw = Math.min(W - 60 * S, 300 * S);
       const sh = 38 * S;
       const y = playY - 66 * S - 52 * S;
+      const seg = sw / 3;
+      const modes: [RunMode, string, string | null][] = [
+        ['full', 'Full 5:00', null],
+        ['quick', 'Quick 3:00', 'ic_bolt'],
+        ['endless', 'Endless', 'ic_clock'],
+      ];
+      const sel = modes.findIndex((m) => m[0] === mode);
       const g = this.add.graphics();
       g.fillStyle(0x24160d, 1).fillRoundedRect(W / 2 - sw / 2 - 2.5 * S, y - sh / 2 - 2.5 * S, sw + 5 * S, sh + 5 * S, sh / 2 + 2.5 * S);
       g.fillStyle(0x1d140d, 1).fillRoundedRect(W / 2 - sw / 2, y - sh / 2, sw, sh, sh / 2);
-      const x0 = save.quick ? W / 2 : W / 2 - sw / 2;
-      g.fillStyle(COLORS.gold, 1).fillRoundedRect(x0 + 3 * S, y - sh / 2 + 3 * S, sw / 2 - 6 * S, sh - 6 * S, sh / 2 - 3 * S);
-      g.fillStyle(0xffffff, 0.22).fillRoundedRect(x0 + 10 * S, y - sh / 2 + 6 * S, sw / 2 - 20 * S, 8 * S, 4 * S);
+      const x0 = W / 2 - sw / 2 + sel * seg;
+      g.fillStyle(COLORS.gold, 1).fillRoundedRect(x0 + 3 * S, y - sh / 2 + 3 * S, seg - 6 * S, sh - 6 * S, sh / 2 - 3 * S);
+      g.fillStyle(0xffffff, 0.22).fillRoundedRect(x0 + 10 * S, y - sh / 2 + 6 * S, seg - 20 * S, 8 * S, 4 * S);
       c.add(g);
-      const half = (quick: boolean, label: string) => {
-        const on = !!save.quick === quick;
-        const cx = W / 2 + (quick ? sw / 4 : -sw / 4);
-        const t = txt(this, cx + (quick ? 9 * S : 0), y, label, 15, on ? CSS.dark : CSS.muted, { stroke: false });
+      modes.forEach(([m, label, icon], i) => {
+        const on = i === sel;
+        const lockedMode = m === 'endless' && !open;
+        const cx = W / 2 - sw / 2 + seg * (i + 0.5);
+        const shift = icon ? 8 * S : 0;
+        const t = txt(this, cx + shift, y, label, 14, on ? CSS.dark : CSS.muted, { stroke: false });
+        if (lockedMode) t.setAlpha(0.6);
         c.add(t);
-        if (quick) c.add(this.add.image(t.x - t.width / 2 - 11 * S, y, 'ic_bolt').setScale(0.55).setAlpha(on ? 1 : 0.6));
-        const z = this.add.zone(cx, y, sw / 2, sh + 8 * S).setInteractive();
+        if (icon) c.add(this.add.image(t.x - t.width / 2 - 10 * S, y, lockedMode ? 'ic_lock' : icon).setScale(lockedMode ? 0.42 : 0.5).setAlpha(on ? 1 : 0.6));
+        const z = this.add.zone(cx, y, seg, sh + 8 * S).setInteractive();
         z.on('pointerup', () => {
           if (on) return;
+          if (lockedMode) {
+            sfx('lock');
+            this.toast('Clear this stage to unlock Endless', y - sh / 2 - (compact ? STAGE_ROW_COMPACT : STAGE_ROW) * S - 30 * S);
+            return;
+          }
           sfx('click');
-          save.quick = quick;
+          save.quick = m === 'quick';
+          save.endless = m === 'endless';
           persist();
           this.build();
         });
         c.add(z);
-      };
-      half(false, 'Full 5:00');
-      half(true, 'Quick 3:00');
+      });
       // Stage button above the switch: shows the picked stage and opens the stage picker.
-      c.add(this.stageButton(stage, W / 2, y - sh / 2 - 12 * S - ((compact ? STAGE_ROW_COMPACT : STAGE_ROW) / 2 - 4) * S, sw, compact));
+      // The flame button beside it is the Extra Crispy toggle.
+      const rowY = y - sh / 2 - 12 * S - ((compact ? STAGE_ROW_COMPACT : STAGE_ROW) / 2 - 4) * S;
+      const fw = (compact ? 34 : 40) * S;
+      c.add(this.stageButton(stage, W / 2 - (fw + 8 * S) / 2, rowY, sw - fw - 8 * S, compact, crispy));
+      c.add(this.crispyButton(W / 2 + sw / 2 - fw / 2, rowY, fw, crispy, open, rowY - fw / 2 - 26 * S));
     }
     const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
       if (locked) return;
       unlockAudio();
       clearRun();
       this.cameras.main.fadeOut(200, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, stage: stage.id, practice: !!save.practice, quick: !!save.quick }));
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, stage: stage.id, practice: !!save.practice && mode !== 'endless', quick: mode === 'quick', endless: mode === 'endless', crispy }));
     }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
     c.add(play);
     if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -279,13 +322,48 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  /** Chunky button with the stage's picture, its name and a chevron. */
-  private stageButton(stage: StageDef, x: number, y: number, w: number, compact: boolean): Phaser.GameObjects.Container {
+  /** Short note that floats up and fades, e.g. why a locked mode can't be picked. */
+  private toast(text: string, y: number): void {
+    const t = txt(this, 0, 0, text, 14, CSS.cream, { stroke: false });
+    const g = this.add.graphics();
+    const w = t.width + 28 * S;
+    const h = 32 * S;
+    g.fillStyle(0x24160d, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    const box = this.add.container(this.scale.width / 2, y, [g, t]);
+    this.root.add(box);
+    this.tweens.add({ targets: box, y: y - 18 * S, alpha: 0, delay: 1300, duration: 500, onComplete: () => box.destroy() });
+  }
+
+  /** Square flame button: turns Extra Crispy on and off (locked until the stage is cleared). */
+  private crispyButton(x: number, y: number, w: number, on: boolean, open: boolean, toastY: number): Phaser.GameObjects.Container {
+    const h = w;
+    const b = button(this, x, y, w, h, '', () => {
+      if (!open) {
+        sfx('lock');
+        this.toast('Clear this stage to unlock Extra Crispy', toastY);
+        return;
+      }
+      const save = load();
+      save.crispy = !save.crispy;
+      persist();
+      this.build();
+      if (save.crispy) this.toast('Extra Crispy: tougher enemies, 1.5x Dough', toastY);
+    }, { color: on ? COLORS.red : COLORS.panelLight, radius: 12 });
+    const fl = this.add.image(0, 0, 'ic_flame').setScale(0.62).setAlpha(open ? (on ? 1 : 0.55) : 0.3);
+    b.add(fl);
+    if (!open) b.add(this.add.image(w * 0.22, h * 0.2, 'ic_lock').setScale(0.38));
+    return b;
+  }
+
+  /** Chunky button with the stage's picture, its name and a chevron. Charred when Extra Crispy is on. */
+  private stageButton(stage: StageDef, x: number, y: number, w: number, compact: boolean, crispy = false): Phaser.GameObjects.Container {
     const h = (compact ? 34 : 40) * S;
-    const b = button(this, x, y, w, h, '', () => this.openStages(), { color: COLORS.panelLight, radius: 12 });
+    const b = button(this, x, y, w, h, '', () => this.openStages(), { color: crispy ? CRISPY_COLOR : COLORS.panelLight, radius: 12 });
     const pic = this.add.image(-w / 2 + 12 * S, 0, `${stage.thumb}_sm`).setOrigin(0, 0.5);
     pic.setScale((h - 10 * S) / pic.height);
-    const label = txt(this, pic.x + pic.displayWidth + 9 * S, 0, `Stage ${stage.num}: ${stage.name}`, 15, CSS.cream, { stroke: false }).setOrigin(0, 0.5);
+    if (crispy) pic.setTint(0xffb08a);
+    const name = w < 260 * S ? stage.name.replace(/^The /, '') : stage.name;
+    const label = txt(this, pic.x + pic.displayWidth + 9 * S, 0, `Stage ${stage.num}: ${name}`, 15, crispy ? '#ffd2b0' : CSS.cream, { stroke: false }).setOrigin(0, 0.5);
     const more = txt(this, w / 2 - 16 * S, -1 * S, '›', 26, CSS.gold, { stroke: false });
     b.add([pic, label, more]);
     // Move the extras with the button's press squish.
@@ -335,7 +413,19 @@ export class MenuScene extends Phaser.Scene {
     const pic = this.add.image(0, picY, st.thumb);
     pic.setScale(Math.min((pw - 120 * S) / pic.width, (120 * S) / pic.height));
     if (!playable) pic.setTint(0x55504a);
+    const crispyOn = playable && !!save.crispy && modesOpen(save, st);
+    if (crispyOn) {
+      // Extra Crispy: a toasted, charred frame and a warmer picture.
+      pic.setTint(0xffb08a);
+      const fr = this.add.graphics();
+      const fw2 = pic.displayWidth + 12 * S;
+      const fh2 = pic.displayHeight + 12 * S;
+      fr.lineStyle(7 * S, CRISPY_COLOR, 1).strokeRoundedRect(-fw2 / 2, picY - fh2 / 2, fw2, fh2, 10 * S);
+      fr.lineStyle(2 * S, 0xff8a3c, 0.9).strokeRoundedRect(-fw2 / 2 + 4 * S, picY - fh2 / 2 + 4 * S, fw2 - 8 * S, fh2 - 8 * S, 7 * S);
+      card.add(fr);
+    }
     card.add(pic);
+    if (crispyOn) card.add(this.add.image(pic.displayWidth / 2 - 4 * S, picY - pic.displayHeight / 2 + 4 * S, 'ic_flame').setScale(0.7));
     if (!unlocked) card.add(this.add.image(0, picY, 'ic_lock').setScale(1.6));
     if (!st.built) {
       const rib = this.add.container(0, picY + pic.displayHeight / 2 - 4 * S);
@@ -351,7 +441,10 @@ export class MenuScene extends Phaser.Scene {
     let y = picY + pic.displayHeight / 2 + 30 * S;
     card.add(txt(this, 0, y, `STAGE ${st.num}`, 13, CSS.muted, { stroke: false }));
     y += 24 * S;
-    card.add(txt(this, 0, y, st.name, 24, unlocked ? CSS.cream : CSS.muted));
+    const nameT = txt(this, 0, y, st.name, 24, unlocked ? CSS.cream : CSS.muted);
+    card.add(nameT);
+    // Flame star: cleared on Extra Crispy at least once.
+    if ((save.crispyClears?.[st.id] ?? 0) > 0) card.add(this.add.image(nameT.width / 2 + 18 * S, y, 'ic_flame').setScale(0.55).setTint(0xffd27a));
     y += 30 * S;
     // Difficulty: one flame per step up.
     for (let i = 0; i < 3; i++) {
@@ -365,13 +458,14 @@ export class MenuScene extends Phaser.Scene {
     y += story.height + 18 * S;
     if (unlocked && st.built) {
       const bagel = BAGELS.find((b) => b.id === save.selected) ?? BAGELS[0];
-      const line = (quick: boolean) => {
-        const best = getBest(save, bagel.id, bestStage(st.id, quick));
-        const label = quick ? 'Quick' : 'Full';
-        return !best ? `${label}: no runs yet` : best.cleared ? `${label}: ♛ cleared · ${best.kills} kills` : `${label}: ${fmtTime(best.time)} · ${best.kills} kills`;
+      const line = (m: RunMode) => {
+        const label = m === 'quick' ? 'Quick' : m === 'endless' ? 'Endless' : 'Full';
+        return bestText(label, getBest(save, bagel.id, bestStage(st.id, m, crispyOn)), m === 'endless');
       };
-      card.add(txt(this, 0, y, `${bagel.name}'s bests`, 13, CSS.gold, { stroke: false }));
-      card.add(txt(this, 0, y + 20 * S, `${line(false)}\n${line(true)}`, 13, CSS.cream, { bold: false, stroke: false }).setOrigin(0.5, 0));
+      const lines = [line('full'), line('quick')];
+      if (modesOpen(save, st)) lines.push(line('endless'));
+      card.add(txt(this, 0, y, `${bagel.name}'s bests${crispyOn ? ' (Extra Crispy)' : ''}`, 13, crispyOn ? '#ff9a5c' : CSS.gold, { stroke: false }));
+      card.add(txt(this, 0, y + 20 * S, lines.join('\n'), 13, CSS.cream, { bold: false, stroke: false }).setOrigin(0.5, 0));
     } else {
       card.add(txt(this, 0, y, `Unlock: ${st.unlockText}`, 15, CSS.gold));
       const note = unlocked ? 'Goal done! This stage is still being baked.' : `Clear Stage ${stageById(st.unlockAfter ?? undefined).num} first`;

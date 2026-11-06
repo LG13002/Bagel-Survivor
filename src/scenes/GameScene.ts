@@ -39,6 +39,10 @@ export interface RunResult {
   victory: boolean;
   practice: boolean;
   quick: boolean;
+  /** Endless run (time survived is the score); cleared = its boss fell along the way. */
+  endless?: boolean;
+  cleared?: boolean;
+  crispy?: boolean;
   time: number;
   level: number;
   kills: number;
@@ -120,6 +124,23 @@ const PRACTICE_LEVELS = 12;
 const QUICK_PACE = 5 / 3;
 const QUICK_XP = 1.6;
 const QUICK_DOUGH = 0.75;
+/** Extra Crispy (the hard toggle): more health on every enemy, faster spawns, more Dough. */
+const CRISPY_HP = 1.4;
+const CRISPY_SPAWN = 1.2;
+const CRISPY_DOUGH = 1.5;
+/** Everything that hurts you hits this much harder. Health and spawns alone barely moved damage taken (you're already
+ * being hit about as often as the 0.9s hit immunity allows), so this carries most of Extra Crispy's extra danger. */
+const CRISPY_DMG = 1.25;
+/** Endless, after the first boss falls: elites more often, the mini-boss and the boss come back. */
+const ENDLESS_ELITE_EVERY = 45;
+const ENDLESS_MINI_EVERY = 120;
+const ENDLESS_BOSS_EVERY = 180;
+/** Each returning boss has this much more health than the last. */
+const ENDLESS_BOSS_HP = 1.5;
+/** Spawns get this much faster per minute after 5:00. */
+const ENDLESS_SPAWN_RAMP = 0.1;
+/** Dough per full minute survived after 5:00. */
+const ENDLESS_DOUGH_MIN = 10;
 
 export class GameScene extends Phaser.Scene implements World {
   player = new Player();
@@ -178,6 +199,7 @@ export class GameScene extends Phaser.Scene implements World {
     level: Phaser.GameObjects.Text;
     timer: Phaser.GameObjects.Text;
     quickBadge: Phaser.GameObjects.Container;
+    crispyBadge: Phaser.GameObjects.Container;
     kills: Phaser.GameObjects.Container;
     aged: Phaser.GameObjects.Container | null;
     pause: Phaser.GameObjects.Container;
@@ -210,6 +232,14 @@ export class GameScene extends Phaser.Scene implements World {
 
   private practice = false;
   private quick = false;
+  private endless = false;
+  private crispy = false;
+  /** Endless: the first boss has fallen and the run carries on. */
+  private endlessCleared = false;
+  private nextMini = 0;
+  private nextBoss = 0;
+  /** Endless: bosses beaten so far this run (each return has more health). */
+  private bossRound = 0;
   /** Stage-schedule speed: 1 for a full run, QUICK_PACE for a Quick Run. */
   private pace = 1;
   private resume: RunSnapshot | null = null;
@@ -271,16 +301,24 @@ export class GameScene extends Phaser.Scene implements World {
     return this.now * this.pace;
   }
 
-  init(data: { bagel?: string; stage?: string; practice?: boolean; quick?: boolean; resume?: boolean }): void {
+  init(data: { bagel?: string; stage?: string; practice?: boolean; quick?: boolean; endless?: boolean; crispy?: boolean; resume?: boolean }): void {
     this.resume = data.resume ? loadRun() : null;
     if (this.resume) {
-      data = { bagel: this.resume.bagel, stage: this.resume.stage, practice: this.resume.practice, quick: !!this.resume.quick };
+      const r = this.resume;
+      data = { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: !!r.quick, endless: !!r.endless, crispy: !!r.crispy };
     }
     this.bagel = BAGELS.find((b) => b.id === data.bagel) ?? BAGELS[0];
     const st = stageById(data.stage);
     this.stage = st.built ? st : stageById('stage1');
-    this.practice = !!data.practice;
-    this.quick = !!data.quick;
+    // Endless is Full pace only, and never a practice run.
+    this.endless = !!data.endless && !data.practice;
+    this.practice = !!data.practice && !this.endless;
+    this.quick = !!data.quick && !this.endless;
+    this.crispy = !!data.crispy;
+    this.endlessCleared = false;
+    this.nextMini = 0;
+    this.nextBoss = 0;
+    this.bossRound = 0;
     this.pace = this.quick ? QUICK_PACE : 1;
     this.healsTaken = 0;
     this.raisinKills = 0;
@@ -410,6 +448,10 @@ export class GameScene extends Phaser.Scene implements World {
       this.xpNext = xpNeeded(this.level);
     }
     this.onResize();
+    if (!this.resume && (this.crispy || this.endless)) {
+      const what = this.endless && this.crispy ? 'Endless, Extra Crispy!' : this.endless ? 'Endless: survive as long as you can!' : 'Extra Crispy: tougher enemies, more Dough!';
+      this.time.delayedCall(400, () => this.banner(what, this.crispy ? '#ff9a5c' : CSS.gold, 20));
+    }
 
     this.setupInput();
     this.scale.on('resize', this.onResize, this);
@@ -715,7 +757,9 @@ export class GameScene extends Phaser.Scene implements World {
     const boss = this.bigs.some((e) => e.alive && (e.kind === st.mini.kind || e.kind === st.boss.kind));
     playMusic(boss ? st.music.boss : st.music.run);
     // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
-    setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, this.stageT >= 180 ? 1.08 : 1);
+    // Endless: a little faster every minute after 5:00.
+    const extra = this.endless && this.stageT > 300 ? Math.min(0.2, ((this.stageT - 300) / 60) * 0.03) : 0;
+    setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, (this.stageT >= 180 ? 1.08 : 1) + extra);
     if (this.player.hp > 0 && this.player.hp / this.stats.maxHp < 0.25) sfx('heart');
   }
 
@@ -806,6 +850,12 @@ export class GameScene extends Phaser.Scene implements World {
       stage: this.stage.id,
       practice: this.practice,
       quick: this.quick,
+      endless: this.endless,
+      crispy: this.crispy,
+      endlessCleared: this.endlessCleared,
+      nextMini: this.nextMini,
+      nextBoss: this.nextBoss,
+      bossRound: this.bossRound,
       now: this.now,
       level: this.level,
       xp: this.xp,
@@ -857,6 +907,10 @@ export class GameScene extends Phaser.Scene implements World {
     this.miniSpawned = s.miniSpawned;
     this.miniKilled = s.miniKilled;
     this.bossSpawned = s.bossSpawned;
+    this.endlessCleared = !!s.endlessCleared;
+    this.nextMini = s.nextMini ?? 0;
+    this.nextBoss = s.nextBoss ?? 0;
+    this.bossRound = s.bossRound ?? 0;
     this.evolutionsThisRun = s.evolutions;
     this.healsTaken = s.healsTaken;
     this.revived = !!s.revived;
@@ -878,6 +932,7 @@ export class GameScene extends Phaser.Scene implements World {
       const sp = this.spawnPoint();
       const e = this.spawnEnemy(this.stage.boss.kind, sp.x, sp.y, 1);
       if (e) {
+        e.maxHp *= Math.pow(ENDLESS_BOSS_HP, this.bossRound);
         e.hp = s.bossHp;
         e.boss = true;
         e.attack2T = 4;
@@ -1243,7 +1298,9 @@ export class GameScene extends Phaser.Scene implements World {
     const st = this.stage;
     const t = this.stageT;
     const hpMult = this.hpMult(t);
-    let interval = Math.max(0.1, 0.7 - t * 0.0018) / st.spawnRate;
+    let interval = Math.max(0.1, 0.7 - t * 0.0018) / st.spawnRate / (this.crispy ? CRISPY_SPAWN : 1);
+    // Endless: about 10% faster spawns for every minute after 5:00.
+    if (this.endless && t > 300) interval /= 1 + ENDLESS_SPAWN_RAMP * ((t - 300) / 60);
     if (this.boss) interval *= 4;
     // Gentler through 3:00, then the swarm ramps up toward the boss.
     const batch = 1 + Math.floor(t / 75) + (t > 180 ? 2 : 0);
@@ -1256,7 +1313,7 @@ export class GameScene extends Phaser.Scene implements World {
         this.spawnEnemy(this.pickKind(t), sp.x, sp.y, hpMult);
       }
     }
-    if (t >= RUN.miniBossAt && t >= this.nextWave && t < RUN.bossAt - 5) {
+    if (t >= RUN.miniBossAt && t >= this.nextWave && (t < RUN.bossAt - 5 || (this.endlessCleared && !this.boss))) {
       this.nextWave += RUN.waveEvery;
       const n = 28;
       const d = Math.hypot(this.viewW(), this.viewH()) / 2 + 30;
@@ -1284,15 +1341,17 @@ export class GameScene extends Phaser.Scene implements World {
         }
       }
     }
-    if (t >= this.nextElite && t < RUN.bossAt) {
-      const el = st.elites[Math.max(0, Math.round((this.nextElite - RUN.eliteAt) / RUN.eliteEvery)) % st.elites.length];
-      this.nextElite += RUN.eliteEvery;
+    if (t >= this.nextElite && (t < RUN.bossAt || this.endlessCleared)) {
+      const el = this.endlessCleared
+        ? st.elites[Math.floor(Math.random() * st.elites.length)]
+        : st.elites[Math.max(0, Math.round((this.nextElite - RUN.eliteAt) / RUN.eliteEvery)) % st.elites.length];
+      this.nextElite += this.endlessCleared ? ENDLESS_ELITE_EVERY : RUN.eliteEvery;
       const sp = this.spawnPoint();
       const e = this.spawnEnemy(el.kind, sp.x, sp.y, 1);
       if (e) {
         e.dropsChest = true;
         // Full runs: the last Giant Mold before the boss carries the second Sticky Bun.
-        if (!this.quick && t >= RUN.bossAt - RUN.eliteEvery) e.dropsBun = true;
+        if (!this.quick && !this.endlessCleared && t >= RUN.bossAt - RUN.eliteEvery) e.dropsBun = true;
       }
       this.banner(el.banner, el.color, 20);
     }
@@ -1305,6 +1364,32 @@ export class GameScene extends Phaser.Scene implements World {
         if (e) e.dropsChest = true;
         this.banner(x.banner, x.color, 20);
       });
+    }
+    if (this.endlessCleared && !this.mini && t >= this.nextMini) {
+      this.nextMini = t + ENDLESS_MINI_EVERY;
+      const sp = this.spawnPoint();
+      const e = this.spawnEnemy(st.mini.kind, sp.x, sp.y, 1);
+      if (e) {
+        e.dropsChest = true;
+        e.dropsBun = true;
+        this.mini = e;
+      }
+      this.banner(`${st.mini.name} is back!`, CSS.gold, 24);
+    }
+    if (this.endlessCleared && !this.boss && t >= this.nextBoss) {
+      this.nextBoss = t + ENDLESS_BOSS_EVERY;
+      const sp = this.spawnPoint();
+      const e = this.spawnEnemy(st.boss.kind, sp.x, sp.y, 1);
+      if (e) {
+        e.maxHp = e.hp = e.maxHp * Math.pow(ENDLESS_BOSS_HP, this.bossRound);
+        e.boss = true;
+        this.boss = e;
+        e.attack2T = 4;
+      }
+      this.banner(`${st.boss.name} returns, tougher!`, CSS.red, 26);
+      sfx('roar');
+      sfx('boss');
+      this.cameras.main.shake(400, 0.006);
     }
     if (!this.miniSpawned && t >= RUN.miniBossAt) {
       this.miniSpawned = true;
@@ -1349,7 +1434,7 @@ export class GameScene extends Phaser.Scene implements World {
     e.kind = kind;
     e.x = x;
     e.y = y;
-    e.maxHp = e.hp = def.hp * (def.flat ? 1 : hpMult);
+    e.maxHp = e.hp = def.hp * (def.flat ? 1 : hpMult) * (this.crispy ? CRISPY_HP : 1);
     e.speed = def.speed * (0.9 + Math.random() * 0.2);
     e.dmg = def.dmg * this.stage.dmg;
     e.radius = def.radius;
@@ -1924,7 +2009,26 @@ export class GameScene extends Phaser.Scene implements World {
       this.cameras.main.shake(600, 0.012);
       this.cameras.main.flash(300, 255, 240, 200);
       for (let i = 0; i < 4; i++) this.burst(e.x + (Math.random() - 0.5) * 60, e.y + (Math.random() - 0.5) * 60, 0xff7a2a, 16, 90);
-      this.endRun(true);
+      if (!this.endless) {
+        this.endRun(true);
+        return;
+      }
+      // Endless: the stage counts as cleared, and the run carries on, harder.
+      this.bossRound++;
+      this.beams.length = 0;
+      // A gold toaster, on the far side so it isn't grabbed by accident at the kill.
+      const ga = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+      this.dropPickup('goldchest', e.x + Math.cos(ga) * (e.radius + 30), e.y + Math.sin(ga) * (e.radius + 30), 1);
+      sfx('evolve');
+      const t = this.stageT;
+      this.nextBoss = t + ENDLESS_BOSS_EVERY;
+      if (!this.endlessCleared) {
+        this.endlessCleared = true;
+        this.nextElite = t + ENDLESS_ELITE_EVERY;
+        this.nextMini = t + ENDLESS_MINI_EVERY;
+        this.nextWave = t + RUN.waveEvery;
+        this.banner('Endless! How long can you last?', CSS.gold, 26);
+      } else this.banner(`${this.stage.boss.name} beaten again!`, CSS.gold, 24);
     }
   }
 
@@ -2477,6 +2581,7 @@ export class GameScene extends Phaser.Scene implements World {
   private damagePlayer(d: number): void {
     const p = this.player;
     if (DEBUG.god || this.paused || this.now < p.invulnUntil) return;
+    if (this.crispy) d *= CRISPY_DMG;
     // Hard Crust blocks 1 per rank, but a hit always does at least half.
     const armor = this.armor + (this.toppings.get('frosting') ?? 0);
     if (armor) d = Math.max(d * 0.5, d - armor);
@@ -2667,7 +2772,10 @@ export class GameScene extends Phaser.Scene implements World {
     const badge = this.ui(this.add.graphics());
     const level = this.ui(txt(this, 0, 0, '1', 17, CSS.dark, { stroke: false }));
     const timer = this.ui(txt(this, 0, 0, '0:00', 26));
-    const quickBadge = this.ui(pill(this, 0, 0, 'ic_bolt', 'QUICK', { size: 11, h: 22, color: CSS.gold }).setVisible(this.quick));
+    const quickBadge = this.ui(
+      (this.endless ? pill(this, 0, 0, 'ic_clock', 'ENDLESS', { size: 11, h: 22, color: CSS.gold }) : pill(this, 0, 0, 'ic_bolt', 'QUICK', { size: 11, h: 22, color: CSS.gold })).setVisible(this.quick || this.endless),
+    );
+    const crispyBadge = this.ui(pill(this, 0, 0, 'ic_flame', 'EXTRA CRISPY', { size: 11, h: 22, color: '#ff9a5c' }).setVisible(this.crispy));
     const kills = this.ui(pill(this, 0, 0, 'en_crumb', '0', { size: 14, h: 28 }));
     const aged = this.bagel.quirkId === 'aged' ? this.ui(pill(this, 0, 0, 'ic_bk_oven', '+30%', { size: 14, h: 28, color: CSS.gold })) : null;
     const pause = this.ui(button(this, 0, 0, 36 * S, 36 * S, 'II', () => this.openPause(), { color: COLORS.panelLight, textColor: CSS.cream, size: 16, radius: 11 }));
@@ -2675,7 +2783,7 @@ export class GameScene extends Phaser.Scene implements World {
     const bossName = this.ui(txt(this, 0, 0, '', 14, CSS.gold).setVisible(false));
     const bossBg = this.ui(this.add.rectangle(0, 0, 10, 10, 0x1d140d).setVisible(false));
     const bossFill = this.ui(this.add.rectangle(0, 0, 10, 10, COLORS.red).setOrigin(0, 0.5).setVisible(false));
-    this.hud = { xpBar, badge, level, timer, quickBadge, kills, aged, pause, build, bossName, bossBg, bossFill };
+    this.hud = { xpBar, badge, level, timer, quickBadge, crispyBadge, kills, aged, pause, build, bossName, bossBg, bossFill };
     this.buildSig = '';
     this.xpShown = 0;
   }
@@ -2702,8 +2810,9 @@ export class GameScene extends Phaser.Scene implements World {
     this.drawXpBar();
     h.timer.setPosition(W / 2, top + 60 * S);
     h.quickBadge.setPosition(W / 2 + 46 * S + h.quickBadge.width / 2, top + 60 * S);
+    h.crispyBadge.setPosition(W / 2, top + 88 * S);
     h.kills.setPosition(pad + h.kills.width / 2, top + 60 * S);
-    h.aged?.setPosition(W - pad - h.aged.width / 2, top + (this.quick ? 96 : 60) * S);
+    h.aged?.setPosition(W - pad - h.aged.width / 2, top + (this.quick || this.endless ? 96 : 60) * S);
     h.build.setPosition(pad, top + 90 * S);
     h.bossName.setPosition(W / 2, top + 140 * S);
     const bw = Math.min(W - 40 * S, 320 * S);
@@ -3179,7 +3288,7 @@ export class GameScene extends Phaser.Scene implements World {
     const ph = 470 * S;
     const top = H / 2 - ph / 2;
     c.add(panel(this, W / 2, H / 2, pw, ph));
-    c.add(txt(this, W / 2, top + 36 * S, this.practice ? 'PAUSED (PRACTICE)' : this.quick ? 'PAUSED (QUICK)' : 'PAUSED', 26, CSS.gold));
+    c.add(txt(this, W / 2, top + 36 * S, this.practice ? 'PAUSED (PRACTICE)' : this.quick ? 'PAUSED (QUICK)' : this.endless ? 'PAUSED (ENDLESS)' : 'PAUSED', 26, CSS.gold));
 
     // Run so far
     const stats = [
@@ -3257,8 +3366,10 @@ export class GameScene extends Phaser.Scene implements World {
     // Quick Runs count time on the full-run schedule, then pay about 75% of a full run.
     let dough = (this.stageT / 60) * 10 + this.kills / 60 + this.coins;
     if (this.miniKilled) dough += 10;
-    if (victory) dough += 40;
-    return Math.round(dough * this.stage.dough * (this.quick ? QUICK_DOUGH : 1));
+    if (victory || this.endlessCleared) dough += 40;
+    // Endless: a bonus for every full minute after 5:00.
+    if (this.endless && this.stageT > 300) dough += Math.floor((this.stageT - 300) / 60) * ENDLESS_DOUGH_MIN;
+    return Math.round(dough * this.stage.dough * (this.quick ? QUICK_DOUGH : 1) * (this.crispy ? CRISPY_DOUGH : 1));
   }
 
   // ---------------------------------------------------------------- End
@@ -3283,21 +3394,29 @@ export class GameScene extends Phaser.Scene implements World {
       save.stageTime = { ...(save.stageTime ?? {}), [this.stage.id]: Math.max(save.stageTime?.[this.stage.id] ?? 0, t) };
     }
     clearRun();
-    if (victory && !this.practice) {
+    // An Endless run whose boss fell counts as a clear too.
+    const cleared = victory || this.endlessCleared;
+    if (cleared && !this.practice) {
       save.clears++;
       save.stageClears = { ...(save.stageClears ?? {}), [this.stage.id]: (save.stageClears?.[this.stage.id] ?? 0) + 1 };
+      if (this.crispy) save.crispyClears = { ...(save.crispyClears ?? {}), [this.stage.id]: (save.crispyClears?.[this.stage.id] ?? 0) + 1 };
       if (this.healsTaken === 0) save.noHealClear = true;
     }
     if (!this.practice) {
       const beaten = new Set(save.beaten ?? []);
       if (this.miniKilled) beaten.add(this.stage.mini.kind);
-      if (victory) beaten.add(this.stage.boss.kind);
+      if (cleared) beaten.add(this.stage.boss.kind);
       save.beaten = [...beaten];
       save.mugs = (save.mugs ?? 0) + this.runMugs;
     }
     const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
     const newWeapon = this.practice ? '' : checkWeaponUnlocks(save).join(', ');
-    const newBest = !this.practice && recordBest(save, this.bagel.id, { time: Math.floor(this.now), kills: this.kills, cleared: victory }, bestStage(this.stage.id, this.quick));
+    const newBest = !this.practice && recordBest(
+        save,
+        this.bagel.id,
+        { time: Math.floor(this.now), kills: this.kills, cleared, ...(this.endless ? { endless: true } : {}) },
+        bestStage(this.stage.id, this.endless ? 'endless' : this.quick ? 'quick' : 'full', this.crispy),
+      );
     const opened = playableStages(save).filter((id) => !openBefore.includes(id));
     if (opened.length) save.stage = opened[0];
     persist();
@@ -3305,6 +3424,9 @@ export class GameScene extends Phaser.Scene implements World {
       victory,
       practice: this.practice,
       quick: this.quick,
+      endless: this.endless,
+      cleared,
+      crispy: this.crispy,
       time: this.now,
       level: this.level,
       kills: this.kills,

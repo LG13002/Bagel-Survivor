@@ -41,18 +41,22 @@ export class ResultsScene extends Phaser.Scene {
     const cy = compact ? ins.top * S + 14 * S + ph / 2 : Math.min(H / 2 - 40 * S, ins.top * S + 40 * S + ph / 2);
     panel(this, W / 2, cy, pw, ph);
     const top = cy - ph / 2;
-    txt(this, W / 2, top + 44 * S, r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE', r.practice ? 24 : 30, r.victory ? CSS.gold : CSS.red);
+    // Endless always ends in going stale, so its title is the score: time survived.
+    const title = r.endless ? `SURVIVED ${fmtTime(r.time)}` : r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE';
+    txt(this, W / 2, top + 44 * S, title, r.practice ? 24 : 30, r.victory || r.endless ? CSS.gold : CSS.red);
     const st = stageById(r.stage);
-    txt(this, W / 2, top + 72 * S, `Stage ${st.num}: ${st.name}${r.quick ? ' (Quick)' : ''}`, 13, CSS.muted, { stroke: false });
+    const tags = [r.quick ? 'Quick' : '', r.endless ? 'Endless' : '', r.crispy ? 'Extra Crispy' : ''].filter(Boolean).join(', ');
+    txt(this, W / 2, top + 72 * S, `Stage ${st.num}: ${st.name}${tags ? ` (${tags})` : ''}`, 13, r.crispy ? '#ff9a5c' : CSS.muted, { stroke: false });
     this.add.image(W / 2, top + 112 * S, (BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain') + '_big').setScale(0.5).setAngle(r.victory ? 0 : 160);
 
     if (r.newBest) {
-      const nb = txt(this, W / 2 + Math.min(pw / 2 - 64 * S, 110 * S), top + 96 * S, r.quick ? 'NEW QUICK BEST!' : 'NEW BEST!', r.quick ? 14 : 17, CSS.gold).setAngle(-12);
+      const nbText = r.endless ? 'NEW ENDLESS BEST!' : r.quick ? 'NEW QUICK BEST!' : 'NEW BEST!';
+      const nb = txt(this, W / 2 + Math.min(pw / 2 - 64 * S, 110 * S), top + 96 * S, nbText, r.quick || r.endless ? 14 : 17, CSS.gold).setAngle(-12);
       this.tweens.add({ targets: nb, scale: 1.12, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
 
     const rows: [string, string][] = [
-      ['Time', fmtTime(r.time)],
+      [r.endless ? 'Time survived' : 'Time', fmtTime(r.time)],
       ['Level', `${r.level}`],
       ['Crumbs defeated', `${r.kills}`],
       ['Dough earned', r.practice ? 'none (practice)' : `+${r.dough}`],
@@ -65,6 +69,7 @@ export class ResultsScene extends Phaser.Scene {
 
     // What to chase next
     const notes: string[] = [];
+    if (r.endless && r.cleared) notes.push('The boss fell, so this run counts as a stage clear.');
     if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newStage) notes.push(`NEW STAGE: ${r.newStage}!`);
     if (r.newUnlock) notes.push(`NEW BAGEL UNLOCKED: ${r.newUnlock}!`);
@@ -75,7 +80,7 @@ export class ResultsScene extends Phaser.Scene {
     txt(this, W / 2, top + (compact ? 335 : 375) * S, notes.slice(0, compact ? 2 : 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
 
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
-    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: r.quick }), { size: 28 });
+    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: r.quick, endless: r.endless, crispy: r.crispy }), { size: 28 });
     button(this, W / 2, by + 74 * S, Math.min(W - 60 * S, 260 * S), 50 * S, 'Menu', () => this.go('menu', {}), {
       color: COLORS.panelLight,
       textColor: CSS.cream,

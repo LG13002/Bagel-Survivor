@@ -43,6 +43,11 @@ export function goalStatus(save: SaveData, b: BagelDef): GoalStatus {
   }
 }
 
+/** Endless and Extra Crispy open for a stage once it has been cleared (always open in preview builds). */
+export function modesOpen(save: SaveData, stage: StageDef): boolean {
+  return PREVIEW || (save.stageClears?.[stage.id] ?? 0) > 0;
+}
+
 /** Longest survival on a stage: the tracked time, or older saves' bests (a Quick clear counts as 3:00). */
 function stageBestTime(save: SaveData, stage: string): number {
   let t = save.stageTime?.[stage] ?? 0;

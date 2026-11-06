@@ -11,6 +11,12 @@ export interface SaveData {
   music?: boolean;
   /** Last chosen run length: true = Quick Run (3:00). */
   quick?: boolean;
+  /** Last chosen mode was Endless (only on stages you've cleared; never with quick). */
+  endless?: boolean;
+  /** Extra Crispy (the hard toggle) is on. Only applies on stages you've cleared. */
+  crispy?: boolean;
+  /** Clears per stage id with Extra Crispy on (shows a flame star on the stage card). */
+  crispyClears?: Record<string, number>;
   practice?: boolean;
   noHealClear?: boolean;
   /** Per bagel, per stage best runs, keyed 'stage:bagel' ('stage1q:plain' for Quick Runs). */
@@ -72,16 +78,21 @@ export function persist(): void {
   }
 }
 
-/** Best run for one bagel on one stage. A clear beats any time; then longer time, then more kills. */
+/** Best run for one bagel on one stage. A clear beats any time; then longer time, then more kills. Endless ranks by time only. */
 export interface BestScore {
   time: number;
   kills: number;
   cleared: boolean;
+  endless?: boolean;
 }
 
-/** Key for a stage's bests. Quick Runs keep their own: 'stage1q'. */
-export function bestStage(stage: string, quick: boolean): string {
-  return quick ? `${stage}q` : stage;
+/** Run modes: Full (5:00), Quick (3:00) or Endless (keeps going after the boss). */
+export type RunMode = 'full' | 'quick' | 'endless';
+
+/** Key for a stage's bests. Quick and Endless keep their own ('stage1q', 'stage1e'), and Extra Crispy adds an 'x' ('stage1qx'). */
+export function bestStage(stage: string, mode: RunMode | boolean, crispy = false): string {
+  const m = mode === true || mode === 'quick' ? 'q' : mode === 'endless' ? 'e' : '';
+  return `${stage}${m}${crispy ? 'x' : ''}`;
 }
 
 function bestKey(stage: string, bagel: string): string {
@@ -94,6 +105,7 @@ export function getBest(save: SaveData, bagel: string, stage: string): BestScore
 
 function better(a: BestScore, b: BestScore | undefined): boolean {
   if (!b) return true;
+  if (a.endless) return a.time > b.time;
   if (a.cleared !== b.cleared) return a.cleared;
   if (a.cleared) return a.kills > b.kills; // both clears: the menu shows kills, so rank by kills
   if (a.time !== b.time) return a.time > b.time;
