@@ -173,6 +173,12 @@ From the owner's playtest notes:
 - Cookbook: a third tab, Enemies, with one page per stage (34 enemies in all). New icons: `ic_check` and `ic_secret`.
 - No gameplay or balance changes in this part.
 
+### Phase 2, M11 part 2: Rainbow bagel and Lox and Schmear
+- Built from the approved M11 change list. Details are in CLAUDE.md under "Secrets".
+- The Rainbow bagel has rainbow sprinkles on pink frosting (new `icing` and `sprinkles` options on `BagelLook`).
+- Lox and Schmear: the first version used the hit numbers 26 to 32, but the bot showed those trip the 30-damage freeze-frame on almost every hit (the game lost about 15% of its time to freeze-frames). It now uses more frequent, smaller hits instead.
+- `wbench.cjs` takes `combo` (merged) and `pair` (both evolutions side by side). At `speed=6` the bench loses game time to freeze-frames, so compare weapons that cross 30 damage at normal speed.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

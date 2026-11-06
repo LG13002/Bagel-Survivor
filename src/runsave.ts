@@ -19,7 +19,7 @@ export interface RunSnapshot {
   xp: number;
   pendingLevels: number;
   hp: number;
-  weapons: { id: string; level: number; evolved: boolean }[];
+  weapons: { id: string; level: number; evolved: boolean; combo?: boolean }[];
   toppings: [string, number][];
   kills: number;
   coins: number;

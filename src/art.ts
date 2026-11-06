@@ -110,6 +110,10 @@ export interface BagelLook {
   seedCount?: number;
   seedSize?: number;
   swirl?: string;
+  /** Frosting ring on top (the Rainbow bagel). */
+  icing?: string;
+  /** Seeds drawn as long thin sprinkles. */
+  sprinkles?: boolean;
 }
 
 export function drawBagel(c: Ctx, cx: number, cy: number, r: number, look: BagelLook): void {
@@ -151,6 +155,30 @@ export function drawBagel(c: Ctx, cx: number, cy: number, r: number, look: Bagel
   c.lineWidth = r * 0.13;
   c.strokeStyle = look.hi;
   c.stroke();
+  if (look.icing) {
+    // A wavy frosting ring between the hole and the outer edge.
+    c.beginPath();
+    for (let i = 0; i <= 40; i++) {
+      const a = (i / 40) * TAU;
+      const rr = r * (0.84 + 0.05 * Math.sin(a * 7));
+      const x = cx + Math.cos(a) * rr;
+      const y = cy + Math.sin(a) * rr;
+      if (i) c.lineTo(x, y);
+      else c.moveTo(x, y);
+    }
+    c.closePath();
+    c.moveTo(cx + hole * 1.22, cy);
+    c.arc(cx, cy, hole * 1.22, 0, TAU, true);
+    c.fillStyle = radial(c, cx - r * 0.2, cy - r * 0.3, r, [
+      [0, '#ffffff'],
+      [0.6, look.icing],
+      [1, look.icing],
+    ]);
+    c.fill('evenodd');
+    c.lineWidth = Math.max(1, r * 0.06);
+    c.strokeStyle = 'rgba(36,22,13,0.45)';
+    c.stroke();
+  }
   if (look.seeds) {
     const rand = rng(7);
     const n = look.seedCount ?? 24;
@@ -166,9 +194,18 @@ export function drawBagel(c: Ctx, cx: number, cy: number, r: number, look: Bagel
       c.translate(x, y);
       c.rotate(rand() * Math.PI);
       c.beginPath();
-      c.ellipse(0, 0, sz * 1.5, sz * 0.85, 0, 0, TAU);
-      c.fillStyle = look.seeds[i % look.seeds.length];
-      c.fill();
+      if (look.sprinkles) {
+        c.lineCap = 'round';
+        c.lineWidth = sz * 0.9;
+        c.moveTo(-sz * 1.4, 0);
+        c.lineTo(sz * 1.4, 0);
+        c.strokeStyle = look.seeds[i % look.seeds.length];
+        c.stroke();
+      } else {
+        c.ellipse(0, 0, sz * 1.5, sz * 0.85, 0, 0, TAU);
+        c.fillStyle = look.seeds[i % look.seeds.length];
+        c.fill();
+      }
       c.restore();
     }
   }
@@ -733,6 +770,41 @@ export function drawPuddle(c: Ctx, s: number): void {
   }
 }
 
+/** Lox and Schmear: a swirling cream-cheese storm with pink lox ribbons (drawn under the player, rotated in play). */
+export function drawLoxStorm(c: Ctx, s: number): void {
+  const m = s / 2;
+  c.beginPath();
+  c.arc(m, m, m - 1, 0, TAU);
+  c.fillStyle = 'rgba(255,236,214,0.4)';
+  c.fill();
+  // Swirl arms: cream with a pink edge.
+  for (let k = 0; k < 4; k++) {
+    const a0 = (k / 4) * TAU;
+    c.beginPath();
+    for (let i = 0; i <= 24; i++) {
+      const t = i / 24;
+      const a = a0 + t * 2.4;
+      const r = m * (0.2 + 0.75 * t);
+      const x = m + Math.cos(a) * r;
+      const y = m + Math.sin(a) * r;
+      if (i) c.lineTo(x, y);
+      else c.moveTo(x, y);
+    }
+    c.lineCap = 'round';
+    c.lineWidth = 11;
+    c.strokeStyle = 'rgba(232,110,80,0.75)';
+    c.stroke();
+    c.lineWidth = 5;
+    c.strokeStyle = 'rgba(255,250,240,0.95)';
+    c.stroke();
+  }
+  c.beginPath();
+  c.arc(m, m, m - 2, 0, TAU);
+  c.lineWidth = 4;
+  c.strokeStyle = 'rgba(214,96,70,0.8)';
+  c.stroke();
+}
+
 export function drawLox(c: Ctx, w: number, h: number): void {
   c.beginPath();
   c.ellipse(w / 2, h / 2, w / 2 - 1.5, h / 2 - 1.5, 0, 0, TAU);
@@ -1248,6 +1320,24 @@ export const ICONS: Record<string, (c: Ctx) => void> = {
     c.translate(3, 9);
     drawLox(c, 30, 18);
     c.restore();
+  },
+  // The secret combo: a schmear dollop with lox slices swirling around it.
+  ic_loxschmear: (c) => {
+    c.beginPath();
+    c.ellipse(18, 21, 11, 7, 0, 0, TAU);
+    fillInk(c, radial(c, 18, 21, 11, [[0, '#ffffff'], [1, '#e6ddc8']]));
+    for (const [x, y, a] of [[6, 10, -0.5], [27, 9, 0.5], [17, 30, 0.1]] as const) {
+      c.save();
+      c.translate(x, y);
+      c.rotate(a);
+      c.translate(-7, -4.5);
+      drawLox(c, 14, 9);
+      c.restore();
+    }
+    c.beginPath();
+    c.ellipse(14, 19, 3.5, 1.8, 0, 0, TAU);
+    c.fillStyle = '#ffffff';
+    c.fill();
   },
   ic_coffee: (c) => {
     c.beginPath();

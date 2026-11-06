@@ -75,6 +75,7 @@ export class ResultsScene extends Phaser.Scene {
     if (r.endless && r.cleared) notes.push('The boss fell, so this run counts as a stage clear.');
     if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newStage) notes.push(`NEW STAGE: ${r.newStage}!`);
+    if (r.combo) notes.push('SECRET RECIPE FOUND: Lox and Schmear!');
     if (r.newUnlock) notes.push(`NEW BAGEL UNLOCKED: ${r.newUnlock}!`);
     if (r.newWeapon) notes.push(`NEW WEAPON: ${r.newWeapon}!`);
     if (r.evolutions.length) notes.push(`Evolved: ${r.evolutions.join(', ')}`);

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, drawButcherBlock, drawFreezerFloor, drawOvenFloor, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -35,6 +35,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   bagelTex('bagel_blueberry', { base: '#9d8fcf', crust: '#4f3f86', hi: '#d3c9f2', seeds: ['#2b2766', '#3d3a92', '#252050'], seedCount: 16, seedSize: 1.7 });
   bagelTex('bagel_asiago', { ...golden, seeds: ['#ffdc73', '#f2c048', '#c9862a'], seedCount: 12, seedSize: 2.2 });
   bagelTex('bagel_jalapeno', { base: '#e8a94a', crust: '#a9622a', hi: '#f9d585', seeds: ['#3f8f2a', '#ffb52e', '#2c6b1c', '#ffcf4a'], seedCount: 16, seedSize: 2.1 });
+  bagelTex('bagel_rainbow', { ...golden, icing: '#f9c6dc', seeds: ['#e0533d', '#f2b84b', '#ffe45c', '#7fbf4d', '#5aa9e6', '#a77ee0'], seedCount: 34, seedSize: 1.3, sprinkles: true });
   bagelTex('bagel_onion', { ...golden, seeds: ['#f6e6b6', '#8a5a2a', '#dcbb72'], seedCount: 26, seedSize: 1.45 });
   ctex(scene, 'mine', 10, 10, (c) => drawMine(c, 10));
 
@@ -107,6 +108,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   ctex(scene, 'seed_fire', 14, 14, (c) => drawSesame(c, 7, 7, 4.6, 3, true));
   ctex(scene, 'orb', 16, 16, (c) => drawSesame(c, 8, 8, 6, 3.6));
   ctex(scene, 'puddle', 128, 128, (c) => drawPuddle(c, 128));
+  ctex(scene, 'loxstorm', 128, 128, (c) => drawLoxStorm(c, 128));
   ctex(scene, 'lox', 30, 18, (c) => drawLox(c, 30, 18));
   ctex(scene, 'pin', 56, 16, (c) => drawPin(c, 56, 16));
   ctex(scene, 'knife_w', 32, 10, (c) => drawButterKnife(c, 32, 10));
