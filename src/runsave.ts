@@ -34,6 +34,10 @@ export interface RunSnapshot {
   bossHp: number;
   evolutions: string[];
   healsTaken: number;
+  /** No hits taken since the current boss arrived. */
+  bossClean?: boolean;
+  /** A boss fell this run without landing a hit. */
+  noHitBoss?: boolean;
   /** Second Bake already used this run. */
   revived?: boolean;
   mugs?: number;

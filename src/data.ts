@@ -588,3 +588,56 @@ export const RUN = {
 export function xpNeeded(lvl: number): number {
   return Math.round(4 + lvl * 2 + Math.pow(lvl, 1.55));
 }
+
+/** The Cookbook's Enemies tab: one page per stage, in the order you meet them (regulars, then elites, mini-boss, boss). */
+export interface BookEnemy {
+  kind: EnemyKind;
+  name: string;
+  /** One line on what it does. */
+  blurb: string;
+  /** Bosses and mini-bosses get a gold frame, and a crown once beaten. */
+  role?: 'elite' | 'mini' | 'boss';
+}
+
+export const ENEMY_BOOK: Record<StageId, BookEnemy[]> = {
+  stage1: [
+    { kind: 'crumb', name: 'Stale Crumb', blurb: 'The smallest of the Stale. They come in crowds.' },
+    { kind: 'mold', name: 'Mold Blob', blurb: 'Slow and squishy. Splits into two Moldlings.' },
+    { kind: 'moldling', name: 'Moldling', blurb: 'A little piece of Mold Blob, a bit quicker.' },
+    { kind: 'knife', name: 'Rogue Knife', blurb: 'Lines up, then dashes straight at you.' },
+    { kind: 'ant', name: 'Sugar Ant', blurb: 'Marches across in long, fast lines.' },
+    { kind: 'elite', name: 'Giant Mold', blurb: 'A huge mold that can drop a gold toaster.', role: 'elite' },
+    { kind: 'croissant', name: 'Crusty Croissant', blurb: 'Fires rings of flakes. Always drops a Sticky Bun.', role: 'mini' },
+    { kind: 'toaster', name: 'The Toaster Tyrant', blurb: 'Throws burnt toast. Beat him to clear the Bakery.', role: 'boss' },
+  ],
+  stage2: [
+    { kind: 'fcrumb', name: 'Frost Crumb', blurb: 'A frozen crumb, a little faster than the stale ones.' },
+    { kind: 'popsicle', name: 'Popsicle', blurb: 'Snaps into two halves when it breaks.' },
+    { kind: 'pophalf', name: 'Popsicle Half', blurb: 'Half a popsicle, still chasing you.' },
+    { kind: 'icecube', name: 'Ice Cube', blurb: 'Shakes, then charges in a straight line.' },
+    { kind: 'peapod', name: 'Pea Pod', blurb: 'Keeps its distance and lobs frozen peas.' },
+    { kind: 'fmold', name: 'Freezer Mold', blurb: 'Tough, frosty mold. Splits when it breaks.' },
+    { kind: 'fmoldling', name: 'Freezer Moldling', blurb: 'A chip off the Freezer Mold.' },
+    { kind: 'sprinkle', name: 'Snowflake Sprinkles', blurb: 'Zip across in long lines.' },
+    { kind: 'scoop', name: 'Ice Cream Scoop', blurb: 'Leaves pink melt puddles that slow you.', role: 'elite' },
+    { kind: 'fcroissant', name: 'Frosted Croissant', blurb: 'A chilly cousin of the Crusty Croissant.', role: 'elite' },
+    { kind: 'tyrantjr', name: 'Tyrant Jr.', blurb: 'A surprise at 4:00. Throws a fan of toast.', role: 'elite' },
+    { kind: 'waffle', name: 'Frozen Waffle', blurb: 'Charges three times, then rests. Splits into squares.', role: 'mini' },
+    { kind: 'wafflesq', name: 'Waffle Square', blurb: 'A broken bit of the Frozen Waffle.' },
+    { kind: 'fburn', name: 'The Freezer Burn', blurb: 'Icicle volleys and frost circles. Time to feel the burn!', role: 'boss' },
+  ],
+  stage3: [
+    { kind: 'ember', name: 'Ember Crumb', blurb: 'Leaves a little flame where it falls.' },
+    { kind: 'popcorn', name: 'Popcorn Kernel', blurb: 'Pops into three bits when it breaks.' },
+    { kind: 'popbit', name: 'Popcorn Bit', blurb: 'Small and quick.' },
+    { kind: 'btoast', name: 'Burnt Toast', blurb: 'Flips, then charges at you.' },
+    { kind: 'hotsauce', name: 'Hot Sauce', blurb: 'Squirts a spread of three hot drops.' },
+    { kind: 'tot', name: 'Toaster Tot', blurb: 'A tiny toaster, demoted from the Bakery.' },
+    { kind: 'mscoop', name: 'Melting Scoop', blurb: 'Drips small melt puddles as it goes.' },
+    { kind: 'wafflebit', name: 'Waffle Bit', blurb: 'Races across the oven in lines.' },
+    { kind: 'muffin', name: 'Molten Muffin', blurb: 'Leaves a fire trail and bursts into embers.', role: 'elite' },
+    { kind: 'fburnt', name: 'Freezer Burn, Again', blurb: 'Back for revenge at 4:00, a bit smaller.', role: 'elite' },
+    { kind: 'flapjack', name: 'Flapjack Stack', blurb: 'Throws pancakes. Gets faster as it loses them.', role: 'mini' },
+    { kind: 'broiler', name: 'The Broiler', blurb: 'Sweeping flame lines and fireballs. Things are heating up!', role: 'boss' },
+  ],
+};

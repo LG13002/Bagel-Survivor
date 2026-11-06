@@ -166,6 +166,13 @@ From the owner's playtest notes:
 - Endless: see CLAUDE.md for the rules. Resume saves its extra state (`endlessCleared`, `nextMini`, `nextBoss`, `bossRound`, `crispy`).
 - Extra Crispy tuning: +40% health and +20% spawns alone only raised the bot's damage taken by about 6%, because the bot is already hit about as often as the 0.9s hit immunity allows. So, as a measured deviation from the list, Extra Crispy also multiplies damage you take by 1.25. Bot (`CRISPY=1 node tools/bots/wbench.cjs 3 sesame,coffee,pin,lox <stage> 150`, damage taken per minute, normal vs Extra Crispy): Stage 1 about 408 vs 534 (+31%), Freezer 457 vs 579 (+27%), Oven 472 vs 633 (+34%). Kills per minute drop 15 to 25%.
 
+### Phase 2, M11 part 1: Goals page and Cookbook enemies
+- Change list (approved with all suggestions): https://claude.ai/artifact/2epR6A5tmgMBGMFsuzTkCr. The owner raised two challenges (1,000 kills in one run, evolve 4 weapons in one run), kept the three-PR split, and kept the reward sizes (more challenges can come with later content).
+- Menu: the bottom row is now three buttons, Bakery / Goals / Cookbook. A red dot on Goals means a challenge was just paid.
+- Goals page: Unlocks, Challenges and Secrets tabs, 5 rows a page. See CLAUDE.md for how challenges are tracked and paid. "Beat a boss without being hit" counts stage bosses only (not mini-bosses or the oven's surprise Freezer Burn).
+- Cookbook: a third tab, Enemies, with one page per stage (34 enemies in all). New icons: `ic_check` and `ic_secret`.
+- No gameplay or balance changes in this part.
+
 ## Weapon benchmark (bot, after step 7)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.

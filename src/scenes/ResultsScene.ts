@@ -69,6 +69,9 @@ export class ResultsScene extends Phaser.Scene {
 
     // What to chase next
     const notes: string[] = [];
+    // Finished challenges: first, as one line, or a total when several land at once.
+    if (r.goals.length === 1) notes.push(`GOAL DONE: ${r.goals[0].name}, +${r.goals[0].reward} Dough`);
+    else if (r.goals.length > 1) notes.push(`${r.goals.length} GOALS DONE! +${r.goals.reduce((a, g) => a + g.reward, 0)} Dough. See the Goals page.`);
     if (r.endless && r.cleared) notes.push('The boss fell, so this run counts as a stage clear.');
     if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newStage) notes.push(`NEW STAGE: ${r.newStage}!`);

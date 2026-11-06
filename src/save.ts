@@ -1,3 +1,5 @@
+import { ENEMY_BOOK, STAGES } from './data';
+
 export interface SaveData {
   dough: number;
   upgrades: Record<string, number>;
@@ -33,6 +35,28 @@ export interface SaveData {
   beaten?: string[];
   /** Warm Mugs picked up, all runs together. */
   mugs?: number;
+  /** Enemy kinds met at least once (the Cookbook's Enemies tab shows the rest as "???"). */
+  met?: string[];
+  /** Best single-run numbers, for the Goals page's challenges. */
+  records?: RunRecords;
+  /** Beat a stage boss without getting hit during the fight. */
+  noHitBoss?: boolean;
+  /** Challenges whose Dough reward has been paid. */
+  goalsPaid?: string[];
+  /** Paid challenges already seen on the Goals page (the rest give the Goals button a red dot). */
+  goalsSeen?: string[];
+}
+
+/** Best single-run numbers (practice runs never count). */
+export interface RunRecords {
+  kills?: number;
+  level?: number;
+  /** Evolutions in one run. */
+  evos?: number;
+  /** Longest Endless run, in seconds. */
+  endless?: number;
+  /** Most boss kills in one Endless run. */
+  endlessBosses?: number;
 }
 
 const KEY = 'everything-bagel-save-v1';
@@ -65,6 +89,8 @@ export function load(): SaveData {
   if (!data.stageClears) data.stageClears = data.clears > 0 ? { stage1: data.clears } : {};
   // Saves from before M8 that cleared the Freezer beat both of its bosses on the way.
   if ((data.stageClears.stage2 ?? 0) > 0) data.beaten = [...new Set([...(data.beaten ?? []), 'waffle', 'fburn'])];
+  // Saves from before the Enemies tab: every enemy of a stage already cleared counts as met.
+  if (!data.met) data.met = STAGES.filter((st) => (data.stageClears?.[st.id] ?? 0) > 0).flatMap((st) => ENEMY_BOOK[st.id].map((e) => e.kind));
   cache = data;
   return data;
 }
