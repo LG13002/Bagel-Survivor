@@ -177,6 +177,7 @@ From the owner's playtest notes:
 - Built from the approved M11 change list. Details are in CLAUDE.md under "Secrets".
 - The Rainbow bagel has rainbow sprinkles on pink frosting (new `icing` and `sprinkles` options on `BagelLook`).
 - Lox and Schmear: the first version used the hit numbers 26 to 32, but the bot showed those trip the 30-damage freeze-frame on almost every hit (the game lost about 15% of its time to freeze-frames). It now uses more frequent, smaller hits instead.
+- After the owner played it: the merge used to wait until every other evolution was done, so it was only reachable in Endless. It now comes first on the next gold toaster. The freed slot used to be auto-filled by the chest, so, at the owner's request, **chests no longer add new weapons or toppings at all**: they only level up what you own, and empty slots are filled from level-up cards.
 - `wbench.cjs` takes `combo` (merged) and `pair` (both evolutions side by side). At `speed=6` the bench loses game time to freeze-frames, so compare weapons that cross 30 damage at normal speed.
 
 ## Weapon benchmark (bot, after step 7)

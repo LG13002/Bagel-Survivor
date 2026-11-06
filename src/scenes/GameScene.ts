@@ -3247,13 +3247,22 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   /** Bread basket: an evolution, or 1 upgrade and +5 Dough. Gold toaster: an evolution plus 2 upgrades, or 3 upgrades and +15 Dough. */
+  /** Upgrades a chest can hand out: levels for owned weapons and toppings, in random order. Never a new item. */
+  private chestUpgrades(): Choice[] {
+    const out: Choice[] = [];
+    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) out.push({ kind: 'wup', id: w.def.id });
+    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) out.push({ kind: 'tup', id });
+    return Phaser.Utils.Array.Shuffle(out);
+  }
+
   private openChest(gold: boolean): void {
     this.setPaused('chest');
-    const evo = this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
-    // The secret recipe: a gold toaster merges Schmear Flood and Lox Cyclone (after any normal evolution waiting).
+    // The secret recipe: the first gold toaster after Schmear Flood and Lox Cyclone are both evolved merges them.
+    // It goes ahead of any normal evolution that's waiting (that one comes from the next chest).
     const lox = this.weaponOf('lox');
     const flood = this.weaponOf('puddle');
-    const merge = !evo && gold && !!lox?.evolved && !!flood?.evolved && !lox.combo;
+    const merge = gold && !!lox?.evolved && !!flood?.evolved && !lox.combo;
+    const evo = merge ? undefined : this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
     sfx(evo || merge ? 'evolve' : gold ? 'gold' : 'basket');
     let title: string;
     const lines: string[] = [];
@@ -3287,8 +3296,9 @@ export class GameScene extends Phaser.Scene implements World {
     }
     const ups = merge ? 1 : evo ? (gold ? 2 : 0) : gold ? 3 : 1;
     const got: string[] = [];
+    // Chests only level up what you already own: empty slots are left for you to fill from level-up cards.
     for (let i = 0; i < ups; i++) {
-      const opts = this.choices().filter((c) => c.kind !== 'heal' && c.kind !== 'coin');
+      const opts = this.chestUpgrades();
       const pick = opts.find((c) => c.kind === 'wup') ?? opts[0];
       if (!pick) break;
       const info = this.describe(pick);
