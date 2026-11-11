@@ -20,7 +20,7 @@ import {
 } from '../data';
 import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } from '../entities';
 import { bestStage, load, persist, recordBest } from '../save';
-import { makeTextures } from '../textures';
+import { makeRunTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { COMBO, createWeapon, type FxId, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
@@ -95,10 +95,10 @@ const GREASE_R = 22;
 const GREASE_DMG = 4;
 const SLICK_LIFE = 3;
 const POST_R = 17;
-/** Jalapeño Cheddar's Spicy: chance per hit, burn time, and burn damage per tick as a share of the hit. */
 /** The Broiler's flame lines. */
 const BEAM_W = 30;
 const BEAM_DMG = 14;
+/** Jalapeño Cheddar's Spicy: chance per hit, burn time, and burn damage per tick as a share of the hit. */
 const SPICY_CHANCE = 0.1;
 const BURN_TIME = 3;
 const BURN_TICK = 0.5;
@@ -115,7 +115,7 @@ interface IcePatch {
   ry: number;
   imgs: Phaser.GameObjects.Image[];
 }
-const KILL_SFX: Partial<Record<EnemyKind, Sfx>> = {
+const KILL_SFX: Record<EnemyKind, Sfx> = {
   crumb: 'crunch', ant: 'crunch', mold: 'splat', moldling: 'splat', knife: 'clatter', elite: 'pop', croissant: 'pop', toaster: 'pop',
   fcrumb: 'crunch', sprinkle: 'crunch', icecube: 'shatter', popsicle: 'shatter', pophalf: 'crunch', peapod: 'splat', fmold: 'splat', fmoldling: 'splat',
   scoop: 'pop', fcroissant: 'pop', tyrantjr: 'pop', waffle: 'pop', wafflesq: 'crunch', fburn: 'pop',
@@ -164,6 +164,7 @@ export class GameScene extends Phaser.Scene implements World {
   private weapons: Weapon[] = [];
   private toppings = new Map<ToppingId, number>();
   private particles = 0;
+  private fxPool: Phaser.GameObjects.Image[] = [];
 
   private level = 1;
   private xp = 0;
@@ -217,7 +218,10 @@ export class GameScene extends Phaser.Scene implements World {
   private xpShown = 0;
   private xpBarW = 0;
   private overlay: Phaser.GameObjects.Container | null = null;
+  /** Looping animations on the open panel, stopped when it closes. */
+  private overlayTweens: Phaser.Tweens.Tween[] = [];
   private lastTimerSec = -1;
+  private lastLevelShown = 0;
   private hitstop = 0;
   private lastHitstop = 0;
   private banners = 0;
@@ -342,6 +346,8 @@ export class GameScene extends Phaser.Scene implements World {
     this.auraT = 0;
     this.snapT = 0;
     this.iceChunks = new Map();
+    this.postChunks = new Map();
+    this.posts = [];
     this.onIce = false;
     this.vel = { x: 0, y: 0 };
     this.stillT = 0;
@@ -366,6 +372,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.propChunks = new Map();
     this.propCenter = '';
     this.particles = 0;
+    this.fxPool = [];
     this.level = 1;
     this.xp = 0;
     this.xpNext = xpNeeded(1);
@@ -397,7 +404,9 @@ export class GameScene extends Phaser.Scene implements World {
     this.boss = null;
     this.mini = null;
     this.overlay = null;
+    this.overlayTweens = [];
     this.lastTimerSec = -1;
+    this.lastLevelShown = 0;
     this.hitstop = 0;
     this.lastHitstop = 0;
     this.banners = 0;
@@ -407,7 +416,7 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   create(): void {
-    makeTextures(this);
+    makeRunTextures(this, this.stage);
     this.worldLayer = this.add.layer();
     this.uiLayer = this.add.layer();
     this.uiLayer.setDepth(1000);
@@ -489,6 +498,28 @@ export class GameScene extends Phaser.Scene implements World {
     im.setData('base', 1 / S);
     this.worldLayer.add(im);
     return im;
+  }
+
+  /**
+   * A short-lived effect sprite (spark, crumb, trail dot). These come and go by the hundred, so finished
+   * ones are kept and reused instead of being created and thrown away. Hand it back with `fxDone`.
+   */
+  private fx(tex: string, x: number, y: number, depth: number): Phaser.GameObjects.Image {
+    this.particles++;
+    const im = this.fxPool.pop();
+    if (!im) {
+      const made = this.add.image(x, y, tex).setScale(1 / S).setDepth(depth);
+      this.worldLayer.add(made);
+      return made;
+    }
+    im.setTexture(tex).setPosition(x, y).setDepth(depth).setScale(1 / S).setRotation(0).setAlpha(1).setFlipX(false).clearTint();
+    return im.setActive(true).setVisible(true);
+  }
+
+  private fxDone(im: Phaser.GameObjects.Image): void {
+    this.particles--;
+    im.setActive(false).setVisible(false);
+    this.fxPool.push(im);
   }
 
   shake(ms: number, intensity: number): void {
@@ -908,6 +939,8 @@ export class GameScene extends Phaser.Scene implements World {
       revived: this.revived,
       mugs: this.runMugs,
       buns: this.pickups.filter((it) => it.kind === 'bun').length,
+      extras: [...this.extrasDone].filter((i) => i >= 0),
+      elites: this.enemies.filter((e) => e.alive && e.dropsChest && e !== this.mini && e !== this.boss).map((e) => ({ kind: e.kind, hp: e.hp, bun: e.dropsBun })),
     };
     saveRun(snap);
   }
@@ -946,6 +979,18 @@ export class GameScene extends Phaser.Scene implements World {
     this.noHitBoss = !!s.noHitBoss;
     this.revived = !!s.revived;
     this.runMugs = s.mugs ?? 0;
+    // Surprise elites that already came stay done (older snapshots: judged by the clock), and elites that were out come back.
+    this.extrasDone = new Set(s.extras ?? (this.stage.extras ?? []).map((x, i) => (x.at < this.stageT ? i : -1)));
+    for (const el of s.elites ?? []) {
+      if (!ENEMIES[el.kind as EnemyKind]) continue;
+      const sp = this.spawnPoint();
+      const e = this.spawnEnemy(el.kind as EnemyKind, sp.x, sp.y, 1);
+      if (e) {
+        e.hp = Math.min(e.maxHp, el.hp);
+        e.dropsChest = true;
+        e.dropsBun = el.bun;
+      }
+    }
     for (let i = 0; i < (s.buns ?? 0); i++) this.dropPickup('bun', this.player.x + 60 + i * 30, this.player.y, 1);
     this.recomputeStats();
     this.player.hp = Math.min(this.stats.maxHp, s.hp);
@@ -1196,7 +1241,11 @@ export class GameScene extends Phaser.Scene implements World {
       if (!keep.has(key)) {
         for (const im of list) im.destroy();
         this.propChunks.delete(key);
-        for (const ip of this.iceChunks.get(key) ?? []) ip.imgs.forEach((im) => im.destroy());
+        for (const ip of this.iceChunks.get(key) ?? []) {
+          // The twinkles loop forever: stop their animations along with them.
+          this.tweens.killTweensOf(ip.imgs);
+          ip.imgs.forEach((im) => im.destroy());
+        }
         this.iceChunks.delete(key);
         for (const po of this.postChunks.get(key) ?? []) po.img.destroy();
         this.postChunks.delete(key);
@@ -1345,6 +1394,8 @@ export class GameScene extends Phaser.Scene implements World {
         this.spawnEnemy(this.pickKind(t), sp.x, sp.y, hpMult);
       }
     }
+    // Endless: a wave that comes due while the boss is out is skipped, not saved up for when it falls.
+    if (this.endlessCleared && this.boss && t >= this.nextWave) this.nextWave += RUN.waveEvery;
     if (t >= RUN.miniBossAt && t >= this.nextWave && (t < RUN.bossAt - 5 || (this.endlessCleared && !this.boss))) {
       this.nextWave += RUN.waveEvery;
       const n = 28;
@@ -1355,6 +1406,8 @@ export class GameScene extends Phaser.Scene implements World {
       }
       this.banner(st.wave.banner, CSS.cream, 18);
     }
+    // Lines pause while a boss is out; the ones that came due are skipped.
+    if (st.lines && t >= this.nextAnts && this.boss) this.nextAnts += RUN.antsEvery;
     if (st.lines && t >= this.nextAnts && !this.boss) {
       this.nextAnts += RUN.antsEvery;
       const a = Math.random() * Math.PI * 2;
@@ -1493,6 +1546,7 @@ export class GameScene extends Phaser.Scene implements World {
     e.attack2T = 0;
     e.burnUntil = 0;
     e.burnShown = false;
+    e.flashOn = false;
     e.hitCd.clear();
     this.enemies.push(e);
     if (isBig) this.bigs.push(e);
@@ -1963,8 +2017,8 @@ export class GameScene extends Phaser.Scene implements World {
 
       e.sprite.setPosition(e.x, e.y);
       const flashing = e.flashUntil > t;
-      if (flashing !== e.sprite.getData('flash')) {
-        e.sprite.setData('flash', flashing);
+      if (flashing !== e.flashOn) {
+        e.flashOn = flashing;
         if (flashing) e.sprite.setTintFill(0xffffff);
         else e.sprite.clearTint();
       }
@@ -1996,7 +2050,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.raisinKills = 0;
       this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 1);
     }
-    sfx(KILL_SFX[e.kind] ?? 'kill');
+    sfx(KILL_SFX[e.kind]);
     this.deathPop(e);
     const big = e.radius > 20;
     const def = ENEMIES[e.kind];
@@ -2076,40 +2130,18 @@ export class GameScene extends Phaser.Scene implements World {
   /** A white copy of the enemy that swells and fades where it died. */
   private deathPop(e: Enemy): void {
     if (this.particles > 140) return;
-    const im = this.img(e.sprite.texture.key, e.x, e.y, 39);
+    const im = this.fx(e.sprite.texture.key, e.x, e.y, 39);
     const sc = e.sprite.scaleX;
     im.setScale(sc).setTintFill(0xffffff).setRotation(e.sprite.rotation).setFlipX(e.sprite.flipX);
-    this.particles++;
-    this.tweens.add({
-      targets: im,
-      scaleX: sc * 1.6,
-      scaleY: sc * 0.4,
-      alpha: 0,
-      duration: 140,
-      ease: 'Quad.Out',
-      onComplete: () => {
-        im.destroy();
-        this.particles--;
-      },
-    });
+    this.tweens.add({ targets: im, scaleX: sc * 1.6, scaleY: sc * 0.4, alpha: 0, duration: 140, ease: 'Quad.Out', onComplete: () => this.fxDone(im) });
   }
 
   /** A little fading dot behind a projectile (weapons at level 5 and evolved). */
   trailDot(x: number, y: number, color: number): void {
     if (this.particles > 120) return;
-    const im = this.img('dot', x, y, 18).setTint(color).setAlpha(0.85);
+    const im = this.fx('dot', x, y, 18).setTint(color).setAlpha(0.85);
     im.setScale(0.42 / S);
-    this.particles++;
-    this.tweens.add({
-      targets: im,
-      alpha: 0,
-      scale: 0.1 / S,
-      duration: 240,
-      onComplete: () => {
-        im.destroy();
-        this.particles--;
-      },
-    });
+    this.tweens.add({ targets: im, alpha: 0, scale: 0.1 / S, duration: 240, onComplete: () => this.fxDone(im) });
   }
 
   /** Each weapon's own small hit spark ("Crisp" flare: quick, small, never hides enemies). */
@@ -2118,38 +2150,14 @@ export class GameScene extends Phaser.Scene implements World {
     // Damage-over-time weapons tick a lot, so they spark less often.
     if ((id === 'puddle' || id === 'jar' || id === 'storm' || id === 'combo') && Math.random() < 0.6) return;
     const part = (tex: string, tint: number, scale: number, dx: number, dy: number, ms: number, rot = 0, depth = 41) => {
-      const im = this.img(tex, x, y, depth).setTint(tint).setRotation(rot);
+      const im = this.fx(tex, x, y, depth).setTint(tint).setRotation(rot);
       im.setScale(scale / S);
-      this.particles++;
-      this.tweens.add({
-        targets: im,
-        x: x + dx,
-        y: y + dy,
-        alpha: 0,
-        scale: (scale * 0.4) / S,
-        duration: ms,
-        ease: 'Cubic.Out',
-        onComplete: () => {
-          im.destroy();
-          this.particles--;
-        },
-      });
+      this.tweens.add({ targets: im, x: x + dx, y: y + dy, alpha: 0, scale: (scale * 0.4) / S, duration: ms, ease: 'Cubic.Out', onComplete: () => this.fxDone(im) });
     };
     const pop = (tex: string, tint: number, from: number, to: number, ms: number, rot = 0) => {
-      const im = this.img(tex, x, y, 41).setTint(tint).setRotation(rot);
+      const im = this.fx(tex, x, y, 41).setTint(tint).setRotation(rot);
       im.setScale(from / S);
-      this.particles++;
-      this.tweens.add({
-        targets: im,
-        scale: to / S,
-        alpha: 0,
-        duration: ms,
-        ease: 'Quad.Out',
-        onComplete: () => {
-          im.destroy();
-          this.particles--;
-        },
-      });
+      this.tweens.add({ targets: im, scale: to / S, alpha: 0, duration: ms, ease: 'Quad.Out', onComplete: () => this.fxDone(im) });
     };
     const rnd = () => Math.random() * Math.PI * 2;
     const spray = (tex: string, tint: number, n: number, dist: number, scale: number, ms: number, fall = 0) => {
@@ -2204,24 +2212,12 @@ export class GameScene extends Phaser.Scene implements World {
   private burst(x: number, y: number, color: number, n: number, dist: number): void {
     if (this.particles > 160) return;
     for (let i = 0; i < n; i++) {
-      const im = this.img('dot', x, y, 40).setTint(color);
+      const im = this.fx('dot', x, y, 40).setTint(color);
       const s = (0.4 + Math.random() * 0.6) / S;
       im.setScale(s);
-      this.particles++;
       const a = Math.random() * Math.PI * 2;
       const d = dist * (0.4 + Math.random() * 0.6);
-      this.tweens.add({
-        targets: im,
-        x: x + Math.cos(a) * d,
-        y: y + Math.sin(a) * d,
-        scale: 0,
-        duration: 280 + Math.random() * 160,
-        ease: 'Cubic.Out',
-        onComplete: () => {
-          im.destroy();
-          this.particles--;
-        },
-      });
+      this.tweens.add({ targets: im, x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, scale: 0, duration: 280 + Math.random() * 160, ease: 'Cubic.Out', onComplete: () => this.fxDone(im) });
     }
   }
 
@@ -2720,7 +2716,7 @@ export class GameScene extends Phaser.Scene implements World {
       const base = sprite.scaleX;
       this.tweens.add({ targets: sprite, scale: base * 1.15, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
-    this.pickups.push({ sprite, x, y, kind, value, magnet: false, alive: true });
+    this.pickups.push({ sprite, x, y, kind, value, magnet: false });
   }
 
   /** Pull every seed on the floor to the player. */
@@ -2743,7 +2739,8 @@ export class GameScene extends Phaser.Scene implements World {
           it.y += (dy / d) * 200 * dt;
           it.sprite.x = it.x;
         }
-        if (d < 24) this.collect(it, i);
+        // One panel at a time: a second chest touched in the same instant waits until the first panel closes.
+        if (d < 24 && !this.paused) this.collect(it, i);
         continue;
       }
       if (!it.magnet && d < mag) it.magnet = true;
@@ -2758,7 +2755,8 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private collect(it: Pickup, idx: number): void {
-    it.alive = false;
+    // Chests, buns and mugs bob forever: stop that along with the sprite.
+    if (it.kind !== 'xp' && it.kind !== 'coin' && it.kind !== 'heal') this.tweens.killTweensOf(it.sprite);
     it.sprite.destroy();
     this.pickups.splice(idx, 1);
     switch (it.kind) {
@@ -2925,6 +2923,9 @@ export class GameScene extends Phaser.Scene implements World {
     if (sec !== this.lastTimerSec) {
       this.lastTimerSec = sec;
       h.timer.setText(fmtTime(sec));
+    }
+    if (this.level !== this.lastLevelShown) {
+      this.lastLevelShown = this.level;
       h.level.setText(`${this.level}`);
       h.level.setFontSize(Math.round((this.level >= 10 ? 15 : 17) * S));
     }
@@ -3009,7 +3010,6 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- Input
 
   private setupInput(): void {
-    this.input.addPointer(1);
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       unlockAudio();
       if (this.paused || over.length > 0 || this.joyId !== null) return;
@@ -3114,6 +3114,8 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private closeOverlay(): void {
+    for (const tw of this.overlayTweens) tw.stop();
+    this.overlayTweens = [];
     this.overlay?.destroy();
     this.overlay = null;
   }
@@ -3196,7 +3198,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (combo) {
         const sp = this.add.image(-cw / 2 + 66 * S, -24 * S, 'ic_star').setScale(0.55);
         card.add(sp);
-        this.tweens.add({ targets: sp, angle: 360, duration: 2400, repeat: -1 });
+        this.overlayTweens.push(this.tweens.add({ targets: sp, angle: 360, duration: 2400, repeat: -1 }));
       }
       card.setSize(cw, ch);
       card.setInteractive(new Phaser.Geom.Rectangle(0, 0, cw, ch), Phaser.Geom.Rectangle.Contains);
@@ -3246,7 +3248,6 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  /** Bread basket: an evolution, or 1 upgrade and +5 Dough. Gold toaster: an evolution plus 2 upgrades, or 3 upgrades and +15 Dough. */
   /** Upgrades a chest can hand out: levels for owned weapons and toppings, in random order. Never a new item. */
   private chestUpgrades(): Choice[] {
     const out: Choice[] = [];
@@ -3457,7 +3458,7 @@ export class GameScene extends Phaser.Scene implements World {
     // Practice runs are for testing builds and bosses: no rewards or unlocks.
     if (this.practice) dough = 0;
     save.dough += dough;
-    save.totalKills += this.kills;
+    if (!this.practice) save.totalKills += this.kills;
     // A Quick Run clear counts as surviving 3:00 for unlock goals.
     if (!this.practice) {
       const t = Math.max(Math.floor(this.now), this.quick && victory ? 180 : 0);

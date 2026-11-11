@@ -38,5 +38,14 @@ document.addEventListener('dblclick', (e) => e.preventDefault());
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
+    // The very first visit loads before the service worker is in charge, so nothing has been saved for
+    // offline play yet: save the page and the files it just loaded (same cache name as sw.js).
+    navigator.serviceWorker.ready
+      .then(async () => {
+        const cache = await caches.open('everything-bagel-v1');
+        const files = performance.getEntriesByType('resource').map((r) => r.name).filter((u) => u.startsWith(location.origin));
+        for (const url of [location.href, ...files]) if (!(await cache.match(url))) await cache.add(url).catch(() => {});
+      })
+      .catch(() => {});
   });
 }

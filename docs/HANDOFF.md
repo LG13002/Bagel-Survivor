@@ -193,6 +193,29 @@ From the owner's playtest notes:
 - Stage steps (level 3 weapons, average damage taken per minute): Bakery 368, Freezer 396 (+8%), Toaster Oven 433 (+9%), close to the 10% steps in the design doc, so the stage dials are unchanged.
 - Extra Crispy (same bench, 4 weapons): +34% damage taken per minute in the Bakery (366 to 490) and +32% in the Toaster Oven (430 to 566), where M10 put it (about +30%). Endless uses the same dials and wasn't changed.
 
+### Code review pass: bug fixes and optimizations
+
+A full read of the code after Phase 2 ([findings](https://claude.ai/artifact/6HTNUYVxC6hHcH62aC1CCc)). The owner approved the bug fixes and the safe optimizations; the bigger reorganizing (merging repeated code, splitting `GameScene.ts`) was left for later. No weapon, enemy or difficulty numbers changed.
+
+Bugs fixed:
+
+- **Two chests at once** left a panel stuck on screen with the joystick dead. Chests now wait while a panel is open.
+- **Invisible oven knobs** in the next Bakery or Freezer run after an oven run (`posts` and `postChunks` weren't reset in `init`).
+- **Resume:** the surprise elite at 4:00 came back a second time after a resume (the snapshot now saves `extras`), and elites that were alive were lost, along with the second Sticky Bun if one carried it (the snapshot now saves `elites` with their health).
+- **Endless:** lines and ring waves that came due during a boss fight were saved up and all arrived when the boss fell. They are now skipped. Bot, a 65s fight: 48 Sugar Ants within 2s of the first boss falling before, none after; 58 wave enemies plus 36 ants after a returning boss before, none after. The next line or wave comes on its normal timer.
+- **Practice kills** no longer count toward the 1,000-kill unlock.
+- **Looping animations** on removed sprites (ice twinkles, bobbing chests, the menu's bagel) are now stopped. Bot: 630 left running after a long Freezer walk before, about 35 after.
+- **Service worker:** only good responses are cached, older builds' game files are deleted, and the first visit saves its files so offline play works straight away.
+- The **level badge** updates the moment the level changes.
+
+Optimizations:
+
+- **Art on demand** (see the art notes in `CLAUDE.md`). Bot, 3x screen: pictures drawn before the menu shows went from 200 to 100, about half the time, and picture memory at the menu from about 38 MB to about 8 MB (about 19 MB after a Bakery run, 27 MB after playing all three stages). The rest is drawn during the fade into the first run.
+- **Effect sprites are reused** (`fx` / `fxDone`) instead of created and destroyed.
+- **Drums** in the music play slices of the shared noise sample instead of making fresh noise per hit.
+- The safe-area lookup is kept for a second at a time instead of read every frame.
+- Removed: two unused sounds, a duplicate floor texture, and a few unused fields and parameters.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
@@ -219,4 +242,6 @@ Sesame Shot stays weak at level 3 on purpose (it's the starter). Evolved numbers
 - **Pickups dropped at a boss's position** get collected instantly, because the boss is usually touching the player. That's why the bun drops on the far side.
 - **Level-up card positions** change with the layout, so bots should resolve overlays through `window.__game`, not by clicking.
 - **Quick Run code** must use `stageT` for anything on the schedule or anything that scales with time.
+- **Phaser keeps animating destroyed sprites.** A `repeat: -1` tween must be stopped by hand when its target goes.
+- **A missing texture doesn't throw:** it draws a placeholder box. After adding art, check with a bot that no sprite's texture key is `__MISSING`.
 - **Old version on the owner's phone after a deploy:** fully close and reopen the home-screen app.

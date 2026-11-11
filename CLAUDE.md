@@ -9,7 +9,7 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 - **Live:** https://lg13002.github.io/Bagel-Survivor/. Pushes to `main` deploy through GitHub Actions to Pages.
 - **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
-- **Status (2026-11-11):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. M8 (4 new weapons, then the "Crisp" flare pass the owner picked on the style board) is built. M9 (the Toaster Oven, two parts) is built. M10 (Endless mode and the Extra Crispy hard toggle) [change list](https://claude.ai/artifact/EEsQTPuvpDQm2qZ3TxVpaV) is built. M11 ([change list](https://claude.ai/artifact/2epR6A5tmgMBGMFsuzTkCr)): Part 1 (Goals page, Cookbook Enemies tab) is built; Part 2 (the secret Rainbow bagel and the Lox and Schmear combo evolution) and Part 3 (the full balance pass, numbers in `docs/HANDOFF.md`) share one PR. That completes Phase 2.
+- **Status (2026-11-11):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. M8 (4 new weapons, then the "Crisp" flare pass the owner picked on the style board) is built. M9 (the Toaster Oven, two parts) is built. M10 (Endless mode and the Extra Crispy hard toggle) [change list](https://claude.ai/artifact/EEsQTPuvpDQm2qZ3TxVpaV) is built. M11 ([change list](https://claude.ai/artifact/2epR6A5tmgMBGMFsuzTkCr)): Part 1 (Goals page, Cookbook Enemies tab) is built; Part 2 (the secret Rainbow bagel and the Lox and Schmear combo evolution) and Part 3 (the full balance pass, numbers in `docs/HANDOFF.md`) share one PR. That completes Phase 2. After it, a code review pass ([findings](https://claude.ai/artifact/6HTNUYVxC6hHcH62aC1CCc)) fixed 8 bugs and added the optimizations listed in `docs/HANDOFF.md`; no gameplay numbers changed.
 
 ## How to work with the owner (rules)
 
@@ -34,7 +34,8 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 - **Where things live:**
   - Every texture is a function in `src/art.ts`, registered in `src/textures.ts` through `ctex(scene, key, w, h, draw)`.
   - `ctex` draws at device scale S, so textures stay sharp on retina screens.
-  - Hero and results bagels use a `<tex>_big` 160px texture.
+  - Art is drawn the first time it's needed, in three groups in `textures.ts`: `makeTextures` (what the menus show), `makeEnemyTextures` (runs and the Cookbook's Enemies tab) and `makeRunTextures(scene, stage)` (that stage's floor and props, plus weapons, shots and hazards). **Put a new texture in the right group**, or it shows as a missing-texture box. The menu background is `floor_stage1`.
+  - Hero and results bagels use a `<tex>_big` 160px texture, drawn on demand by `bigBagel(scene, tex)`.
 - **Stage 1 floor:** the "Giant countertop", a butcher block (`src/floors.ts`) with props scattered in seeded 384px chunks (spoon, cookie cutters, cup, flour, sprinkles). Each stage names its floor and prop set in `STAGES` in `src/data.ts`. Stage 2 is the Freezer, Stage 3 the Toaster Oven.
 - **UI kit (`src/ui.ts`):**
   - `button()`: chunky, with an ink outline, a 5*S bottom edge, a press shift and a click sound. Options: `icon`, `chevron`, `muted`.
@@ -99,6 +100,9 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - It lands on the far side of the boss, never drifts toward you, gets an edge arrow, and is saved in the snapshot.
   - **There is no automatic seed pull anywhere.** The owner found it jarring.
 - **Seeds:** once there are more than 300 on the floor, new ones merge into the nearest seed, so nothing is lost.
+- **Run state is reset by hand in `GameScene.init()`.** The scene object is reused between runs, so every new field that holds run state needs a line there (a missed one left invisible oven knobs in other stages).
+- **Effect sprites** (sparks, crumbs, trail dots, death pops) come from `fx()` and go back with `fxDone()`: they are reused, never destroyed. Anything that loops forever (`repeat: -1`) must be stopped when its sprite goes (`tweens.killTweensOf`), because Phaser keeps animating destroyed sprites.
+- **One panel at a time:** chests aren't collected while a panel is open, so two chests touched together open one after the other.
 - **Build limits:** 4 weapon slots and 4 topping slots, each up to level 5. A level 5 weapon plus its matching topping evolves from a chest.
 - **Chests only level up what you own** (`chestUpgrades`): they never add a new weapon or topping, so empty slots are filled only from level-up cards (the owner's call: it keeps build choices with the player). Nothing left to level means a full heal.
 - **Weapons:** 6 starters plus 4 that unlock through goals (`unlock` on the def, `progress.ts`): Piercing Butter Knife (beat the Frozen Waffle), Jam Jar Lob (15 Warm Mugs in total), Toaster Pop (beat the Freezer Burn), Waffle Stomp (6 evolutions). A locked weapon and its topping (`weapon` on the topping def) never show on cards. The save keeps `weapons`, `beaten` (boss kinds) and `mugs`; practice runs count for nothing. Old saves with a Freezer clear count both Freezer bosses as beaten. New toppings: Honey (+4% damage every level, and `stats.proj`: +1 projectile at levels 1 and 4, capped at +2), Jam (`stats.dur`, +15% duration per level), Everything Seasoning (adds to Lucky Seed luck), Cream Cheese Frosting (adds to Hard Crust; a hit still does at least half). The Cookbook has Evolutions (5 a page) and Weapons tabs.
@@ -118,7 +122,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 1. Run `VITE_PREVIEW=1 npm run build` (opens every built stage for testing).
 2. Inline `dist/assets/index-*.js` into the single-file `everything-bagel.html`: replace the one `<script>` body, escaping `</script`.
-3. Republish it to the **same** artifact URL so the owner's link stays valid: https://claude.ai/artifact/DCNqaxNKwwiiFz9dYn7A4f (version 12 as of step 7).
+3. Republish it to the **same** artifact URL so the owner's link stays valid: https://claude.ai/artifact/DCNqaxNKwwiiFz9dYn7A4f.
 4. If the HTML file is gone (a new container), fetch the published file with the Artifact tool and reuse it as the template.
 
 ## Tooling notes for cloud sessions

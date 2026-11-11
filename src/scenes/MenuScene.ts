@@ -6,7 +6,7 @@ import { COMBO } from '../weapons';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { bestStage, getBest, load, persist, type BestScore, type RunMode, type SaveData } from '../save';
-import { makeTextures } from '../textures';
+import { bigBagel, makeEnemyTextures, makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { musicOn, setMusic, setSound, sfx, soundOn, unlockAudio } from '../sfx';
 import { playMusic } from '../music';
@@ -55,6 +55,8 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private build(): void {
+    // Looping animations from the last layout (bouncing bagel, scrolling floor) go with it.
+    this.tweens.killAll();
     this.root?.destroy();
     this.bakery?.destroy();
     this.bakery = null;
@@ -72,7 +74,7 @@ export class MenuScene extends Phaser.Scene {
     const c = this.add.container(0, 0);
     this.root = c;
 
-    const floor = this.add.tileSprite(0, 0, W, H, 'floor').setOrigin(0).setTileScale(1).setAlpha(0.35);
+    const floor = this.add.tileSprite(0, 0, W, H, 'floor_stage1').setOrigin(0).setTileScale(1).setAlpha(0.35);
     c.add(floor);
     this.tweens.add({ targets: floor, tilePositionY: -128 * S, duration: 8000, repeat: -1 });
 
@@ -119,7 +121,7 @@ export class MenuScene extends Phaser.Scene {
 
     const shadow = this.add.ellipse(W / 2, by + R * 1.02, R * 1.7, R * 0.34, 0x120c08, 0.45);
     c.add(shadow);
-    const hero = this.add.image(W / 2, by, `${bagel.tex}_big`).setScale(hs);
+    const hero = this.add.image(W / 2, by, bigBagel(this, bagel.tex)).setScale(hs);
     if (locked) hero.setTint(0x222222);
     c.add(hero);
     this.tweens.add({ targets: hero, y: by - 10 * k * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -788,6 +790,7 @@ export class MenuScene extends Phaser.Scene {
     const c = this.add.container(0, 0);
     this.bakery = c;
     c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    makeEnemyTextures(this);
     const st = STAGES[stageIdx];
     const list = ENEMY_BOOK[st.id];
     const beaten = new Set(save.beaten ?? []);
@@ -891,7 +894,6 @@ export class MenuScene extends Phaser.Scene {
     c.add(txt(this, W / 2, top + 36 * S, 'THE BAKERY', 28, CSS.gold));
     const wallet = pill(this, W / 2, top + 70 * S, 'coin', `${save.dough} Dough to spend`, { size: 15, color: CSS.gold, h: 30 });
     c.add(wallet);
-    let shown = save.dough;
     const setWallet = (v: number) => {
       (wallet.getData('label') as Phaser.GameObjects.Text).setText(`${v} Dough to spend`);
       if (this.doughPill) (this.doughPill.getData('label') as Phaser.GameObjects.Text).setText(`${v} Dough`);
@@ -962,8 +964,7 @@ export class MenuScene extends Phaser.Scene {
               to: save.dough,
               duration: 400,
               onUpdate: (tw) => {
-                shown = Math.round(tw.getValue() ?? save.dough);
-                setWallet(shown);
+                setWallet(Math.round(tw.getValue() ?? save.dough));
               },
               onComplete: () => sfx('coin'),
             });

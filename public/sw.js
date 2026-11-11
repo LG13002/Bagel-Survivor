@@ -8,8 +8,19 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
+        // Only a good answer replaces the offline copy (never an error page).
+        if (res.ok) {
+          const copy = res.clone();
+          e.waitUntil(
+            caches.open(CACHE).then(async (c) => {
+              await c.put(req, copy);
+              // A new build's game file has a new name: drop the older builds' files.
+              if (req.url.includes('/assets/')) {
+                for (const k of await c.keys()) if (k.url.includes('/assets/') && k.url !== req.url) await c.delete(k);
+              }
+            }),
+          );
+        }
         return res;
       })
       .catch(() => caches.match(req).then((r) => r || caches.match('./'))),

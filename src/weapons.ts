@@ -587,7 +587,7 @@ function updateLobs(lobs: Lob[], dt: number, trail?: (x: number, y: number) => v
 }
 
 class ButterKnife extends Weapon {
-  private knives: Bullet[] = [];
+  private knives: Omit<Bullet, 'pierce'>[] = [];
   private fanT = 1;
   update(dt: number): void {
     const s = this.w.stats;
@@ -639,7 +639,7 @@ class ButterKnife extends Weapon {
     const img = this.style(this.w.img('knife_w', p.x, p.y, 20));
     img.setRotation(angle).setData('dmg', dmg);
     img.setScale(img.scaleX * this.w.stats.area * (fast ? 1.2 : 1));
-    this.knives.push({ img, x: p.x, y: p.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: fast ? 1.15 : 0.9, pierce: 999, hit: new Set() });
+    this.knives.push({ img, x: p.x, y: p.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: fast ? 1.15 : 0.9, hit: new Set() });
   }
   destroy(): void {
     this.knives.forEach((b) => b.img.destroy());

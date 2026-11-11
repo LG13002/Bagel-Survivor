@@ -4,7 +4,7 @@
 import { load, persist } from './save';
 
 export type Sfx =
-  | 'hit' | 'kill' | 'xp' | 'level' | 'chest' | 'hurt' | 'boss' | 'pin' | 'splash' | 'click' | 'buy'
+  | 'hit' | 'xp' | 'level' | 'hurt' | 'boss' | 'pin' | 'splash' | 'click' | 'buy'
   | 'shoot' | 'lox' | 'storm' | 'crunch' | 'splat' | 'clatter' | 'pop' | 'basket' | 'gold' | 'evolve'
   | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin'
   | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge'
@@ -19,7 +19,7 @@ let noiseBuf: AudioBuffer | null = null;
 const readyCbs: (() => void)[] = [];
 const last: Partial<Record<Sfx, number>> = {};
 const minGap: Record<Sfx, number> = {
-  hit: 0.045, kill: 0.04, xp: 0.035, level: 0.2, chest: 0.3, hurt: 0.15, boss: 1, pin: 0.1, splash: 0.1, click: 0.03, buy: 0.15,
+  hit: 0.045, xp: 0.035, level: 0.2, hurt: 0.15, boss: 1, pin: 0.1, splash: 0.1, click: 0.03, buy: 0.15,
   shoot: 0.09, lox: 0.25, storm: 2.6, crunch: 0.05, splat: 0.06, clatter: 0.07, pop: 0.12, basket: 0.3, gold: 0.3, evolve: 1,
   heart: 0.85, ding: 0.5, flakes: 0.5, swoosh: 0.12, lock: 0.2, coin: 0.08,
   ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06, icicle: 0.2, roar: 1.5, melt: 0.5, charge: 0.4,
@@ -27,7 +27,7 @@ const minGap: Record<Sfx, number> = {
   hiss: 0.4, flare: 0.25, bubble: 0.6, grease: 0.2, sauce: 0.2, popcorn: 0.06, ignite: 0.15, clang: 0.12,
 };
 /** Sounds that may be dropped when too many play at once. */
-const LOW: Partial<Record<Sfx, true>> = { hit: true, kill: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
+const LOW: Partial<Record<Sfx, true>> = { hit: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
 const recent: number[] = [];
 let xpPitch = 0;
 let xpPitchAt = 0;
@@ -55,6 +55,10 @@ export function setMusic(on: boolean): void {
 
 export function audioCtx(): AudioContext | null {
   return ctx;
+}
+/** One second of white noise, shared by every noisy sound and the music's drums. */
+export function noiseBuffer(): AudioBuffer | null {
+  return noiseBuf;
 }
 export function musicOut(): AudioNode | null {
   return musicFilter;
@@ -213,10 +217,6 @@ export function sfx(name: Sfx): void {
     case 'hit':
       tone('square', 220 + Math.random() * 60, 90, 0.05, 0.12);
       break;
-    case 'kill':
-      tone('triangle', 520 + Math.random() * 120, 160, 0.09, 0.22);
-      noise(0.06, 0.15, 2200);
-      break;
     case 'crunch': // crumbs and ants
       noise(0.07, 0.28, 2600, { type: 'bandpass' });
       tone('triangle', 420 + Math.random() * 80, 140, 0.06, 0.14);
@@ -248,9 +248,6 @@ export function sfx(name: Sfx): void {
       break;
     case 'level':
       [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.14, 0.2, i * 0.07));
-      break;
-    case 'chest':
-      [392, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.12, 0.12, i * 0.06));
       break;
     case 'basket': // bread basket: a soft rustle, then a chime
       noise(0.25, 0.16, 1800, { type: 'bandpass', freq1: 900 });
