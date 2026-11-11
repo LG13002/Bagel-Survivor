@@ -1101,7 +1101,7 @@ export function drawJamPool(c: Ctx, s: number): void {
   }
 }
 
-/** Waffle Smash footprint: a round golden waffle grid (128 × 128). */
+/** Waffle Stomp footprint: a round golden waffle grid (128 × 128). */
 export function drawStamp(c: Ctx, s: number): void {
   const m = s / 2;
   c.save();

@@ -790,7 +790,7 @@ interface Shock {
   hit: Set<Enemy>;
 }
 
-class WaffleSmash extends Weapon {
+class WaffleStomp extends Weapon {
   private shocks: Shock[] = [];
   update(dt: number): void {
     const s = this.w.stats;
@@ -877,6 +877,6 @@ export function createWeapon(w: World, id: WeaponId): Weapon {
     case 'toastpop':
       return new ToasterPop(w, id);
     case 'iron':
-      return new WaffleSmash(w, id);
+      return new WaffleStomp(w, id);
   }
 }

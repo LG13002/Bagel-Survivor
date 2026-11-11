@@ -121,7 +121,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   iron: {
     id: 'iron',
-    name: 'Waffle Smash',
+    name: 'Waffle Stomp',
     icon: 'ic_iron',
     blurb: 'Heavy stamps around you, big shove.',
     levels: ['Heavy stamps around you, big shove.', '+40% damage', 'Bigger stamp', 'A second stamp on a nearby enemy', 'Faster, and dazes enemies'],
