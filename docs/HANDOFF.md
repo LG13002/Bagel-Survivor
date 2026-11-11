@@ -129,11 +129,11 @@ From the owner's playtest notes:
 - Bot hit sampling: Hard Crust at ranks 1/3/5 cuts damage taken to about 93%/79%/64% in Stage 1 and 92%/77%/62% in the Freezer. Maxing all four Extras costs 3,100 Dough, so it is a long-term goal.
 
 ### Phase 2, M8 part 1: four new weapons
-- Piercing Butter Knife / Cutlery Drawer (Honey), Jam Jar Lob / Jam Session (Jam), Toaster Pop / Toast Barrage (Everything Seasoning), Waffle Smash / Belgian Slam (Cream Cheese Frosting). The owner renamed two of the working names (Butter Knife Throw, Waffle Iron).
+- Piercing Butter Knife / Cutlery Drawer (Honey), Jam Jar Lob / Jam Session (Jam), Toaster Pop / Toast Barrage (Everything Seasoning), Waffle Stomp / Belgian Slam (Cream Cheese Frosting). The owner renamed two of the working names (Butter Knife Throw, Waffle Iron).
 - They unlock through goals and stay off level-up cards until then. Preview builds open them all.
 - Jam is grape purple so it never reads as the Freezer's pink melt puddles, which slow the player. Player toast is golden with a butter pat, unlike the Toaster Tyrant's dark toast.
 - Sesame Shot +10% damage (12 to 13.2 per seed).
-- Bot bench (level 3, then evolved; useful damage/sec): Butter Knife 158 / 314, Jam Jar 268 / 353, Toaster Pop 249 / 326, Waffle Smash 161 (after a buff from 135) / 360. Sesame Shot level 3: 104 (was 97).
+- Bot bench (level 3, then evolved; useful damage/sec): Butter Knife 158 / 314, Jam Jar 268 / 353, Toaster Pop 249 / 326, Waffle Stomp 161 (after a buff from 135) / 360. Sesame Shot level 3: 104 (was 97).
 - Style board for the flare pass (part 2): https://claude.ai/artifact/3SvXccvywF63eTFsDociyw
 
 ### Phase 2, M8 part 2: "Crisp" weapon flare
@@ -173,20 +173,45 @@ From the owner's playtest notes:
 - Cookbook: a third tab, Enemies, with one page per stage (34 enemies in all). New icons: `ic_check` and `ic_secret`.
 - No gameplay or balance changes in this part.
 
-## Weapon benchmark (bot, after step 7)
+### Phase 2, M11 part 2: Rainbow bagel and Lox and Schmear
+- Built from the approved M11 change list. Details are in CLAUDE.md under "Secrets".
+- The Rainbow bagel has rainbow sprinkles on pink frosting (new `icing` and `sprinkles` options on `BagelLook`).
+- Lox and Schmear: the first version used the hit numbers 26 to 32, but the bot showed those trip the 30-damage freeze-frame on almost every hit (the game lost about 15% of its time to freeze-frames). It now uses more frequent, smaller hits instead.
+- After the owner played it: the merge used to wait until every other evolution was done, so it was only reachable in Endless. It now comes first on the next gold toaster. The freed slot used to be auto-filled by the chest, so, at the owner's request, **chests no longer add new weapons or toppings at all**: they only level up what you own, and empty slots are filled from level-up cards.
+- `wbench.cjs` takes `combo` (merged) and `pair` (both evolutions side by side). At `speed=6` the bench loses game time to freeze-frames, so compare weapons that cross 30 damage at normal speed.
 
-`tools/bots/wbench.cjs`: one weapon alone on Plain Jane, run from 2:00 for about 75s of game time.
+### Phase 2, M11 part 3: balance pass (on the same PR as part 2)
+- The owner renamed Waffle Smash to **Waffle Stomp** after playing this PR (display name only; the id is still `iron`).
+- The owner asked for fewer merges, so part 3 went onto the part 2 PR, and from now on a whole milestone is one PR (CLAUDE.md rule 2).
+- `wbench.cjs` now turns off freeze-frames (they ate most of the sample at `speed=6`) and resolves a level-up that opens before it takes over. The table below is all 10 weapons on all 3 stages, level 3 and evolved.
+- First pass: Hot Coffee Splash (-26%) and Waffle Stomp (-20%) were the weak ones at level 3, Rolling Pin (+32%) the strong one, and Seed Gatling (-27%) the weak evolution. Raising Coffee's and Waffle Stomp's damage did almost nothing (their hits already kill most enemies they reach), so they fire more often instead.
+  - Hot Coffee Splash: every 1.15s (was 1.5s; level 5 x0.8, was x0.75), 15 damage (was 14).
+  - Waffle Stomp: every 2.3s (was 3s; level 5 1.9s, was 2.4s), 48 damage (was 46).
+  - Rolling Pin: 23 damage (was 26). Baker's Dozen is unchanged.
+  - Seed Gatling: 17 damage per seed (was 13), still under the 30-damage freeze-frame.
+- New `tools/bots/bagelbench.cjs`: plays each bagel to 4:25 with one fixed card policy, counting hits instead of applying them, and reports damage dealt and "health bars lost" (damage taken minus healing, over max health). Freezer, two runs each: most bagels lose 4.5 to 8 bars. Pumpernickel (about 1.5, tanky by design), Cinnamon Raisin (about 5, heals) and Plain Jane (about 6) are the safest; Everything Ed (about 10) is fragile by design (75 health, 4 cards). Poppy was the outlier (about 10 bars, fewest levels), so Poppy now has 100 health (was 90) and a bigger seed-mine hit area (11 instead of 8). After: about 7 bars. The bot can't time Blueberry's dash, so its number (about 8) undersells it.
+- Stage steps (level 3 weapons, average damage taken per minute): Bakery 368, Freezer 396 (+8%), Toaster Oven 433 (+9%), close to the 10% steps in the design doc, so the stage dials are unchanged.
+- Extra Crispy (same bench, 4 weapons): +34% damage taken per minute in the Bakery (366 to 490) and +32% in the Toaster Oven (430 to 566), where M10 put it (about +30%). Endless uses the same dials and wasn't changed.
 
-| Weapon | Useful damage/sec, level 3 | Evolved | Damage taken/min, evolved |
-| --- | --- | --- | --- |
-| Sesame Shot / Seed Gatling | 97 | 332 | 316 |
-| Seed Storm / Everything Inferno | 236 | 374 | 271 |
-| Cream Cheese Puddle / Schmear Flood | 279 | 410 | 291 |
-| Lox Boomerang / Lox Cyclone | 160 | 358 | 280 |
-| Hot Coffee Splash / Espresso Nova | 143 | 302 | 248 |
-| Rolling Pin / Baker's Dozen | 229 | ~305 | ~187 |
+## Weapon benchmark (bot, M11 part 3)
 
-Some of these were measured before step 7 (Storm, Lox and Coffee) and the rest after. They vary by about 10% from run to run. The Rolling Pin's real edge is safety (knockback and kills all around you), not raw damage.
+`tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
+
+| Weapon | Lv 3: Bakery / Freezer / Oven | vs middle | Evolved: Bakery / Freezer / Oven | vs middle |
+| --- | --- | --- | --- | --- |
+| Sesame Shot / Seed Gatling | 108 / 128 / 167 | -55% | 346 / 452 / 444 | -19% |
+| Seed Storm / Everything Inferno | 234 / 262 / 288 | -11% | 380 / 626 / 566 | +1% |
+| Cream Cheese Puddle / Schmear Flood | 302 / 282 / 346 | +6% | 400 / 598 / 546 | 0% |
+| Lox Boomerang / Lox Cyclone | 260 / 378 / 328 | +10% | 392 / 561 / 534 | -4% |
+| Hot Coffee Splash / Espresso Nova | 210 / 243 / 340 | -11% | 406 / 594 / 610 | +4% |
+| Rolling Pin / Baker's Dozen | 298 / 372 / 380 | +19% | 444 / 711 / 632 | +15% |
+| Piercing Butter Knife / Cutlery Drawer | 240 / 260 / 321 | -7% | 416 / 626 / 602 | +6% |
+| Jam Jar Lob / Jam Session | 265 / 338 / 390 | +12% | 375 / 550 / 556 | -5% |
+| Toaster Pop / Toast Barrage | 256 / 330 / 380 | +9% | 367 / 500 / 510 | -11% |
+| Waffle Stomp / Belgian Slam | 210 / 306 / 364 | -2% | 420 / 623 / 640 | +8% |
+| Lox and Schmear (combo) | | | 442 / 617 / 622 | +9% |
+
+Sesame Shot stays weak at level 3 on purpose (it's the starter). Evolved numbers are capped by how many enemies there are to hit, so they bunch together; the Rolling Pin's real edge is safety (it takes the least damage). Runs vary by about 10%.
 
 ## Gotchas learned
 

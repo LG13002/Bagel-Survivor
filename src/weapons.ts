@@ -10,7 +10,7 @@ export interface World {
   now: number;
   nearest(x: number, y: number, maxR: number): Enemy | null;
   query(x: number, y: number, r: number, cb: (e: Enemy) => void): void;
-  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: WeaponId): boolean;
+  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: FxId): boolean;
   /** A small fading dot behind a projectile (level 5 and evolved looks). */
   trailDot(x: number, y: number, color: number): void;
   img(tex: string, x: number, y: number, depth: number): Phaser.GameObjects.Image;
@@ -18,6 +18,12 @@ export interface World {
   shake(ms: number, intensity: number): void;
   playSfx(name: Sfx): void;
 }
+
+/** Hit sound and spark id: a weapon, or the secret Lox and Schmear combo. */
+export type FxId = WeaponId | 'combo';
+
+/** The secret combo evolution: Schmear Flood + Lox Cyclone merge into one weapon (it lives on the Lox weapon). */
+export const COMBO = { name: 'Lox and Schmear', icon: 'ic_loxschmear', blurb: 'A spinning storm of lox and cream cheese that pulls enemies in.' };
 
 const GOLD_TINT = 0xffe7a0;
 /** Evolved projectiles change color (the fire seeds already have their own texture). */
@@ -38,6 +44,8 @@ const EVO_TRAIL: Record<WeaponId, number> = {
 export abstract class Weapon {
   level = 1;
   evolved = false;
+  /** Merged into Lox and Schmear (only ever set on the Lox weapon). */
+  combo = false;
   protected t = 0.3;
   readonly def: WeaponDef;
   constructor(protected w: World, id: WeaponId) {
@@ -47,7 +55,11 @@ export abstract class Weapon {
   destroy(): void {}
   /** Hits an enemy with this weapon's own spark and hit sound. */
   protected strike(e: Enemy, dmg: number, kx: number, ky: number, key = '', cd = 0): boolean {
-    return this.w.hit(e, dmg, kx, ky, key, cd, this.def.id);
+    return this.w.hit(e, dmg, kx, ky, key, cd, this.combo ? 'combo' : this.def.id);
+  }
+  /** Icon for the HUD and pause screen (the combo has its own). */
+  get icon(): string {
+    return this.combo ? COMBO.icon : this.def.icon;
   }
   /** 0 = normal, 1 = level 5 (gold), 2 = evolved (new color and a trail). */
   protected get look(): number {
@@ -113,7 +125,7 @@ class SesameShot extends Weapon {
       if (this.evolved) {
         const n = 1 + s.proj;
         const jitter = (Math.random() - 0.5) * 0.16;
-        for (let i = 0; i < n; i++) this.fire(base + jitter + (i - (n - 1) / 2) * 0.12, 13, 3, 'seed_fire');
+        for (let i = 0; i < n; i++) this.fire(base + jitter + (i - (n - 1) / 2) * 0.12, 17, 3, 'seed_fire');
       } else {
         const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
         const dmg = 13.2 * (lv >= 3 ? 1.5 : 1);
@@ -300,18 +312,23 @@ interface Rang {
 class LoxBoomerang extends Weapon {
   private rangs: Rang[] = [];
   private seq = 0;
+  /** Lox and Schmear: the schmear storm around you. */
+  private storm: Phaser.GameObjects.Image | null = null;
+  private stormTick = 0;
   update(dt: number): void {
     const s = this.w.stats;
     const lv = this.level;
     const p = this.w.player;
-    const range = (this.evolved ? 150 : 200 * (lv >= 5 ? 1.3 : 1)) * s.area;
-    const size = (lv >= 5 || this.evolved ? 1.4 : 1) * s.area;
-    const dmg = (this.evolved ? 20 : 16 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    const range = (this.combo ? 150 : this.evolved ? 150 : 200 * (lv >= 5 ? 1.3 : 1)) * s.area;
+    const size = (this.combo ? 1.6 : lv >= 5 || this.evolved ? 1.4 : 1) * s.area;
+    const dmg = (this.combo ? 20 : this.evolved ? 20 : 16 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     const T = 1.1 * s.dur;
+    if (this.combo) this.updateStorm(dt);
     if (this.evolved) {
-      const n = 4 + s.proj;
+      const n = (this.combo ? 6 : 4) + s.proj;
       if (this.rangs.length !== n) {
-        this.destroy();
+        this.rangs.forEach((rg) => rg.img.destroy());
+        this.rangs = [];
         for (let i = 0; i < n; i++) {
           const img = this.style(this.w.img('lox', p.x, p.y, 21));
           img.setScale(img.scaleX * size);
@@ -336,7 +353,7 @@ class LoxBoomerang extends Weapon {
       let x: number;
       let y: number;
       if (this.evolved) {
-        const a = this.w.now * 2.4 + r.phase;
+        const a = this.w.now * (this.combo ? 3 : 2.4) + r.phase;
         const d = range * (0.75 + 0.5 * Math.sin(this.w.now * 1.7 + r.phase));
         x = p.x + Math.cos(a) * d;
         y = p.y + Math.sin(a) * d;
@@ -357,9 +374,37 @@ class LoxBoomerang extends Weapon {
       }
     }
   }
+  /** The schmear storm: a swirling cream-cheese ring that slows, hurts and pulls enemies in toward the circling lox. */
+  private updateStorm(dt: number): void {
+    const s = this.w.stats;
+    const p = this.w.player;
+    const r = 180 * s.area;
+    if (!this.storm) {
+      this.storm = this.w.img('loxstorm', p.x, p.y, 1).setAlpha(0.5);
+    }
+    this.storm.setPosition(p.x, p.y).setScale(((r * 2) / 128) * this.storm.getData('base')).setRotation(this.w.now * 1.6);
+    this.stormTick -= dt;
+    const doTick = this.stormTick <= 0;
+    if (doTick) this.stormTick = 0.35;
+    const dmg = 18 * s.damage;
+    this.w.query(p.x, p.y, r, (e) => {
+      e.slowUntil = this.w.now + 0.3;
+      // Pull toward the ring of lox (not onto you), never bosses or heavy elites.
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (!e.boss && e.mass < 5 && d > r * 0.55) {
+        e.kx -= ((dx / d) * 780 * dt) / e.mass;
+        e.ky -= ((dy / d) * 780 * dt) / e.mass;
+      }
+      if (doTick) this.strike(e, dmg, 0, 0, '', 0);
+    });
+  }
   destroy(): void {
     this.rangs.forEach((r) => r.img.destroy());
     this.rangs = [];
+    this.storm?.destroy();
+    this.storm = null;
   }
 }
 
@@ -367,12 +412,12 @@ class CoffeeSplash extends Weapon {
   update(dt: number): void {
     const s = this.w.stats;
     const lv = this.level;
-    const cd = (this.evolved ? 1.1 : 1.5 * (lv >= 5 ? 0.75 : 1)) * s.cooldown;
+    const cd = (this.evolved ? 1.1 : 1.15 * (lv >= 5 ? 0.8 : 1)) * s.cooldown;
     if (!this.tick(dt, cd)) return;
     const p = this.w.player;
     const range = (this.evolved ? 190 : 150 * (lv >= 5 ? 1.3 : 1)) * s.area;
     const half = this.evolved ? 0.42 : lv >= 3 ? 0.65 : 0.45;
-    const dmg = (this.evolved ? 22 : 14 * (lv >= 2 ? 1.4 : 1)) * s.damage;
+    const dmg = (this.evolved ? 22 : 15 * (lv >= 2 ? 1.4 : 1)) * s.damage;
     // Aim at the nearest enemy in reach (falls back to the direction of travel).
     const aim = this.aim(range * 1.2);
     const base = Math.atan2(aim.y, aim.x);
@@ -435,7 +480,7 @@ class RollingPinW extends Weapon {
     const lv = this.level;
     const p = this.w.player;
     const size = (lv >= 5 || this.evolved ? 1.5 : 1) * s.area;
-    const dmg = (this.evolved ? 34 : 26 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    const dmg = (this.evolved ? 34 : 23 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     if (this.tick(dt, (this.evolved ? 3.8 : 3) * s.cooldown)) {
       // Roll toward the nearest enemy (falls back to the direction of travel).
       const aim = this.aim(420);
@@ -745,16 +790,16 @@ interface Shock {
   hit: Set<Enemy>;
 }
 
-class WaffleSmash extends Weapon {
+class WaffleStomp extends Weapon {
   private shocks: Shock[] = [];
   update(dt: number): void {
     const s = this.w.stats;
     const lv = this.level;
     const ev = this.evolved;
     const p = this.w.player;
-    if (this.tick(dt, (ev ? 3.2 : lv >= 5 ? 2.4 : 3) * s.cooldown)) {
+    if (this.tick(dt, (ev ? 3.2 : lv >= 5 ? 1.9 : 2.3) * s.cooldown)) {
       const r = (ev ? 140 : 70 * (lv >= 3 ? 1.25 : 1)) * s.area;
-      const dmg = (ev ? 110 : 46 * (lv >= 2 ? 1.4 : 1)) * s.damage;
+      const dmg = (ev ? 110 : 48 * (lv >= 2 ? 1.4 : 1)) * s.damage;
       this.stamp(p.x, p.y, r, dmg);
       if (lv >= 4 && !ev) {
         const e = this.w.nearest(p.x, p.y, 260);
@@ -832,6 +877,6 @@ export function createWeapon(w: World, id: WeaponId): Weapon {
     case 'toastpop':
       return new ToasterPop(w, id);
     case 'iron':
-      return new WaffleSmash(w, id);
+      return new WaffleStomp(w, id);
   }
 }

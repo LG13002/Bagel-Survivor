@@ -43,6 +43,8 @@ export interface SaveData {
   noHitBoss?: boolean;
   /** Challenges whose Dough reward has been paid. */
   goalsPaid?: string[];
+  /** Secrets found: 'combo' (Lox and Schmear). The Rainbow bagel counts as found once unlocked. */
+  secrets?: string[];
   /** Paid challenges already seen on the Goals page (the rest give the Goals button a red dot). */
   goalsSeen?: string[];
 }

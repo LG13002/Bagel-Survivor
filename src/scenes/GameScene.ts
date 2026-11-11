@@ -22,7 +22,7 @@ import { Enemy, Player, type EnemyShot, type Hazard, type Pickup, type Stats } f
 import { bestStage, load, persist, recordBest } from '../save';
 import { makeTextures } from '../textures';
 import { button, drawPips, panel, pill, txt } from '../ui';
-import { createWeapon, type Weapon, type World } from '../weapons';
+import { COMBO, createWeapon, type FxId, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, musicOn, setMusic, setSound, sfx, soundOn, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
@@ -59,6 +59,8 @@ export interface RunResult {
   evolutions: string[];
   /** Challenges finished this run, with the Dough each paid. */
   goals: { name: string; reward: number }[];
+  /** The secret combo evolution was made this run. */
+  combo?: boolean;
 }
 
 const CELL = 48;
@@ -251,6 +253,8 @@ export class GameScene extends Phaser.Scene implements World {
   private bossClean = false;
   /** A boss fell this run without landing a hit. */
   private noHitBoss = false;
+  /** Lox and Schmear was made this run (shown on the results screen). */
+  private foundCombo = false;
   /** Bakery ranks read once per run: luck, Second Bake and Hard Crust. */
   private luck = 0;
   private reviveRank = 0;
@@ -330,6 +334,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.healsTaken = 0;
     this.bossClean = false;
     this.noHitBoss = false;
+    this.foundCombo = false;
     this.raisinKills = 0;
     this.mines = [];
     this.mineT = 0;
@@ -449,7 +454,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.buildHud();
     this.recomputeStats();
     this.player.hp = this.stats.maxHp;
-    this.addWeapon(this.bagel.weapon);
+    this.addWeapon(this.startWeapon());
     if (this.resume) this.applySnapshot(this.resume);
     else if (this.practice) {
       this.pendingLevels = PRACTICE_LEVELS;
@@ -544,7 +549,7 @@ export class GameScene extends Phaser.Scene implements World {
     }
   }
 
-  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: WeaponId): boolean {
+  hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: FxId): boolean {
     if (!e.alive) return false;
     if (key && cd > 0) {
       const last = e.hitCd.get(key);
@@ -639,6 +644,19 @@ export class GameScene extends Phaser.Scene implements World {
     return this.luck + (this.toppings.get('seasoning') ?? 0);
   }
 
+  /** The bagel's starting weapon. Rainbow's Mix-in picks a random one from the weapons you've unlocked. */
+  private startWeapon(): WeaponId {
+    if (this.bagel.quirkId !== 'mixin') return this.bagel.weapon;
+    const save = load();
+    const open = (Object.keys(WEAPONS) as WeaponId[]).filter((id) => weaponOpen(save, id));
+    return open[Math.floor(Math.random() * open.length)] ?? this.bagel.weapon;
+  }
+
+  /** Lox and Schmear is in the build (Schmear Flood merged into the Lox). */
+  private get comboDone(): boolean {
+    return this.weapons.some((w) => w.combo);
+  }
+
   private addWeapon(id: WeaponId): void {
     this.weapons.push(createWeapon(this, id));
   }
@@ -654,7 +672,7 @@ export class GameScene extends Phaser.Scene implements World {
     const own = 1 + 0.1 * this.luckNow;
     for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
     if (this.weapons.length < MAX_SLOTS)
-      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
+      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id) && !(id === 'puddle' && this.comboDone)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
     for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) pool.push({ c: { kind: 'tup', id }, w: own });
     if (this.toppings.size < MAX_SLOTS)
       for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon))) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
@@ -822,7 +840,7 @@ export class GameScene extends Phaser.Scene implements World {
         const m = this.mines[i];
         m.life -= dt;
         if (m.life < 0.5) m.img.setAlpha(m.life / 0.5);
-        this.query(m.x, m.y, 8 * this.stats.area, (e) => {
+        this.query(m.x, m.y, 11 * this.stats.area, (e) => {
           this.hit(e, dmg, 0, 0, 'trail', 0.5);
         });
         if (m.life <= 0) {
@@ -870,7 +888,7 @@ export class GameScene extends Phaser.Scene implements World {
       xp: this.xp,
       pendingLevels: this.pendingLevels,
       hp: this.player.hp,
-      weapons: this.weapons.map((w) => ({ id: w.def.id, level: w.level, evolved: w.evolved })),
+      weapons: this.weapons.map((w) => ({ id: w.def.id, level: w.level, evolved: w.evolved, ...(w.combo ? { combo: true } : {}) })),
       toppings: [...this.toppings],
       kills: this.kills,
       coins: this.coins,
@@ -901,6 +919,7 @@ export class GameScene extends Phaser.Scene implements World {
       const wp = createWeapon(this, w.id as WeaponId);
       wp.level = w.level;
       wp.evolved = w.evolved;
+      wp.combo = !!w.combo;
       this.weapons.push(wp);
     }
     this.toppings = new Map(s.toppings as [ToppingId, number][]);
@@ -2094,10 +2113,10 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   /** Each weapon's own small hit spark ("Crisp" flare: quick, small, never hides enemies). */
-  private hitSpark(x: number, y: number, id: WeaponId): void {
+  private hitSpark(x: number, y: number, id: FxId): void {
     if (this.particles > 110) return;
     // Damage-over-time weapons tick a lot, so they spark less often.
-    if ((id === 'puddle' || id === 'jar' || id === 'storm') && Math.random() < 0.6) return;
+    if ((id === 'puddle' || id === 'jar' || id === 'storm' || id === 'combo') && Math.random() < 0.6) return;
     const part = (tex: string, tint: number, scale: number, dx: number, dy: number, ms: number, rot = 0, depth = 41) => {
       const im = this.img(tex, x, y, depth).setTint(tint).setRotation(rot);
       im.setScale(scale / S);
@@ -2174,6 +2193,10 @@ export class GameScene extends Phaser.Scene implements World {
       case 'iron': // dusty puff
         pop('hitring', 0xffd27a, 0.35, 0.9, 200);
         spray('dot', 0xf0dcb0, 2, 16, 0.45, 260);
+        break;
+      case 'combo': // a pink swipe through a cream splat
+        if (Math.random() < 0.5) pop('streak', 0xff9a7a, 0.8, 1.4, 160, rnd());
+        spray('dot', 0xfff8ea, 2, 12, 0.45, 220);
         break;
     }
   }
@@ -2880,7 +2903,7 @@ export class GameScene extends Phaser.Scene implements World {
     };
     for (let i = 0; i < MAX_SLOTS; i++) {
       const w = this.weapons[i];
-      slot(i * step, 0, w ? w.def.icon : null, w ? (w.evolved ? '★' : `${w.level}`) : '', !!w?.evolved);
+      slot(i * step, 0, w ? w.icon : null, w ? (w.evolved ? '★' : `${w.level}`) : '', !!w?.evolved);
     }
     const tops = [...this.toppings];
     for (let i = 0; i < MAX_SLOTS; i++) {
@@ -3224,14 +3247,38 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   /** Bread basket: an evolution, or 1 upgrade and +5 Dough. Gold toaster: an evolution plus 2 upgrades, or 3 upgrades and +15 Dough. */
+  /** Upgrades a chest can hand out: levels for owned weapons and toppings, in random order. Never a new item. */
+  private chestUpgrades(): Choice[] {
+    const out: Choice[] = [];
+    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) out.push({ kind: 'wup', id: w.def.id });
+    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) out.push({ kind: 'tup', id });
+    return Phaser.Utils.Array.Shuffle(out);
+  }
+
   private openChest(gold: boolean): void {
     this.setPaused('chest');
-    const evo = this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
-    sfx(evo ? 'evolve' : gold ? 'gold' : 'basket');
+    // The secret recipe: the first gold toaster after Schmear Flood and Lox Cyclone are both evolved merges them.
+    // It goes ahead of any normal evolution that's waiting (that one comes from the next chest).
+    const lox = this.weaponOf('lox');
+    const flood = this.weaponOf('puddle');
+    const merge = gold && !!lox?.evolved && !!flood?.evolved && !lox.combo;
+    const evo = merge ? undefined : this.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && this.toppings.has(w.def.evolveWith));
+    sfx(evo || merge ? 'evolve' : gold ? 'gold' : 'basket');
     let title: string;
     const lines: string[] = [];
     let icon = 'ic_heal';
-    if (evo) {
+    if (merge) {
+      flood!.destroy();
+      this.weapons.splice(this.weapons.indexOf(flood!), 1);
+      lox!.combo = true;
+      title = 'SECRET RECIPE!';
+      lines.push(`Schmear Flood + Lox Cyclone\nbecame ${COMBO.name}!`, 'A weapon slot is free again.');
+      icon = COMBO.icon;
+      this.foundCombo = true;
+      const save = load();
+      if (!(save.secrets ?? []).includes('combo')) save.secrets = [...(save.secrets ?? []), 'combo'];
+      persist();
+    } else if (evo) {
       evo.evolved = true;
       title = 'EVOLUTION!';
       lines.push(`${evo.def.name} became ${evo.def.evoName}`);
@@ -3247,22 +3294,23 @@ export class GameScene extends Phaser.Scene implements World {
       this.coins += dough;
       lines.push(`+${dough} Dough`);
     }
-    const ups = evo ? (gold ? 2 : 0) : gold ? 3 : 1;
+    const ups = merge ? 1 : evo ? (gold ? 2 : 0) : gold ? 3 : 1;
     const got: string[] = [];
+    // Chests only level up what you already own: empty slots are left for you to fill from level-up cards.
     for (let i = 0; i < ups; i++) {
-      const opts = this.choices().filter((c) => c.kind !== 'heal' && c.kind !== 'coin');
+      const opts = this.chestUpgrades();
       const pick = opts.find((c) => c.kind === 'wup') ?? opts[0];
       if (!pick) break;
       const info = this.describe(pick);
       this.applyChoice(pick);
       got.push(`${info.name} ${info.tag.startsWith('LV') ? info.tag.replace('LV', 'Lv') : '(new)'}`);
     }
-    if (!evo) icon = gold ? 'goldchest' : 'chest';
-    if (!evo && !got.length) {
+    if (!evo && !merge) icon = gold ? 'goldchest' : 'chest';
+    if (!evo && !merge && !got.length) {
       this.player.hp = this.stats.maxHp;
       got.push('Fully healed!');
     }
-    const line = [...got, ...lines].join('\n');
+    const line = (merge ? [...lines, ...got] : [...got, ...lines]).join('\n');
     const W = this.scale.width;
     const H = this.scale.height;
     const c = this.add.container(0, 0);
@@ -3350,7 +3398,7 @@ export class GameScene extends Phaser.Scene implements World {
         }
       }
     };
-    row(top + 116 * S, 'WEAPONS', this.weapons.map((w) => ({ icon: w.def.icon, lv: w.level, evolved: w.evolved })), 0xf08a3c);
+    row(top + 116 * S, 'WEAPONS', this.weapons.map((w) => ({ icon: w.icon, lv: w.level, evolved: w.evolved })), 0xf08a3c);
     row(top + 196 * S, 'TOPPINGS', [...this.toppings].map(([id, lv]) => ({ icon: TOPPINGS[id].icon, lv, evolved: false })), 0x5aa9e6);
 
     c.add(
@@ -3476,6 +3524,7 @@ export class GameScene extends Phaser.Scene implements World {
       newBest,
       evolutions: this.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),
       goals,
+      combo: this.foundCombo,
     };
     const p = this.player.sprite;
     if (!victory && !quit) {

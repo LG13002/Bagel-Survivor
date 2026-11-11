@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, ENEMIES, ENEMY_BOOK, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
 import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
+import { COMBO } from '../weapons';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { bestStage, getBest, load, persist, type BestScore, type RunMode, type SaveData } from '../save';
@@ -13,6 +14,8 @@ import { playMusic } from '../music';
 /** Height of the menu's stage button row, in CSS px. */
 const STAGE_ROW = 48;
 const STAGE_ROW_COMPACT = 40;
+const SECRET_BAGEL_HINT = 'A secret bagel. Keep clearing stages to find it.';
+const SECRET_RECIPE_HINT = 'A secret recipe. Keep evolving weapons to find it.';
 /** Charred brown for the stage button and card frame when Extra Crispy is on. */
 const CRISPY_COLOR = 0x6b2e14;
 
@@ -92,9 +95,11 @@ export class MenuScene extends Phaser.Scene {
     // Bagel picker
     const bagel = BAGELS[this.idx];
     const locked = !save.unlocked.includes(bagel.id);
-    const gs = locked && bagel.goal ? goalStatus(save, bagel) : null;
+    // A secret bagel stays a mystery until it's found: no name, no goal.
+    const hidden = locked && !!bagel.secret;
+    const gs = locked && bagel.goal && !hidden ? goalStatus(save, bagel) : null;
     // Description first, so the picker can be sized to fit above the buttons on any screen height.
-    const desc = txt(this, W / 2, 0, gs ? `Unlock: ${bagel.goal!.text}` : bagel.quirk, 14, '#e8d8c0', {
+    const desc = txt(this, W / 2, 0, hidden ? SECRET_BAGEL_HINT : gs ? `Unlock: ${bagel.goal!.text}` : bagel.quirk, 14, '#e8d8c0', {
       wrap: Math.min(W / S - 60, 320),
       bold: false,
     }).setOrigin(0.5, 0);
@@ -125,7 +130,7 @@ export class MenuScene extends Phaser.Scene {
       c.add(lock);
       slide.push(lock);
     }
-    const nameT = txt(this, W / 2, by + R + 48 * sp * S, bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream);
+    const nameT = txt(this, W / 2, by + R + 48 * sp * S, hidden ? '???' : bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream);
     c.add(nameT);
     slide.push(nameT);
     // Short screens have no room for a locked bagel's progress bar: its progress goes in the best line's place.
@@ -556,7 +561,7 @@ export class MenuScene extends Phaser.Scene {
     let sub = '';
     if (tab === 0) {
       for (const b of BAGELS) {
-        if (!b.goal) continue;
+        if (!b.goal || b.secret) continue;
         const st = goalStatus(save, b);
         const done = save.unlocked.includes(b.id);
         rows.push({ icon: b.tex, dark: !done, name: b.name, sub: done ? 'Unlocked' : `${b.goal.text}: ${st.progress}`, frac: done ? 1 : st.frac, done });
@@ -588,11 +593,18 @@ export class MenuScene extends Phaser.Scene {
         persist();
       }
     } else {
+      const rainbow = BAGELS.find((b) => b.secret)!;
+      const bagelFound = save.unlocked.includes(rainbow.id);
+      const comboFound = (save.secrets ?? []).includes('combo');
       rows = [
-        { icon: 'ic_secret', name: '???', sub: 'A secret bagel. Keep clearing stages to find it.', frac: 0, done: false },
-        { icon: 'ic_secret', name: '???', sub: 'A secret recipe. Keep evolving weapons to find it.', frac: 0, done: false },
+        bagelFound
+          ? { icon: rainbow.tex, name: `${rainbow.name} bagel`, sub: `Found! ${rainbow.goal!.text}.`, frac: 1, done: true }
+          : { icon: 'ic_secret', name: '???', sub: SECRET_BAGEL_HINT, frac: 0, done: false },
+        comboFound
+          ? { icon: COMBO.icon, name: COMBO.name, sub: 'Found! Evolve Schmear Flood and Lox Cyclone, then open a gold toaster.', frac: 1, done: true }
+          : { icon: 'ic_secret', name: '???', sub: SECRET_RECIPE_HINT, frac: 0, done: false },
       ];
-      sub = `0 of ${rows.length} secrets found`;
+      sub = `${rows.filter((r) => r.done).length} of ${rows.length} secrets found`;
     }
     const PER = 5;
     const pages = Math.max(1, Math.ceil(rows.length / PER));
@@ -698,10 +710,11 @@ export class MenuScene extends Phaser.Scene {
     c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
     const all = Object.keys(WEAPONS) as WeaponId[];
     const locked = all.filter((id) => WEAPONS[id].unlock);
-    // Five rows a page keeps it on screen on small phones; two tabs: Evolutions and Weapons.
+    // Five rows a page keeps it on screen on small phones. The secret combo is the last Evolutions row.
     const PER = 5;
-    const ids = tab === 0 ? all.slice(page * PER, page * PER + PER) : locked;
-    const pages = tab === 0 ? Math.ceil(all.length / PER) : 1;
+    const evoRows: (WeaponId | 'combo')[] = [...all, 'combo'];
+    const ids = tab === 0 ? evoRows.slice(page * PER, page * PER + PER) : locked;
+    const pages = tab === 0 ? Math.ceil(evoRows.length / PER) : 1;
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 60 * S;
     const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S + 66 * S;
@@ -716,8 +729,18 @@ export class MenuScene extends Phaser.Scene {
     const small = (x: number, y: number, s: string, wrap: number) =>
       txt(this, x, y, s, 12, CSS.muted, { bold: false, stroke: false, wrap, align: 'left' }).setOrigin(0, 0.5);
     ids.forEach((id, i) => {
-      const w = WEAPONS[id];
       const y = top + 160 * S + i * rowH;
+      if (id === 'combo') {
+        const found = (save.secrets ?? []).includes('combo');
+        c.add(this.add.image(lx + 18 * S, y, found ? WEAPONS.puddle.icon : 'ic_secret').setScale(0.9));
+        c.add(txt(this, lx + 44 * S, y, '+', 18, CSS.muted));
+        c.add(this.add.image(lx + 70 * S, y, found ? WEAPONS.lox.icon : 'ic_secret').setScale(0.9));
+        const tx = lx + 98 * S;
+        c.add(txt(this, tx, y - 10 * S, found ? COMBO.name : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
+        c.add(small(tx, y + 11 * S, found ? 'Schmear Flood + Lox Cyclone' : 'A secret recipe', (pw - 120 * S) / S));
+        return;
+      }
+      const w = WEAPONS[id];
       if (tab === 0) {
         const t = TOPPINGS[w.evolveWith];
         const found = save.cookbook.includes(id);

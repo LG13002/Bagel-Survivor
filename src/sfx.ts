@@ -191,6 +191,10 @@ export function hitSfx(id: string): void {
     case 'iron': // thud
       tone('sine', 150 * j, 70, 0.09, 0.18);
       break;
+    case 'combo': // squelchy slap
+      noise(0.06, 0.12, 900 * j, { type: 'bandpass' });
+      tone('sine', 440 * j, 260, 0.06, 0.07);
+      break;
     default:
       tone('square', 220, 90, 0.05, 0.12);
   }

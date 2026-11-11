@@ -4,7 +4,7 @@ import type { SaveData } from './save';
 
 /** Preview builds (VITE_PREVIEW=1, used for the playable preview link) open every stage, and the newest bagels, so they can be tried right away. */
 const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
-const PREVIEW_BAGELS = ['blueberry', 'asiago', 'jalapeno'];
+const PREVIEW_BAGELS = ['blueberry', 'asiago', 'jalapeno', 'rainbow'];
 
 export interface GoalStatus {
   done: boolean;
@@ -38,9 +38,45 @@ export function goalStatus(save: SaveData, b: BagelDef): GoalStatus {
       const best = stageBestTime(save, g.stage ?? 'stage1');
       return { done: best >= g.target, frac: Math.min(1, best / g.target), progress: `best ${fmtTime(best)} of ${fmtTime(g.target)}` };
     }
+    case 'rainbow': {
+      const n = rainbowStages(save);
+      return { done: n >= g.target, frac: Math.min(1, n / g.target), progress: `${n} of ${g.target}` };
+    }
     case 'cookbook':
       return { done: save.cookbook.length >= g.target, frac: Math.min(1, save.cookbook.length / g.target), progress: `${save.cookbook.length} of ${g.target}` };
   }
+}
+
+/**
+ * Rainbow's goal: how many stages can be matched to a clear by a different bagel each.
+ * Clears come from the bests (any mode), so a bagel that cleared two stages still counts for only one.
+ */
+export function rainbowStages(save: SaveData): number {
+  const byStage = STAGES.filter((st) => st.built).map((st) => {
+    const bagels = new Set<string>();
+    for (const [k, b] of Object.entries(save.best ?? {})) {
+      const [key, bagel] = k.split(':');
+      if (b.cleared && key.replace(/[qex]+$/, '') === st.id) bagels.add(bagel);
+    }
+    return [...bagels];
+  });
+  // Small brute force: the most stages that can each get their own bagel.
+  let bestN = 0;
+  const walk = (i: number, used: Set<string>, n: number) => {
+    if (i === byStage.length) {
+      bestN = Math.max(bestN, n);
+      return;
+    }
+    walk(i + 1, used, n);
+    for (const b of byStage[i]) {
+      if (used.has(b)) continue;
+      used.add(b);
+      walk(i + 1, used, n + 1);
+      used.delete(b);
+    }
+  };
+  walk(0, new Set(), 0);
+  return bestN;
 }
 
 /** Endless and Extra Crispy open for a stage once it has been cleared (always open in preview builds). */
@@ -74,7 +110,7 @@ export function checkUnlocks(save: SaveData): string[] {
 
 /** The locked bagels closest to unlocking, nearest first. */
 export function nearestGoals(save: SaveData, n: number): { bagel: BagelDef; status: GoalStatus }[] {
-  return BAGELS.filter((b) => !save.unlocked.includes(b.id) && b.goal)
+  return BAGELS.filter((b) => !save.unlocked.includes(b.id) && b.goal && !b.secret)
     .map((bagel) => ({ bagel, status: goalStatus(save, bagel) }))
     .sort((a, b) => b.status.frac - a.status.frac)
     .slice(0, n);

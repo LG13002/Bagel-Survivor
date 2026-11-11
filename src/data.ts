@@ -121,7 +121,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   iron: {
     id: 'iron',
-    name: 'Waffle Smash',
+    name: 'Waffle Stomp',
     icon: 'ic_iron',
     blurb: 'Heavy stamps around you, big shove.',
     levels: ['Heavy stamps around you, big shove.', '+40% damage', 'Bigger stamp', 'A second stamp on a nearby enemy', 'Faster, and dazes enemies'],
@@ -334,10 +334,10 @@ export function stageById(id: string | undefined): StageDef {
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 
-export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy';
+export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy' | 'mixin';
 
 /** stageclear / stagetime: clear, or survive `target` seconds in, the goal's `stage`. */
-export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook' | 'stageclear' | 'stagetime';
+export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook' | 'stageclear' | 'stagetime' | 'rainbow';
 
 export interface BagelDef {
   id: string;
@@ -351,6 +351,8 @@ export interface BagelDef {
   speed: number;
   choices: number;
   allStats: number; // flat bonus multiplier on damage/area/speed
+  /** Secret bagel: shown as "???" (name, goal and picture) until it's unlocked. */
+  secret?: boolean;
 }
 
 export const BAGELS: BagelDef[] = [
@@ -388,7 +390,7 @@ export const BAGELS: BagelDef[] = [
     quirk: 'Leaves a trail of poppy seeds that hurt enemies. Starts with Lox Boomerang.',
     quirkId: 'trail',
     goal: { kind: 'time', target: 180, text: 'Survive 3:00 in one run' },
-    hp: 90,
+    hp: 100,
     speed: 150,
     choices: 3,
     allStats: 0,
@@ -472,6 +474,21 @@ export const BAGELS: BagelDef[] = [
     speed: 140,
     choices: 3,
     allStats: 0,
+  },
+  // M11: the secret bagel
+  {
+    id: 'rainbow',
+    name: 'Rainbow',
+    tex: 'bagel_rainbow',
+    weapon: 'sesame', // replaced by a random open weapon at the start of each run
+    quirk: 'Mix-in: starts with a random weapon and sees 4 cards on every level-up.',
+    quirkId: 'mixin',
+    goal: { kind: 'rainbow', target: 3, text: 'Clear all 3 stages, each with a different bagel' },
+    hp: 100,
+    speed: 140,
+    choices: 4,
+    allStats: 0,
+    secret: true,
   },
 ];
 
