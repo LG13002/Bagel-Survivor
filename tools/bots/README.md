@@ -12,6 +12,7 @@ npm run build
 | Script | What it does | Run |
 | --- | --- | --- |
 | `wbench.cjs` | Gives Plain Jane one weapon at a set level (6 = evolved) in god mode, then reports useful damage/sec (overkill removed), kills/min and damage taken/min. | `node tools/bots/wbench.cjs 6 pin,sesame [stage] [startSecs]` (defaults `stage1 120`; `PORT=` env for another server; `CRISPY=1` turns on Extra Crispy). The weapon `combo` is Lox and Schmear; `pair` is Schmear Flood and Lox Cyclone side by side, for comparison |
+| `bagelbench.cjs` | Plays each bagel to 4:25 of a Full Run with one fixed card policy. Hits are counted instead of applied, so every bagel covers the same stretch. Reports useful damage/sec, damage taken and healing per minute, and health bars lost (damage taken minus healing, over max health). | `node tools/bots/bagelbench.cjs [bagels] [stage] [endSecs]` (defaults: every bagel, `stage1`, `265`; `SPEED=`, `PORT=`, `CRISPY=1`). Two copies can run side by side; compare runs made the same way |
 | `buntest.cjs` | Plays a Quick Run and a Full Run to the boss. Logs Sticky Bun drops and the seeds left on the floor when the boss arrives. Saves screenshots to the folder you pass. | `node tools/bots/buntest.cjs /tmp/out` |
 | `qtest.cjs` | Plays a Quick Run to the boss, forces a win, then prints the resulting save data. | `node tools/bots/qtest.cjs /tmp/out` |
 

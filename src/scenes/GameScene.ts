@@ -840,7 +840,7 @@ export class GameScene extends Phaser.Scene implements World {
         const m = this.mines[i];
         m.life -= dt;
         if (m.life < 0.5) m.img.setAlpha(m.life / 0.5);
-        this.query(m.x, m.y, 8 * this.stats.area, (e) => {
+        this.query(m.x, m.y, 11 * this.stats.area, (e) => {
           this.hit(e, dmg, 0, 0, 'trail', 0.5);
         });
         if (m.life <= 0) {

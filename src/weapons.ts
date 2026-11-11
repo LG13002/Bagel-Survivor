@@ -125,7 +125,7 @@ class SesameShot extends Weapon {
       if (this.evolved) {
         const n = 1 + s.proj;
         const jitter = (Math.random() - 0.5) * 0.16;
-        for (let i = 0; i < n; i++) this.fire(base + jitter + (i - (n - 1) / 2) * 0.12, 13, 3, 'seed_fire');
+        for (let i = 0; i < n; i++) this.fire(base + jitter + (i - (n - 1) / 2) * 0.12, 17, 3, 'seed_fire');
       } else {
         const count = 1 + (lv >= 2 ? 1 : 0) + (lv >= 4 ? 1 : 0) + s.proj;
         const dmg = 13.2 * (lv >= 3 ? 1.5 : 1);
@@ -412,12 +412,12 @@ class CoffeeSplash extends Weapon {
   update(dt: number): void {
     const s = this.w.stats;
     const lv = this.level;
-    const cd = (this.evolved ? 1.1 : 1.5 * (lv >= 5 ? 0.75 : 1)) * s.cooldown;
+    const cd = (this.evolved ? 1.1 : 1.15 * (lv >= 5 ? 0.8 : 1)) * s.cooldown;
     if (!this.tick(dt, cd)) return;
     const p = this.w.player;
     const range = (this.evolved ? 190 : 150 * (lv >= 5 ? 1.3 : 1)) * s.area;
     const half = this.evolved ? 0.42 : lv >= 3 ? 0.65 : 0.45;
-    const dmg = (this.evolved ? 22 : 14 * (lv >= 2 ? 1.4 : 1)) * s.damage;
+    const dmg = (this.evolved ? 22 : 15 * (lv >= 2 ? 1.4 : 1)) * s.damage;
     // Aim at the nearest enemy in reach (falls back to the direction of travel).
     const aim = this.aim(range * 1.2);
     const base = Math.atan2(aim.y, aim.x);
@@ -480,7 +480,7 @@ class RollingPinW extends Weapon {
     const lv = this.level;
     const p = this.w.player;
     const size = (lv >= 5 || this.evolved ? 1.5 : 1) * s.area;
-    const dmg = (this.evolved ? 34 : 26 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    const dmg = (this.evolved ? 34 : 23 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     if (this.tick(dt, (this.evolved ? 3.8 : 3) * s.cooldown)) {
       // Roll toward the nearest enemy (falls back to the direction of travel).
       const aim = this.aim(420);
@@ -797,9 +797,9 @@ class WaffleSmash extends Weapon {
     const lv = this.level;
     const ev = this.evolved;
     const p = this.w.player;
-    if (this.tick(dt, (ev ? 3.2 : lv >= 5 ? 2.4 : 3) * s.cooldown)) {
+    if (this.tick(dt, (ev ? 3.2 : lv >= 5 ? 1.9 : 2.3) * s.cooldown)) {
       const r = (ev ? 140 : 70 * (lv >= 3 ? 1.25 : 1)) * s.area;
-      const dmg = (ev ? 110 : 46 * (lv >= 2 ? 1.4 : 1)) * s.damage;
+      const dmg = (ev ? 110 : 48 * (lv >= 2 ? 1.4 : 1)) * s.damage;
       this.stamp(p.x, p.y, r, dmg);
       if (lv >= 4 && !ev) {
         const e = this.w.nearest(p.x, p.y, 260);

@@ -390,7 +390,7 @@ export const BAGELS: BagelDef[] = [
     quirk: 'Leaves a trail of poppy seeds that hurt enemies. Starts with Lox Boomerang.',
     quirkId: 'trail',
     goal: { kind: 'time', target: 180, text: 'Survive 3:00 in one run' },
-    hp: 90,
+    hp: 100,
     speed: 150,
     choices: 3,
     allStats: 0,
