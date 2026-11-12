@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { load } from '../save';
 import { button, panel, txt } from '../ui';
+import { bigBagel } from '../textures';
 import type { RunResult } from './GameScene';
 import { BAGELS, WEAPONS, stageById } from '../data';
 import { nearestGoals } from '../progress';
@@ -19,6 +20,7 @@ export class ResultsScene extends Phaser.Scene {
   create(): void {
     this.build();
     const onResize = () => {
+      this.tweens.killAll();
       this.children.removeAll(true);
       this.build();
     };
@@ -33,7 +35,7 @@ export class ResultsScene extends Phaser.Scene {
     const H = this.scale.height;
     const ins = safeInsets();
     const save = load();
-    this.add.tileSprite(0, 0, W, H, 'floor').setOrigin(0).setAlpha(0.3);
+    this.add.tileSprite(0, 0, W, H, 'floor_stage1').setOrigin(0).setAlpha(0.3);
 
     const pw = Math.min(W - 28 * S, 380 * S);
     const compact = (H - (ins.top + ins.bottom) * S) / S < 720; // short screens: smaller panel, fewer notes
@@ -47,7 +49,7 @@ export class ResultsScene extends Phaser.Scene {
     const st = stageById(r.stage);
     const tags = [r.quick ? 'Quick' : '', r.endless ? 'Endless' : '', r.crispy ? 'Extra Crispy' : ''].filter(Boolean).join(', ');
     txt(this, W / 2, top + 72 * S, `Stage ${st.num}: ${st.name}${tags ? ` (${tags})` : ''}`, 13, r.crispy ? '#ff9a5c' : CSS.muted, { stroke: false });
-    this.add.image(W / 2, top + 112 * S, (BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain') + '_big').setScale(0.5).setAngle(r.victory ? 0 : 160);
+    this.add.image(W / 2, top + 112 * S, bigBagel(this, BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain')).setScale(0.5).setAngle(r.victory ? 0 : 160);
 
     if (r.newBest) {
       const nbText = r.endless ? 'NEW ENDLESS BEST!' : r.quick ? 'NEW QUICK BEST!' : 'NEW BEST!';

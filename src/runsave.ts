@@ -41,6 +41,10 @@ export interface RunSnapshot {
   /** Second Bake already used this run. */
   revived?: boolean;
   mugs?: number;
+  /** Surprise elites (the stage's `extras`, by index) that have already arrived. */
+  extras?: number[];
+  /** Elites that were alive: they come back on resume with the health they had. */
+  elites?: { kind: string; hp: number; bun: boolean }[];
 }
 
 const KEY = 'everything-bagel-run-v1';

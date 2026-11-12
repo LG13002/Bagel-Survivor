@@ -29,11 +29,19 @@ export const CSS = {
 
 /** Safe-area insets in CSS px (notch / home indicator). */
 export function safeInsets(): { top: number; bottom: number } {
+  // Asked for every frame by the HUD, so the measured value is kept for a second at a time.
+  const now = performance.now();
+  if (insets && now - insetsAt < 1000) return insets;
   const el = document.getElementById('safe');
   if (!el) return { top: 0, bottom: 0 };
   const cs = getComputedStyle(el);
-  return { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+  insets = { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+  insetsAt = now;
+  return insets;
 }
+let insets: { top: number; bottom: number } | null = null;
+let insetsAt = 0;
+if (typeof window !== 'undefined') window.addEventListener('resize', () => (insets = null));
 
 /** Debug flags from the URL, e.g. ?speed=4&god for testing. */
 const params = new URLSearchParams(window.location.search);

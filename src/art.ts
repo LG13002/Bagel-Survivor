@@ -549,7 +549,7 @@ export function drawTwinkle(c: Ctx, s: number): void {
   c.fill();
 }
 
-export function drawKnife(c: Ctx, w: number, h: number): void {
+export function drawKnife(c: Ctx, h: number): void {
   const line = 1.6;
   const my = h / 2;
   // Blade
@@ -583,7 +583,7 @@ export function drawKnife(c: Ctx, w: number, h: number): void {
   angryEye(c, 27, my + 0.4, 2, 1, 1.2);
 }
 
-export function drawAnt(c: Ctx, w: number, h: number): void {
+export function drawAnt(c: Ctx, h: number): void {
   const my = h / 2;
   c.strokeStyle = INK;
   c.lineWidth = 1.2;
@@ -621,7 +621,7 @@ export function drawAnt(c: Ctx, w: number, h: number): void {
   c.fill();
 }
 
-export function drawCroissant(c: Ctx, w: number, h: number): void {
+export function drawCroissant(c: Ctx): void {
   const segs = [
     { x: 11, y: 37, rx: 8.5, ry: 11, a: -0.7 },
     { x: 61, y: 37, rx: 8.5, ry: 11, a: 0.7 },
@@ -658,7 +658,7 @@ export function drawCroissant(c: Ctx, w: number, h: number): void {
   ink(c, 1.8);
 }
 
-export function drawToaster(c: Ctx, w: number, h: number): void {
+export function drawToaster(c: Ctx): void {
   // Toast peeking out of the slots
   for (const x of [21, 47]) {
     rrect(c, x, 3, 16, 14, [5, 5, 1, 1]);
@@ -2023,7 +2023,7 @@ export function drawMeltPuddle(c: Ctx, w: number, h: number): void {
 export function drawFrostedCroissant(c: Ctx, w: number, h: number): void {
   c.save();
   c.scale(w / 72, h / 56);
-  drawCroissant(c, 72, 56);
+  drawCroissant(c);
   // Icy blue wash over the pastry only
   c.globalCompositeOperation = 'source-atop';
   c.fillStyle = 'rgba(150,205,240,0.38)';
@@ -2049,7 +2049,7 @@ export function drawFrostedCroissant(c: Ctx, w: number, h: number): void {
 export function drawTyrantJr(c: Ctx, w: number, h: number): void {
   c.save();
   c.scale(w / 84, h / 76);
-  drawToaster(c, 84, 76);
+  drawToaster(c);
   c.restore();
   // A snow cap on the toast
   c.beginPath();
@@ -2422,7 +2422,7 @@ export function drawPopBit(c: Ctx, s: number): void {
 export function drawTot(c: Ctx, w: number, h: number): void {
   c.save();
   c.scale(w / 84, h / 76);
-  drawToaster(c, 84, 76);
+  drawToaster(c);
   c.globalCompositeOperation = 'source-atop';
   c.fillStyle = 'rgba(80,40,20,0.18)';
   c.fillRect(0, 0, 84, 76);

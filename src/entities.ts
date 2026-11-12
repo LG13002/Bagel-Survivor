@@ -21,6 +21,8 @@ export class Enemy {
   vy = 0;
   slowUntil = 0;
   flashUntil = 0;
+  /** The white hit flash is showing. */
+  flashOn = false;
   alive = false;
   boss = false;
   /** Boss second phase. */
@@ -62,7 +64,6 @@ export interface Pickup {
   kind: 'xp' | 'coin' | 'heal' | 'chest' | 'goldchest' | 'bun' | 'mug';
   value: number;
   magnet: boolean;
-  alive: boolean;
 }
 
 export interface EnemyShot {

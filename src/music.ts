@@ -1,6 +1,6 @@
 // Music made in code: a tiny step sequencer with synth voices, playing original loops through
 // the music bus in sfx.ts. No audio files. The run theme adds layers as the run goes on.
-import { audioCtx, musicOn, musicOut, onAudioReady } from './sfx';
+import { audioCtx, musicOn, musicOut, noiseBuffer, onAudioReady } from './sfx';
 
 type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'sizzle' | 'bell' | 'wah' | 'pad';
 
@@ -281,6 +281,8 @@ const SONGS: Record<SongId, Song> = {
 
 // ---------------------------------------------------------------- Voices
 
+let sizzleBuf: AudioBuffer | null = null;
+
 function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number, out: AudioNode, last: boolean): void {
   const ctx = audioCtx()!;
   if (inst === 'kick') {
@@ -298,11 +300,14 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
   if (inst === 'sizzle') {
     // A frying-pan sizzle: crackly high noise that swells and fades.
     const len = 0.2;
-    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * (len + 0.02)), ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < 0.08 ? 1 : 0.35);
+    // The crackly noise is made once and replayed from a random spot each time.
+    if (!sizzleBuf) {
+      sizzleBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      const d = sizzleBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (Math.random() < 0.08 ? 1 : 0.35);
+    }
     const src = ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = sizzleBuf;
     const f = ctx.createBiquadFilter();
     f.type = 'highpass';
     f.frequency.value = 4200;
@@ -311,16 +316,14 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
     g.gain.exponentialRampToValueAtTime(0.16 * vol, t + 0.03);
     g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     src.connect(f).connect(g).connect(out);
-    src.start(t);
+    src.start(t, Math.random() * 0.7);
     src.stop(t + len + 0.02);
     return;
   }
   if (inst === 'snare' || inst === 'hat') {
-    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.12), ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    // Drums play a slice of the shared noise sample instead of making fresh noise for every hit.
     const src = ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = noiseBuffer();
     const f = ctx.createBiquadFilter();
     f.type = inst === 'hat' ? 'highpass' : 'bandpass';
     f.frequency.value = inst === 'hat' ? 7000 : 1800;
@@ -329,7 +332,7 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
     g.gain.setValueAtTime((inst === 'hat' ? 0.22 : 0.5) * vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     src.connect(f).connect(g).connect(out);
-    src.start(t);
+    src.start(t, Math.random() * 0.8);
     src.stop(t + len + 0.01);
     return;
   }
