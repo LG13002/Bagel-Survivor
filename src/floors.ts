@@ -623,36 +623,74 @@ function crumbTray(c: Ctx, w: number, h: number): void {
   }
 }
 
+/** A crumpled scrap of foil: shiny silver facets, bright crinkle edges and a couple of glints. */
 function foilScrap(c: Ctx, w: number, h: number): void {
   const rand = rng(73);
-  softShadow(c, w / 2 + 3, h / 2 + 6, 46, 22, 0.2);
-  c.beginPath();
+  softShadow(c, w / 2 + 3, h / 2 + 6, 46, 22, 0.25);
+  const cx = w / 2;
+  const cy = h / 2;
   const n = 11;
+  const pts: [number, number][] = [];
   for (let i = 0; i < n; i++) {
     const a = (i / n) * TAU;
     const rr = 1 - 0.35 * rand();
-    const px = w / 2 + Math.cos(a) * 42 * rr;
-    const py = h / 2 + Math.sin(a) * 26 * rr;
-    if (i) c.lineTo(px, py);
-    else c.moveTo(px, py);
+    pts.push([cx + Math.cos(a) * 42 * rr, cy + Math.sin(a) * 26 * rr]);
   }
+  // A crumple point a little off centre, with facets fanning out from it.
+  const mx = cx + (rand() - 0.5) * 14;
+  const my = cy + (rand() - 0.5) * 8;
+  const shades = ['#f4f6f9', '#b9bfc8', '#dde1e7', '#8f97a3', '#e9ecf0', '#a7aeb8'];
+  for (let i = 0; i < n; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[(i + 1) % n];
+    c.beginPath();
+    c.moveTo(mx, my);
+    c.lineTo(x0, y0);
+    c.lineTo(x1, y1);
+    c.closePath();
+    c.fillStyle = shades[(i + Math.floor(rand() * 2)) % shades.length];
+    c.fill();
+  }
+  // A soft sheen across the whole scrap.
+  c.beginPath();
+  pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
   c.closePath();
   c.fillStyle = linear(c, 0, 0, w, h, [
-    [0, 'rgba(225,228,232,0.45)'],
-    [0.5, 'rgba(160,165,172,0.45)'],
-    [1, 'rgba(205,208,214,0.45)'],
+    [0, 'rgba(255,255,255,0.35)'],
+    [0.45, 'rgba(255,255,255,0)'],
+    [1, 'rgba(120,128,140,0.25)'],
   ]);
   c.fill();
-  // Crinkles.
-  c.strokeStyle = 'rgba(255,255,255,0.5)';
+  c.strokeStyle = 'rgba(70,74,82,0.7)';
+  c.lineWidth = 1.5;
+  c.stroke();
+  // Bright crinkle ridges along some facet edges.
+  c.strokeStyle = 'rgba(255,255,255,0.85)';
   c.lineWidth = 1.2;
-  for (let i = 0; i < 6; i++) {
-    const x = w / 2 + (rand() - 0.5) * 60;
-    const y = h / 2 + (rand() - 0.5) * 30;
+  for (let i = 0; i < n; i += 2) {
+    const [x, y] = pts[i];
     c.beginPath();
-    c.moveTo(x, y);
-    c.lineTo(x + (rand() - 0.5) * 22, y + (rand() - 0.5) * 14);
+    c.moveTo(mx, my);
+    c.lineTo(mx + (x - mx) * 0.85, my + (y - my) * 0.85);
     c.stroke();
+  }
+  // Glints: little four-point sparkles.
+  for (let i = 0; i < 2; i++) {
+    const gx = cx + (rand() - 0.5) * 44;
+    const gy = cy + (rand() - 0.5) * 22;
+    const r = 5 + rand() * 3;
+    c.fillStyle = 'rgba(255,255,255,0.95)';
+    c.beginPath();
+    c.moveTo(gx, gy - r);
+    c.lineTo(gx + r * 0.22, gy - r * 0.22);
+    c.lineTo(gx + r, gy);
+    c.lineTo(gx + r * 0.22, gy + r * 0.22);
+    c.lineTo(gx, gy + r);
+    c.lineTo(gx - r * 0.22, gy + r * 0.22);
+    c.lineTo(gx - r, gy);
+    c.lineTo(gx - r * 0.22, gy - r * 0.22);
+    c.closePath();
+    c.fill();
   }
 }
 
