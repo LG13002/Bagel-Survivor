@@ -14,8 +14,8 @@ export interface ChallengeDef {
 }
 
 const BUILT = STAGES.filter((st) => st.built);
-/** The six bagels you can unlock without secrets (Plain to Onion). */
-const STARTERS = BAGELS.slice(0, 6).map((b) => b.id);
+/** The original six bagels (Plain to Onion), marked `starter` in BAGELS. */
+const STARTERS = BAGELS.filter((b) => b.starter).map((b) => b.id);
 
 function count(n: number, target: number, best = false): GoalStatus {
   const v = Math.min(n, target);

@@ -28,7 +28,7 @@ const SPEED = Number(process.env.SPEED || 10);
       g.damagePlayer = (d) => {
         if (g.paused || g.now < pl.invulnUntil) return;
         if (g.crispy) d *= 1.25; // CRISPY_DMG
-        const armor = g.armor + (g.toppings.get('frosting') ?? 0);
+        const armor = g.run.armor + (g.toppings.get('frosting') ?? 0);
         if (armor) d = Math.max(d * 0.5, d - armor);
         g.__hurt += d; g.__hits++;
         pl.invulnUntil = g.now + 0.9;
@@ -37,15 +37,15 @@ const SPEED = Number(process.env.SPEED || 10);
       g.hit = (e, d, ...r) => { const before = e.hp; const ok = h(e, d, ...r); if (ok) g.__dmg += Math.min(d, Math.max(0, before)); return ok; };
       Object.defineProperty(g, 'hitstop', { get: () => 0, set: () => {} });
       // One card policy for every bagel: finish an evolution, level a weapon, add a weapon (up to 3), then toppings.
-      const score = (c) => (g.isCombo(c) ? 100 : 0) + (c.kind === 'wup' ? 50 : c.kind === 'wnew' ? (g.weapons.length < 3 ? 60 : 5) : c.kind === 'tup' ? 30 : c.kind === 'tnew' ? 20 : 0) + Math.random();
-      g.openLevelUp = () => {
-        while (g.pendingLevels > 0) { const cs = g.choices(); cs.sort((a, b) => score(b) - score(a)); g.applyChoice(cs[0]); g.pendingLevels--; }
+      const score = (c) => (g.panels.isCombo(c) ? 100 : 0) + (c.kind === 'wup' ? 50 : c.kind === 'wnew' ? (g.weapons.length < 3 ? 60 : 5) : c.kind === 'tup' ? 30 : c.kind === 'tnew' ? 20 : 0) + Math.random();
+      g.panels.openLevelUp = () => {
+        while (g.run.pendingLevels > 0) { const cs = g.choices(); cs.sort((a, b) => score(b) - score(a)); g.applyChoice(cs[0]); g.run.pendingLevels--; }
       };
-      const oc = g.openChest.bind(g);
-      g.openChest = (gold) => { oc(gold); g.closeOverlay(); g.setPaused(''); };
+      const oc = g.panels.openChest.bind(g.panels);
+      g.panels.openChest = (gold) => { oc(gold); g.panels.close(); g.setPaused(''); };
       // A level-up can open before the bench takes over: resolve it with the same policy.
-      if (g.paused === 'levelup') { g.closeOverlay(); g.setPaused(''); }
-      g.openLevelUp();
+      if (g.paused === 'levelup') { g.panels.close(); g.setPaused(''); }
+      g.panels.openLevelUp();
       g.__t0 = g.now;
     });
     // Steer in a slow box so the bagel moves through the swarm; Blueberry also dashes when it can.
@@ -62,7 +62,7 @@ const SPEED = Number(process.env.SPEED || 10);
     const st = await p.evaluate(() => {
       const g = window.__game.scene.getScene('game');
       const dt = g.now - g.__t0, hp = g.stats.maxHp;
-      return { secs: Math.round(dt), level: g.level, kills: g.kills, dps: Math.round(g.__dmg / dt), maxHp: Math.round(hp), hurtPerMin: Math.round((g.__hurt / dt) * 60), healPerMin: Math.round((g.__heal / dt) * 60), barsLost: +((g.__hurt - g.__heal) / hp).toFixed(2), weapons: g.weapons.map((w) => w.def.id + (w.evolved ? '*' : w.level)).join(' ') };
+      return { secs: Math.round(dt), level: g.run.level, kills: g.run.kills, dps: Math.round(g.__dmg / dt), maxHp: Math.round(hp), hurtPerMin: Math.round((g.__hurt / dt) * 60), healPerMin: Math.round((g.__heal / dt) * 60), barsLost: +((g.__hurt - g.__heal) / hp).toFixed(2), weapons: g.weapons.map((w) => w.def.id + (w.evolved ? '*' : w.level)).join(' ') };
     });
     console.log(bagel, STAGE, JSON.stringify(st));
     await p.close();

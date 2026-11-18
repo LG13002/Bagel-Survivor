@@ -215,7 +215,8 @@ class SeedStorm extends Weapon {
   }
 }
 
-interface Puddle {
+/** A pool on the floor (Cream Cheese Puddle, Jam Jar): it slows what stands in it and hurts it on the weapon's 0.5s tick. */
+interface Pool {
   img: Phaser.GameObjects.Image;
   x: number;
   y: number;
@@ -223,10 +224,51 @@ interface Puddle {
   life: number;
 }
 
-class CreamPuddle extends Weapon {
-  private puddles: Puddle[] = [];
-  private aura: Puddle | null = null;
-  private tickT = 0;
+/** The shared pool logic of the two puddle weapons. */
+abstract class PoolWeapon extends Weapon {
+  protected pools: Pool[] = [];
+  private soakT = 0;
+  /** Drops a pool that grows in with a little bounce. */
+  protected addPool(img: Phaser.GameObjects.Image, x: number, y: number, r: number, life: number): void {
+    img.setScale(0);
+    this.w.tweens.add({ targets: img, scale: img.getData('base') * ((r * 2) / 128), duration: 180, ease: 'Back.Out' });
+    this.pools.push({ img, x, y, r, life });
+  }
+  /**
+   * One frame of every pool: slow what's in it, hurt it on the tick, and fade out spent pools.
+   * `first` (the Cream Cheese aura) goes before the others; `touch` runs on each enemy in a pool before the hit.
+   */
+  protected soak(dt: number, dmg: number, first: Pool | null = null, touch?: (e: Enemy, pl: Pool) => void): void {
+    this.soakT -= dt;
+    const hurt = this.soakT <= 0;
+    if (hurt) this.soakT = 0.5;
+    const one = (pl: Pool): void => {
+      pl.life -= dt;
+      this.w.query(pl.x, pl.y, pl.r, (e) => {
+        e.slowUntil = this.w.now + 0.3;
+        touch?.(e, pl);
+        if (hurt) this.strike(e, dmg, 0, 0, '', 0);
+      });
+    };
+    if (first) one(first);
+    for (let i = this.pools.length - 1; i >= 0; i--) {
+      const pl = this.pools[i];
+      one(pl);
+      if (pl.life <= 0) {
+        const img = pl.img;
+        this.w.tweens.add({ targets: img, alpha: 0, duration: 250, onComplete: () => img.destroy() });
+        this.pools.splice(i, 1);
+      }
+    }
+  }
+  destroy(): void {
+    this.pools.forEach((p) => p.img.destroy());
+    this.pools = [];
+  }
+}
+
+class CreamPuddle extends PoolWeapon {
+  private aura: Pool | null = null;
   update(dt: number): void {
     const s = this.w.stats;
     const lv = this.level;
@@ -240,10 +282,8 @@ class CreamPuddle extends Weapon {
         const life = (this.evolved ? 3.5 : 3 * (lv >= 5 ? 1.5 : 1)) * s.dur;
         const img = this.w.img('puddle', target.x, target.y, 2);
         if (this.look === 1) img.setTint(0xfff0c0);
-        const scale = (r * 2) / 128;
-        img.setScale(0).setAlpha(0.9);
-        this.w.tweens.add({ targets: img, scale: img.getData('base') * scale, duration: 180, ease: 'Back.Out' });
-        this.puddles.push({ img, x: target.x, y: target.y, r, life });
+        img.setAlpha(0.9);
+        this.addPool(img, target.x, target.y, r, life);
       }
     }
     if (this.evolved) {
@@ -258,26 +298,7 @@ class CreamPuddle extends Weapon {
       this.aura.r = ar;
       this.aura.img.setPosition(p.x, p.y).setScale(((ar * 2) / 128) * this.aura.img.getData('base'));
     }
-    this.tickT -= dt;
-    const doTick = this.tickT <= 0;
-    if (doTick) this.tickT = 0.5;
-    const all = this.aura ? [...this.puddles, this.aura] : this.puddles;
-    for (let i = all.length - 1; i >= 0; i--) {
-      const pd = all[i];
-      pd.life -= dt;
-      this.w.query(pd.x, pd.y, pd.r, (e) => {
-        e.slowUntil = this.w.now + 0.3;
-        if (doTick) this.strike(e, dmg, 0, 0, '', 0);
-      });
-    }
-    for (let i = this.puddles.length - 1; i >= 0; i--) {
-      const pd = this.puddles[i];
-      if (pd.life <= 0) {
-        const img = pd.img;
-        this.w.tweens.add({ targets: img, alpha: 0, duration: 250, onComplete: () => img.destroy() });
-        this.puddles.splice(i, 1);
-      }
-    }
+    this.soak(dt, dmg, this.aura);
   }
   private randomTarget(): { x: number; y: number } {
     const p = this.w.player;
@@ -293,8 +314,7 @@ class CreamPuddle extends Weapon {
     return { x: p.x + Math.cos(a) * 60, y: p.y + Math.sin(a) * 60 };
   }
   destroy(): void {
-    this.puddles.forEach((p) => p.img.destroy());
-    this.puddles = [];
+    super.destroy();
     this.aura?.img.destroy();
     this.aura = null;
   }
@@ -647,18 +667,8 @@ class ButterKnife extends Weapon {
   }
 }
 
-interface Pool {
-  img: Phaser.GameObjects.Image;
-  x: number;
-  y: number;
-  r: number;
-  life: number;
-}
-
-class JamJar extends Weapon {
+class JamJar extends PoolWeapon {
   private lobs: Lob[] = [];
-  private pools: Pool[] = [];
-  private tickT = 0;
   update(dt: number): void {
     const s = this.w.stats;
     const lv = this.level;
@@ -673,34 +683,19 @@ class JamJar extends Weapon {
       }
     }
     updateLobs(this.lobs, dt, (x, y) => this.trail(x, y, 0.4));
-    this.tickT -= dt;
-    const doTick = this.tickT <= 0;
-    if (doTick) this.tickT = 0.5;
     const dmg = (ev ? 10 : 6 * (lv >= 5 ? 1.5 : 1)) * s.damage;
-    for (let i = this.pools.length - 1; i >= 0; i--) {
-      const pl = this.pools[i];
-      pl.life -= dt;
-      this.w.query(pl.x, pl.y, pl.r, (e) => {
-        e.slowUntil = this.w.now + 0.3;
-        if (ev && !e.boss) {
-          // Jam Session: the pool pulls enemies toward its middle.
-          const dx = pl.x - e.x;
-          const dy = pl.y - e.y;
-          const d = Math.hypot(dx, dy);
-          if (d > 6) {
-            const step = Math.min(d - 6, (70 / e.mass) * dt);
-            e.x += (dx / d) * step;
-            e.y += (dy / d) * step;
-          }
-        }
-        if (doTick) this.strike(e, dmg, 0, 0, '', 0);
-      });
-      if (pl.life <= 0) {
-        const img = pl.img;
-        this.w.tweens.add({ targets: img, alpha: 0, duration: 250, onComplete: () => img.destroy() });
-        this.pools.splice(i, 1);
+    this.soak(dt, dmg, null, (e, pl) => {
+      if (!ev || e.boss) return;
+      // Jam Session: the pool pulls enemies toward its middle.
+      const dx = pl.x - e.x;
+      const dy = pl.y - e.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 6) {
+        const step = Math.min(d - 6, (70 / e.mass) * dt);
+        e.x += (dx / d) * step;
+        e.y += (dy / d) * step;
       }
-    }
+    });
   }
   private land(x: number, y: number): void {
     const s = this.w.stats;
@@ -715,16 +710,12 @@ class JamJar extends Weapon {
     this.w.playSfx('jar');
     const r = (ev ? 100 : 46 * (lv >= 3 ? 1.3 : 1)) * s.area;
     const life = (ev ? 4.5 : 3 * (lv >= 5 ? 1.4 : 1)) * s.dur;
-    const img = this.w.img('jam_pool', x, y, 2);
-    img.setScale(0).setAlpha(0.92);
-    this.w.tweens.add({ targets: img, scale: img.getData('base') * ((r * 2) / 128), duration: 180, ease: 'Back.Out' });
-    this.pools.push({ img, x, y, r, life });
+    this.addPool(this.w.img('jam_pool', x, y, 2).setAlpha(0.92), x, y, r, life);
   }
   destroy(): void {
+    super.destroy();
     this.lobs.forEach((l) => l.img.destroy());
-    this.pools.forEach((p) => p.img.destroy());
     this.lobs = [];
-    this.pools = [];
   }
 }
 
