@@ -176,7 +176,10 @@ export class MenuScene extends Phaser.Scene {
     BAGELS.forEach((b, i) => {
       const x = W / 2 + (i - (BAGELS.length - 1) / 2) * 14 * S;
       const on = i === this.idx;
-      dots.fillStyle(on ? COLORS.gold : save.unlocked.includes(b.id) ? COLORS.panelLight : 0x1d140d).fillCircle(x, dotsY, (on ? 4 : 3) * S);
+      // Every bagel gets a dot that shows on the wood floor: gold for this one, cream when unlocked, faint cream when locked.
+      if (on) dots.fillStyle(COLORS.gold, 1);
+      else dots.fillStyle(COLORS.cream, save.unlocked.includes(b.id) ? 0.85 : 0.3);
+      dots.fillCircle(x, dotsY, (on ? 4 : 3) * S);
     });
     c.add(dots);
     const ad = 50 * S;
