@@ -122,6 +122,8 @@ export class Hazards {
       let dead = s.life <= 0;
       if (dx * dx + dy * dy < rr * rr) {
         this.g.damagePlayer(s.dmg);
+        // Second Bake clears every shot, this one included: nothing is left to move.
+        if (this.shots[i] !== s) return;
         dead = true;
       }
       // Rack posts block enemy shots (but never yours), so you can duck behind one.
@@ -368,7 +370,11 @@ export class Hazards {
           const ry = p.y - b.y;
           const along = rx * vx + ry * vy;
           const across = Math.abs(rx * vy - ry * vx);
-          if (along > -20 && along < len && across < BEAM_W / 2 + p.radius * 0.6) g.damagePlayer(BEAM_DMG);
+          if (along > -20 && along < len && across < BEAM_W / 2 + p.radius * 0.6) {
+            g.damagePlayer(BEAM_DMG);
+            // Second Bake clears every flame line, this one included.
+            if (this.beams[i] !== b) return;
+          }
           for (let j = 1; j <= 6; j++) g.effects.burst(b.x + vx * j * 110, b.y + vy * j * 110, 0xffb03a, 3, 30);
         }
         continue;

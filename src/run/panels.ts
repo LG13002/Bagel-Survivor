@@ -67,7 +67,7 @@ export class Panels {
   }
 
   /** True if taking this choice completes an evolution recipe. */
-  private isCombo(c: Choice): boolean {
+  isCombo(c: Choice): boolean {
     const g = this.g;
     if (c.kind === 'wnew' || c.kind === 'wup') {
       const def = WEAPONS[c.id as WeaponId];

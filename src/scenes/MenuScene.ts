@@ -19,17 +19,24 @@ const SECRET_RECIPE_HINT = 'A secret recipe. Keep evolving weapons to find it.';
 /** Charred brown for the stage button and card frame when Extra Crispy is on. */
 const CRISPY_COLOR = 0x6b2e14;
 
-/** One best line: "Endless: 12:34", "Full: ♛ cleared · 412 kills", ... */
-function bestText(label: string, best: BestScore | undefined, endless: boolean): string {
-  if (!best) return `${label}: no runs yet`;
-  if (endless) return `${label}: ${fmtTime(best.time)}`;
-  return best.cleared ? `${label}: ♛ cleared · ${best.kills} kills` : `${label}: ${fmtTime(best.time)} · ${best.kills} kills`;
+/**
+ * A best-score line. The stage picker's list: "Endless: 12:34", "Full: ♛ cleared · 412 kills".
+ * Under the bagel on the menu (big): "Stage 1 best: 3:20  ·  140 kills", "♛ Stage 1 cleared  ·  412 kills".
+ */
+function bestText(label: string, best: BestScore | undefined, endless: boolean, big = false): string {
+  const head = big ? `${label} best` : label;
+  const dot = big ? '  ·  ' : ' · ';
+  if (!best) return `${head}: no runs yet`;
+  if (endless) return `${head}: ${fmtTime(best.time)}`;
+  if (best.cleared) return big ? `♛ ${label} cleared${dot}${best.kills} kills` : `${label}: ♛ cleared${dot}${best.kills} kills`;
+  return `${head}: ${fmtTime(best.time)}${dot}${best.kills} kills`;
 }
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
   private root!: Phaser.GameObjects.Container;
-  private bakery: Phaser.GameObjects.Container | null = null;
+  /** The open pop-up (Bakery, Goals, Cookbook or the stage picker), if any. */
+  private popup: Phaser.GameObjects.Container | null = null;
   private doughPill: Phaser.GameObjects.Container | null = null;
   private slideFrom = 0;
   /** Card shown in the stage picker. */
@@ -58,8 +65,8 @@ export class MenuScene extends Phaser.Scene {
     // Looping animations from the last layout (bouncing bagel, scrolling floor) go with it.
     this.tweens.killAll();
     this.root?.destroy();
-    this.bakery?.destroy();
-    this.bakery = null;
+    this.popup?.destroy();
+    this.popup = null;
     const W = this.scale.width;
     const H = this.scale.height;
     const ins = safeInsets();
@@ -140,13 +147,7 @@ export class MenuScene extends Phaser.Scene {
     if (!locked) {
       const best = getBest(save, bagel.id, bestStage(stage.id, mode, crispy));
       const label = `Stage ${stage.num}${mode === 'quick' ? ' Quick' : mode === 'endless' ? ' Endless' : ''}${crispy ? ' Crispy' : ''}`;
-      const line = !best
-        ? `${label} best: no runs yet`
-        : mode === 'endless'
-          ? `${label} best: ${fmtTime(best.time)}`
-          : best.cleared
-            ? `♛ ${label} cleared  ·  ${best.kills} kills`
-            : `${label} best: ${fmtTime(best.time)}  ·  ${best.kills} kills`;
+      const line = bestText(label, best, mode === 'endless', true);
       c.add(txt(this, W / 2, by + R + 72 * sp * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
     }
     c.add(desc);
@@ -403,20 +404,10 @@ export class MenuScene extends Phaser.Scene {
   private drawStages(save: SaveData, slideFrom: number): void {
     const W = this.scale.width;
     const H = this.scale.height;
-    this.bakery?.destroy();
-    const c = this.add.container(0, 0);
-    this.bakery = c;
-    const close = () => {
-      c.destroy();
-      this.bakery = null;
-      this.build();
-    };
-    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
     const pw = Math.min(W - 24 * S, 400 * S);
     const ph = Math.min(H - 24 * S, 540 * S);
-    c.add(panel(this, W / 2, H / 2, pw, ph));
-    const top = H / 2 - ph / 2;
-    c.add(txt(this, W / 2, top + 34 * S, 'PICK A STAGE', 26, CSS.gold));
+    const { c, top } = this.openPopup('PICK A STAGE', pw, ph, { titleY: 34, titleSize: 26 });
+    const close = () => this.closePopup(true);
 
     const st = STAGES[this.stageIdx];
     const unlocked = stageUnlocked(save, st);
@@ -542,6 +533,36 @@ export class MenuScene extends Phaser.Scene {
     );
   }
 
+  /**
+   * Opens a pop-up, replacing any open one: a dark backdrop that swallows taps, a panel of the given size centred on
+   * screen, its title and an optional line under it. Returns the pop-up's container and the panel's top edge.
+   */
+  private openPopup(title: string, pw: number, ph: number, opts: { sub?: string; titleY?: number; titleSize?: number } = {}): { c: Phaser.GameObjects.Container; top: number } {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    this.popup?.destroy();
+    const c = this.add.container(0, 0);
+    this.popup = c;
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    c.add(panel(this, W / 2, H / 2, pw, ph));
+    const top = H / 2 - ph / 2;
+    c.add(txt(this, W / 2, top + (opts.titleY ?? 36) * S, title, opts.titleSize ?? 28, CSS.gold));
+    if (opts.sub !== undefined) c.add(txt(this, W / 2, top + 64 * S, opts.sub, 14, CSS.cream, { bold: false }));
+    return { c, top };
+  }
+
+  /** Close the open pop-up. rebuild: redraw the menu behind it (after something it shows may have changed). */
+  private closePopup(rebuild: boolean): void {
+    this.popup?.destroy();
+    this.popup = null;
+    if (rebuild) this.build();
+  }
+
+  /** The Done button at the bottom of a pop-up. */
+  private doneButton(y: number, rebuild: boolean): Phaser.GameObjects.Container {
+    return button(this, this.scale.width / 2, y, 160 * S, 46 * S, 'Done', () => this.closePopup(rebuild), { size: 20 });
+  }
+
   /** Scales an icon (any texture: bagel, weapon icon, stage picture) to fit a square box. */
   private fitIcon(x: number, y: number, key: string, box: number): Phaser.GameObjects.Image {
     const im = this.add.image(x, y, key);
@@ -552,12 +573,7 @@ export class MenuScene extends Phaser.Scene {
   /** The Goals page: Unlocks (bagels, weapons, stages), Challenges (one-time Dough rewards) and Secrets. */
   private openGoals(tab = 0, page = 0): void {
     const W = this.scale.width;
-    const H = this.scale.height;
     const save = load();
-    this.bakery?.destroy();
-    const c = this.add.container(0, 0);
-    this.bakery = c;
-    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
     interface Row { icon: string; dark?: boolean; name: string; sub: string; frac: number; done: boolean; reward?: number; isNew?: boolean }
     let rows: Row[] = [];
     let sub = '';
@@ -615,10 +631,7 @@ export class MenuScene extends Phaser.Scene {
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 68 * S;
     const ph = 150 * S + PER * rowH + 52 * S + 66 * S;
-    c.add(panel(this, W / 2, H / 2, pw, ph));
-    const top = H / 2 - ph / 2;
-    c.add(txt(this, W / 2, top + 36 * S, 'GOALS', 28, CSS.gold));
-    c.add(txt(this, W / 2, top + 64 * S, sub, 14, CSS.cream, { bold: false }));
+    const { c, top } = this.openPopup('GOALS', pw, ph, { sub });
     const cw = pw - 28 * S;
     const tw = (cw - 16 * S) / 3;
     const unseen = unseenGoals(save).length > 0;
@@ -674,13 +687,7 @@ export class MenuScene extends Phaser.Scene {
       c.add(button(this, W / 2 + 60 * S, by, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
     }
     by += 46 * S;
-    c.add(
-      button(this, W / 2, by + 20 * S, 160 * S, 46 * S, 'Done', () => {
-        c.destroy();
-        this.bakery = null;
-        this.build();
-      }, { size: 20 }),
-    );
+    c.add(this.doneButton(by + 20 * S, true));
   }
 
   /** The Cookbook's three tabs: Evolutions, Weapons and Enemies. */
@@ -704,12 +711,7 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
     const W = this.scale.width;
-    const H = this.scale.height;
     const save = load();
-    this.bakery?.destroy();
-    const c = this.add.container(0, 0);
-    this.bakery = c;
-    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
     const all = Object.keys(WEAPONS) as WeaponId[];
     const locked = all.filter((id) => WEAPONS[id].unlock);
     // Five rows a page keeps it on screen on small phones. The secret combo is the last Evolutions row.
@@ -720,12 +722,9 @@ export class MenuScene extends Phaser.Scene {
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 60 * S;
     const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S + 66 * S;
-    c.add(panel(this, W / 2, H / 2, pw, ph));
-    const top = H / 2 - ph / 2;
-    c.add(txt(this, W / 2, top + 36 * S, 'THE COOKBOOK', 28, CSS.gold));
     const opened = locked.filter((id) => weaponOpen(save, id)).length;
     const sub = tab === 0 ? `${save.cookbook.length} of ${all.length} evolutions found` : `${opened} of ${locked.length} weapons unlocked`;
-    c.add(txt(this, W / 2, top + 64 * S, sub, 14, CSS.cream, { bold: false }));
+    const { c, top } = this.openPopup('THE COOKBOOK', pw, ph, { sub });
     this.cookbookTabs(c, tab, top, pw);
     const lx = W / 2 - pw / 2 + 20 * S;
     const small = (x: number, y: number, s: string, wrap: number) =>
@@ -773,23 +772,13 @@ export class MenuScene extends Phaser.Scene {
       c.add(button(this, W / 2 + 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
       by += 46 * S;
     }
-    c.add(
-      button(this, W / 2, by + 28 * S, 160 * S, 46 * S, 'Done', () => {
-        c.destroy();
-        this.bakery = null;
-      }, { size: 20 }),
-    );
+    c.add(this.doneButton(by + 28 * S, false));
   }
 
   /** Cookbook Enemies tab: one page per stage. Enemies not met yet are dark shapes; beaten bosses get a crown. Tap one to read about it. */
   private openEnemies(stageIdx: number, pick = 0): void {
     const W = this.scale.width;
-    const H = this.scale.height;
     const save = load();
-    this.bakery?.destroy();
-    const c = this.add.container(0, 0);
-    this.bakery = c;
-    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
     makeEnemyTextures(this);
     const st = STAGES[stageIdx];
     const list = ENEMY_BOOK[st.id];
@@ -803,11 +792,8 @@ export class MenuScene extends Phaser.Scene {
     const gridRows = 3; // the biggest cast (the Freezer, 14) fits in 3 rows
     const infoH = 70 * S;
     const ph = 150 * S + gridRows * cellH + infoH + 62 * S + 66 * S;
-    c.add(panel(this, W / 2, H / 2, pw, ph));
-    const top = H / 2 - ph / 2;
-    c.add(txt(this, W / 2, top + 36 * S, 'THE COOKBOOK', 28, CSS.gold));
     const total = Object.values(ENEMY_BOOK).flat();
-    c.add(txt(this, W / 2, top + 64 * S, `${total.filter((e) => met.has(e.kind)).length} of ${total.length} enemies met`, 14, CSS.cream, { bold: false }));
+    const { c, top } = this.openPopup('THE COOKBOOK', pw, ph, { sub: `${total.filter((e) => met.has(e.kind)).length} of ${total.length} enemies met` });
     this.cookbookTabs(c, 2, top, pw);
     const gx = W / 2 - pw / 2 + 14 * S;
     const gy = top + 140 * S;
@@ -866,32 +852,19 @@ export class MenuScene extends Phaser.Scene {
     c.add(button(this, W / 2 - pw / 2 + 44 * S, ny, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
     c.add(txt(this, W / 2, ny, `Stage ${st.num}: ${st.name}`, 15, CSS.cream));
     c.add(button(this, W / 2 + pw / 2 - 44 * S, ny, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
-    c.add(
-      button(this, W / 2, ny + 66 * S, 160 * S, 46 * S, 'Done', () => {
-        c.destroy();
-        this.bakery = null;
-      }, { size: 20 }),
-    );
+    c.add(this.doneButton(ny + 66 * S, false));
   }
 
   private openBakery(tab = 0): void {
     const W = this.scale.width;
-    const H = this.scale.height;
     const save = load();
-    this.bakery?.destroy();
-    const c = this.add.container(0, 0);
-    this.bakery = c;
-    const dim = this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive();
-    c.add(dim);
     const pw = Math.min(W - 24 * S, 400 * S);
     const cardH = 78 * S;
     const gap = 10 * S;
     const list = BAKERY.filter((u) => (u.tab ?? 0) === tab);
     const tabH = 50 * S;
     const ph = 168 * S + tabH + list.length * (cardH + gap);
-    c.add(panel(this, W / 2, H / 2, pw, ph));
-    const top = H / 2 - ph / 2;
-    c.add(txt(this, W / 2, top + 36 * S, 'THE BAKERY', 28, CSS.gold));
+    const { c, top } = this.openPopup('THE BAKERY', pw, ph);
     const wallet = pill(this, W / 2, top + 70 * S, 'coin', `${save.dough} Dough to spend`, { size: 15, color: CSS.gold, h: 30 });
     c.add(wallet);
     const setWallet = (v: number) => {
@@ -976,12 +949,6 @@ export class MenuScene extends Phaser.Scene {
       draw();
       refreshers.push(draw);
     });
-    c.add(
-      button(this, W / 2, top + ph - 38 * S, 160 * S, 46 * S, 'Done', () => {
-        c.destroy();
-        this.bakery = null;
-        this.build();
-      }, { size: 20 }),
-    );
+    c.add(this.doneButton(top + ph - 38 * S, true));
   }
 }

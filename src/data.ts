@@ -353,6 +353,8 @@ export interface BagelDef {
   allStats: number; // flat bonus multiplier on damage/area/speed
   /** Secret bagel: shown as "???" (name, goal and picture) until it's unlocked. */
   secret?: boolean;
+  /** One of the original six bagels (Plain to Onion), counted by the "clear a stage with each" challenge. */
+  starter?: boolean;
 }
 
 export const BAGELS: BagelDef[] = [
@@ -368,6 +370,7 @@ export const BAGELS: BagelDef[] = [
     speed: 140,
     choices: 3,
     allStats: 0.1,
+    starter: true,
   },
   {
     id: 'everything',
@@ -381,6 +384,7 @@ export const BAGELS: BagelDef[] = [
     speed: 145,
     choices: 4,
     allStats: 0,
+    starter: true,
   },
   {
     id: 'poppy',
@@ -394,6 +398,7 @@ export const BAGELS: BagelDef[] = [
     speed: 150,
     choices: 3,
     allStats: 0,
+    starter: true,
   },
   {
     id: 'cinnamon',
@@ -407,6 +412,7 @@ export const BAGELS: BagelDef[] = [
     speed: 140,
     choices: 3,
     allStats: 0,
+    starter: true,
   },
   {
     id: 'pumpernickel',
@@ -420,6 +426,7 @@ export const BAGELS: BagelDef[] = [
     speed: 122,
     choices: 3,
     allStats: 0,
+    starter: true,
   },
   {
     id: 'onion',
@@ -433,6 +440,7 @@ export const BAGELS: BagelDef[] = [
     speed: 140,
     choices: 3,
     allStats: 0,
+    starter: true,
   },
   // Phase 2: the Freezer bagels
   {
