@@ -14,6 +14,9 @@ This is the history and the decisions behind the current game. The working rules
 | Step 5 change list (audio) | https://claude.ai/artifact/GCeSxYpSwhJvmNpfSPyG7i |
 | Step 6 change list (Quick Run) | https://claude.ai/artifact/RB5gLpu9s5Pzkd6yzgyvUk |
 | Step 7 change list (balance) | https://claude.ai/artifact/FwmMBhw9qqkBBukQ8mYQdT |
+| Phase 3 design doc | https://claude.ai/artifact/XTFovTRnht4Ro4soMW44jt |
+| Phase 3 style board | https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D |
+| M12 change list (Foundations) | https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA |
 
 ## The owner's standing decisions
 
@@ -24,6 +27,7 @@ This is the history and the decisions behind the current game. The working rules
 - **Chests:** a bread basket (normal) and a gold toaster (rare: always from the Croissant, 25% from elites; gives 3 upgrades and +15 Dough).
 - **Music:** made in code. No downloaded audio files.
 - **Process:** change list, then approval, then a PR with a preview. The owner merges after each step.
+- **Phase 3 (set 11-22):** see the M12 entry in the changelog for the owner's Phase 3 decisions.
 
 ## Changelog
 
@@ -233,6 +237,26 @@ How it was checked: 16 recorded runs (every stage, Quick, Endless, Extra Crispy,
 
 Bug found and fixed while checking: if an enemy shot or a Broiler flame line knocked you out while Second Bake was ready, the revive cleared the shots in the middle of the loop that was moving them, and that frame crashed (`Cannot read properties of undefined`). The shot and flame loops now stop when the revive has cleared them.
 
+### Phase 3, M12: Foundations (version 0.12)
+
+Phase 3 takes the game to a 1.0 that doesn't look like a prototype. The plan is the [Phase 3 design doc](https://claude.ai/artifact/XTFovTRnht4Ro4soMW44jt) (milestones M12 to M19); the owner picked the look on the [Phase 3 style board](https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D). Built from the approved [M12 change list](https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA). No gameplay numbers changed.
+
+- **The owner's Phase 3 decisions:** web only, free with no ads or purchases, shared by link rather than listed publicly (noindex stays), two more stages (the Pantry, the Bread Bin) with a light story, one bundled font file allowed, cosmetics yes, a local-only Daily Run, playtesters are people the owner invites who are new to the game, no fixed date. Style: Chunky Cartoon kept with upgraded lighting (not a redraw), "big hero" title, bakery shelf menu, Titan One.
+- **One font:** Titan One everywhere, bundled with the code (works offline and in the single-file preview).
+- **Title screen** on every launch, with the version number.
+- **Bakery shelf menu:** bagels on a shelf, a name plate, the "Today's order" ticket (stage, Extra Crispy, mode, PLAY), and a bottom bar with Bakery, Goals, Cookbook and Settings. Practice moved to a switch on the stage picker; Music and Sound moved to Settings.
+- **One pop-up look:** header bar, back button and the same tab switch on the stage picker, Bakery, Goals, Cookbook and Settings. The Done buttons are gone.
+- **Bagel-ring wipe** between screens.
+- **Settings:** music and sound volume, screen shake (On, Reduced, Off), flashing effects (Normal, Reduced), battery saver, left-handed buttons. Also reachable from the pause screen.
+- **Saves:** a version number with upgrade steps, a spare copy that loads if the main save is unreadable, backup codes (copy and paste), reset (two taps), and a backup reminder after the first stage clear and every 30 days.
+- **About and What's new:** version, a "What's new" card once after each update, and "No data leaves your phone."
+- **New home-screen icon** drawn from the title art (`tools/icons.cjs`).
+- **Upgraded lighting** (`relight`) on the title, menu and results bagels only for now; the in-run art gets it in M14.
+
+How it was checked: `savetest.cjs` (39 checks: saves from the prototype, mid Phase 2 and the end of Phase 2 all load with their progress; broken saves fall back to the spare; backup codes round-trip; reset keeps settings). Quick Run clear and Sticky Bun bots pass. Weapon bench against `main`, side by side: Sesame Shot level 3 at 91 damage a second (main 93), Rolling Pin at 197 (main 190), inside the usual 10% run-to-run spread. Every screen was checked at 390×760 and 390×640.
+
+Bugs found and fixed while checking: the first lighting pass greyed the ink outlines (it now leaves dark colors alone); the title screen's background was 27 full-screen circles a frame (now one small stretched picture); long card and upgrade descriptions overflowed in the wider font (they shrink to fit).
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
@@ -260,5 +284,7 @@ Sesame Shot stays weak at level 3 on purpose (it's the starter). Evolved numbers
 - **Level-up card positions** change with the layout, so bots should resolve overlays through `window.__game`, not by clicking.
 - **Quick Run code** must use `stageT` for anything on the schedule or anything that scales with time.
 - **Phaser keeps animating destroyed sprites.** A `repeat: -1` tween must be stopped by hand when its target goes.
+- **Slow title screen in headless runs** was real, not a headless quirk: big overlapping shapes cost phones too. Stretch one small picture instead.
+- **Overlay colors on finished art** (`source-atop`) wash out the ink outlines. `relight` uses the "overlay" blend through a spare canvas so dark stays dark.
 - **A missing texture doesn't throw:** it draws a placeholder box. After adding art, check with a bot that no sprite's texture key is `__MISSING`.
 - **Old version on the owner's phone after a deploy:** fully close and reopen the home-screen app.

@@ -16,12 +16,18 @@ export function txt(
     fontFamily: FONT,
     fontSize: `${Math.round(size * S)}px`,
     color,
-    fontStyle: opts.bold === false ? 'normal' : 'bold',
+    fontStyle: 'normal', // Titan One has one weight
     align: opts.align ?? 'center',
     wordWrap: opts.wrap ? { width: opts.wrap * S, useAdvancedWrap: true } : undefined,
   });
   if (opts.stroke !== false) t.setStroke('#1d140d', Math.max(2, size * 0.22 * S));
   t.setOrigin(0.5);
+  return t;
+}
+
+/** Shrinks a line of text so it's no wider than `room` (device px). Returns the text. */
+export function fit<T extends Phaser.GameObjects.Text>(t: T, room: number): T {
+  if (t.width > room) t.setScale(room / t.width);
   return t;
 }
 
@@ -169,4 +175,26 @@ export function panel(scene: Phaser.Scene, x: number, y: number, w: number, h: n
   g.lineStyle(3 * S, INK_HEX, 1).strokeRoundedRect(x - w / 2, y - h / 2, w, h, 16 * S);
   g.lineStyle(1.5 * S, COLORS.panelLight, 1).strokeRoundedRect(x - w / 2 + 4 * S, y - h / 2 + 4 * S, w - 8 * S, h - 8 * S, 13 * S);
   return g;
+}
+
+/** Height of a pop-up's header bar, in CSS px. */
+export const HEADER = 54;
+
+/**
+ * The frame every pop-up shares: a panel with a dark header bar, the title in it and a round back button on its left.
+ * Returns everything it made, so the caller can add it to a container. Content starts below `y - h / 2 + HEADER * S`.
+ */
+export function popupFrame(scene: Phaser.Scene, x: number, y: number, w: number, h: number, title: string, onBack: () => void): Phaser.GameObjects.GameObject[] {
+  const top = y - h / 2;
+  const hh = HEADER * S;
+  const band = scene.add.graphics();
+  band.fillStyle(0x2b2118, 1).fillRoundedRect(x - w / 2 + 3 * S, top + 3 * S, w - 6 * S, hh, { tl: 13 * S, tr: 13 * S, bl: 0, br: 0 });
+  band.fillStyle(INK_HEX, 1).fillRect(x - w / 2 + 3 * S, top + 3 * S + hh - 2.5 * S, w - 6 * S, 2.5 * S);
+  band.fillStyle(COLORS.panelLight, 1).fillRect(x - w / 2 + 3 * S, top + 3 * S + hh, w - 6 * S, 1.5 * S);
+  const t = txt(scene, x, top + 3 * S + hh / 2 - 1 * S, title, 22, CSS.gold);
+  // Long titles shrink to stay clear of the back button.
+  const room = w - 2 * 62 * S;
+  if (t.width > room) t.setScale(room / t.width);
+  const back = button(scene, x - w / 2 + 34 * S, top + 3 * S + hh / 2 - 3 * S, 42 * S, 36 * S, '', onBack, { color: COLORS.panelLight, chevron: -1, radius: 18 });
+  return [panel(scene, x, y, w, h), band, t, back];
 }

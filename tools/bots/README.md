@@ -15,8 +15,10 @@ npm run build
 | `bagelbench.cjs` | Plays each bagel to 4:25 of a Full Run with one fixed card policy. Hits are counted instead of applied, so every bagel covers the same stretch. Reports useful damage/sec, damage taken and healing per minute, and health bars lost (damage taken minus healing, over max health). | `node tools/bots/bagelbench.cjs [bagels] [stage] [endSecs]` (defaults: every bagel, `stage1`, `265`; `SPEED=`, `PORT=`, `CRISPY=1`). Two copies can run side by side; compare runs made the same way |
 | `buntest.cjs` | Plays a Quick Run and a Full Run to the boss. Logs Sticky Bun drops and the seeds left on the floor when the boss arrives. Saves screenshots to the folder you pass. | `node tools/bots/buntest.cjs /tmp/out` |
 | `qtest.cjs` | Plays a Quick Run to the boss, forces a win, then prints the resulting save data. | `node tools/bots/qtest.cjs /tmp/out` |
+| `savetest.cjs` | Loads a save from each era of the game (prototype, mid Phase 2, end of Phase 2) and checks nothing is lost and the new fields are filled in. Also checks the spare copy, backup codes and reset. Exits with code 1 if a check fails. Run it after any change to `src/save.ts`. | `node tools/bots/savetest.cjs` (`PORT=`) |
 
 Notes:
+- The game opens on the title screen. Scripts start a run straight from it (`getScene('title').scene.start('game', …)`) or tap through it; an older save also gets the What's new card on the menu, which `closePopup(false)` closes.
 - Use `waitUntil: 'domcontentloaded'` and resolve level-up and chest overlays through `window.__game` rather than by clicking, because card positions change.
 - Headless Chromium runs slowly, and later pages in the same script render few frames. Fades can look dim and FPS is meaningless there. Use the numbers to compare runs, not as absolute values.
 - Bot numbers vary run to run. Run anything you plan to act on twice.

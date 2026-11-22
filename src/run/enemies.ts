@@ -1,4 +1,5 @@
 import { CSS, S } from '../config';
+import { flash, reducedFlash, shake } from '../settings';
 import { ENEMIES, RUN, type EnemyKind } from '../data';
 import { Enemy } from '../entities';
 import { load, persist } from '../save';
@@ -287,7 +288,8 @@ export class Enemies {
       const flashing = e.flashUntil > t;
       if (flashing !== e.flashOn) {
         e.flashOn = flashing;
-        if (flashing) e.sprite.setTintFill(0xffffff);
+        // The white hit flash becomes a soft pink tint when Flashing effects is Reduced.
+        if (flashing) reducedFlash() ? e.sprite.setTint(0xffb8b0) : e.sprite.setTintFill(0xffffff);
         else e.sprite.clearTint();
       }
       if (g.paused === 'over') return;
@@ -420,7 +422,7 @@ export class Enemies {
     if (e === this.mini) {
       this.mini = null;
       run.miniKilled = true;
-      g.cameras.main.shake(250, 0.006);
+      shake(g, 250, 0.006);
     }
     if (e === this.boss) this.bossDown(e);
   }
@@ -431,8 +433,8 @@ export class Enemies {
     const dir = g.director;
     this.boss = null;
     if (g.run.bossClean) g.run.noHitBoss = true;
-    g.cameras.main.shake(600, 0.012);
-    g.cameras.main.flash(300, 255, 240, 200);
+    shake(g, 600, 0.012);
+    flash(g, 300, 255, 240, 200);
     for (let i = 0; i < 4; i++) g.effects.burst(e.x + (Math.random() - 0.5) * 60, e.y + (Math.random() - 0.5) * 60, 0xff7a2a, 16, 90);
     if (!g.endless) {
       g.endRun(true);

@@ -3,33 +3,44 @@ import { COLORS, S } from './config';
 import { GameScene } from './scenes/GameScene';
 import { MenuScene } from './scenes/MenuScene';
 import { ResultsScene } from './scenes/ResultsScene';
+import { TitleScene } from './scenes/TitleScene';
+import { backupCode, load, persist, resetSave, restoreCode, takeRecovered } from './save';
+import fontUrl from './assets/titan-one.woff2?inline';
 
 const size = () => ({ w: window.innerWidth * S, h: window.innerHeight * S });
-const { w, h } = size();
 
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: 'app',
-  backgroundColor: COLORS.bg,
-  scale: { mode: Phaser.Scale.NONE, width: w, height: h, zoom: 1 / S },
-  render: { antialias: true, roundPixels: false, powerPreference: 'high-performance' },
-  input: { activePointers: 3 },
-  scene: [MenuScene, GameScene, ResultsScene],
-});
-
-// Exposed for debugging and automated playtests.
-(window as unknown as { __game: Phaser.Game }).__game = game;
-
-let pending = 0;
-const onResize = () => {
-  cancelAnimationFrame(pending);
-  pending = requestAnimationFrame(() => {
-    const s = size();
-    game.scale.resize(s.w, s.h);
+function start(): void {
+  const { w, h } = size();
+  const game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: 'app',
+    backgroundColor: COLORS.bg,
+    scale: { mode: Phaser.Scale.NONE, width: w, height: h, zoom: 1 / S },
+    render: { antialias: true, roundPixels: false, powerPreference: 'high-performance' },
+    input: { activePointers: 3 },
+    scene: [TitleScene, MenuScene, GameScene, ResultsScene],
   });
-};
-window.addEventListener('resize', onResize);
-window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
+
+  // Exposed for debugging and automated playtests (tools/bots).
+  Object.assign(window, { __game: game, __save: { load, persist, backupCode, restoreCode, resetSave, takeRecovered } });
+
+  let pending = 0;
+  const onResize = () => {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      const s = size();
+      game.scale.resize(s.w, s.h);
+    });
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
+}
+
+// The game's one font is bundled with the code (so it works offline and in the single-file preview).
+// Text is drawn to the canvas, so the font has to be ready before the first screen is built.
+const face = new FontFace('Titan One', `url(${fontUrl}) format('woff2')`);
+document.fonts.add(face);
+face.load().catch(() => {}).then(start);
 
 // Stop iOS double-tap zoom and pinch gestures from hijacking play.
 document.addEventListener('gesturestart', (e) => e.preventDefault());

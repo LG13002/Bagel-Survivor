@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { flash, shake } from '../settings';
 import { COLORS, CSS, DEBUG, S, ZOOM } from '../config';
 import {
   BAGELS,
@@ -33,6 +34,7 @@ import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { applySnapshot, writeSnapshot } from '../run/resume';
 import { RunState, type Choice, type PauseReason, type RunResult } from '../run/state';
+import { wipeOpen } from '../wipe';
 
 export type { RunResult } from '../run/state';
 
@@ -221,7 +223,7 @@ export class GameScene extends Phaser.Scene implements World {
       document.removeEventListener('visibilitychange', this.onVisibility);
       this.weapons.forEach((w) => w.destroy());
     });
-    this.cameras.main.fadeIn(250, 43, 33, 24);
+    if (!wipeOpen()) this.cameras.main.fadeIn(250, 43, 33, 24);
   }
 
   // ---------------------------------------------------------------- World API (what weapons and the run's parts use)
@@ -240,7 +242,7 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   shake(ms: number, intensity: number): void {
-    this.cameras.main.shake(ms, intensity);
+    shake(this, ms, intensity);
   }
 
   playSfx(name: Sfx): void {
@@ -624,7 +626,7 @@ export class GameScene extends Phaser.Scene implements World {
     p.hp -= d;
     p.invulnUntil = this.now + 0.9;
     if (this.foes.boss) r.bossClean = false;
-    this.cameras.main.shake(110, 0.005);
+    shake(this, 110, 0.005);
     sfx('hurt');
     // Shove nearby enemies away so there is room to escape.
     this.query(p.x, p.y, 70, (e) => {
@@ -663,7 +665,7 @@ export class GameScene extends Phaser.Scene implements World {
       e.ky += (dy / dl) * (900 / e.mass);
     });
     this.hz.clearShots();
-    this.cameras.main.flash(250, 255, 236, 190);
+    flash(this, 250, 255, 236, 190);
     this.effects.burst(p.x, p.y, 0xf8d38c, 18, 90);
     this.hud.banner('Second Bake!', CSS.gold, 26);
     sfx('evolve');

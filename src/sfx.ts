@@ -35,22 +35,25 @@ let xpPitchAt = 0;
 const SFX_VOL = 0.35;
 const MUSIC_VOL = 0.16; // music sits under effects (and under voice chat)
 
+/** Volume sliders run 0 to 100; loudness follows the square, so the middle of the slider sounds like half. */
+const gainOf = (v: number) => (Math.max(0, Math.min(100, v)) / 100) ** 2;
+
 export function soundOn(): boolean {
-  return load().sound !== false;
+  return load().settings!.sound > 0;
 }
 export function musicOn(): boolean {
-  return load().music !== false;
+  return load().settings!.music > 0;
 }
 
-export function setSound(on: boolean): void {
-  load().sound = on;
+export function setSoundVolume(v: number): void {
+  load().settings!.sound = v;
   persist();
-  if (sfxBus) sfxBus.gain.value = on ? SFX_VOL : 0;
+  if (sfxBus) sfxBus.gain.value = SFX_VOL * gainOf(v);
 }
-export function setMusic(on: boolean): void {
-  load().music = on;
+export function setMusicVolume(v: number): void {
+  load().settings!.music = v;
   persist();
-  if (musicBus) musicBus.gain.value = on ? MUSIC_VOL : 0;
+  if (musicBus) musicBus.gain.value = MUSIC_VOL * gainOf(v);
 }
 
 export function audioCtx(): AudioContext | null {
@@ -85,10 +88,10 @@ export function unlockAudio(): void {
       if (!AC) return;
       ctx = new AC();
       sfxBus = ctx.createGain();
-      sfxBus.gain.value = soundOn() ? SFX_VOL : 0;
+      sfxBus.gain.value = SFX_VOL * gainOf(load().settings!.sound);
       sfxBus.connect(ctx.destination);
       musicBus = ctx.createGain();
-      musicBus.gain.value = musicOn() ? MUSIC_VOL : 0;
+      musicBus.gain.value = MUSIC_VOL * gainOf(load().settings!.music);
       musicBus.connect(ctx.destination);
       musicFilter = ctx.createBiquadFilter();
       musicFilter.type = 'lowpass';

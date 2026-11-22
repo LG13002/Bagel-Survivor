@@ -10,6 +10,7 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 - **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
 - **Status (2026-11-11):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. M8 (4 new weapons, then the "Crisp" flare pass the owner picked on the style board) is built. M9 (the Toaster Oven, two parts) is built. M10 (Endless mode and the Extra Crispy hard toggle) [change list](https://claude.ai/artifact/EEsQTPuvpDQm2qZ3TxVpaV) is built. M11 ([change list](https://claude.ai/artifact/2epR6A5tmgMBGMFsuzTkCr)): Part 1 (Goals page, Cookbook Enemies tab) is built; Part 2 (the secret Rainbow bagel and the Lox and Schmear combo evolution) and Part 3 (the full balance pass, numbers in `docs/HANDOFF.md`) share one PR. That completes Phase 2. After it, a code review pass ([findings](https://claude.ai/artifact/6HTNUYVxC6hHcH62aC1CCc)) fixed 8 bugs and added the optimizations listed in `docs/HANDOFF.md`; no gameplay numbers changed. A second pass (group C) split `GameScene.ts` into the parts in `src/run/` and merged repeated code, with no change to play.
+- **Phase 3 (the road to 1.0, started 2026-11-22):** planned in the [Phase 3 design doc](https://claude.ai/artifact/XTFovTRnht4Ro4soMW44jt) as milestones M12 to M19 (foundations, onboarding and story, animation, the Pantry, the Bread Bin finale, weapons and Bakery, replay, release candidate). The owner's picks on the [Phase 3 style board](https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D): keep Chunky Cartoon with upgraded lighting, the "big hero" title screen, the bakery shelf menu, and the Titan One font. 1.0 is web only, free, and shared by link rather than listed publicly (the noindex tag stays). **M12 (Foundations)** ([change list](https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA)) is built: the font, title screen, shelf menu, screen wipe, Settings, save versions with a spare copy and backup codes, version 0.12. No gameplay numbers changed.
 
 ## How to work with the owner (rules)
 
@@ -31,15 +32,19 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 ## Art style: "Chunky Cartoon" (the owner picked style A)
 
 - **Look:** thick dark ink outlines (`INK = '#24160d'`, set with `ink(c, w)`), soft radial-gradient shading via `radial()`, big friendly eyes via `eye()`, and warm bakery colors. Pickups glow (`lootGlow`) so they never read as enemies.
+- **Upgraded lighting (Phase 3 pick):** `relight(c, w, h)` in `art.ts` adds a warm key light, a cool core shadow and floor bounce to a finished drawing, leaving the ink outlines dark. Call it last in the draw function. M12 uses it on the big menu, title and results bagels; the in-run sprites get it in M14.
+- **Font:** Titan One (open license, `src/assets/titan-one.woff2`, bundled into the code and loaded in `main.ts` before the game starts). It is wider than a system font and has one weight: after adding text, check it fits at 390 wide, and use `fit(text, room)` from `ui.ts` for names that vary.
 - **Where things live:**
   - Every texture is a function in `src/art.ts`, registered in `src/textures.ts` through `ctex(scene, key, w, h, draw)`.
   - `ctex` draws at device scale S, so textures stay sharp on retina screens.
-  - Art is drawn the first time it's needed, in three groups in `textures.ts`: `makeTextures` (what the menus show), `makeEnemyTextures` (runs and the Cookbook's Enemies tab) and `makeRunTextures(scene, stage)` (that stage's floor and props, plus weapons, shots and hazards). **Put a new texture in the right group**, or it shows as a missing-texture box. The menu background is `floor_stage1`.
-  - Hero and results bagels use a `<tex>_big` 160px texture, drawn on demand by `bigBagel(scene, tex)`.
+  - Art is drawn the first time it's needed, in three groups in `textures.ts`: `makeTextures` (what the menus show), `makeEnemyTextures` (runs and the Cookbook's Enemies tab) and `makeRunTextures(scene, stage)` (that stage's floor and props, plus weapons, shots and hazards). **Put a new texture in the right group**, or it shows as a missing-texture box. The results screen's background is `floor_stage1`; the menu draws its own tiled wall and shelf.
+  - Hero and results bagels use a `<tex>_big` 160px texture, drawn on demand by `bigBagel(scene, tex)`. The title screen's bagel is `giantBagel(scene, tex, size)`, drawn at the size it's shown and removed when the title closes.
 - **Stage 1 floor:** the "Giant countertop", a butcher block (`src/floors.ts`) with props scattered in seeded 384px chunks (spoon, cookie cutters, cup, flour, sprinkles). Each stage names its floor and prop set in `STAGES` in `src/data.ts`. Stage 2 is the Freezer, Stage 3 the Toaster Oven.
 - **UI kit (`src/ui.ts`):**
   - `button()`: chunky, with an ink outline, a 5*S bottom edge, a press shift and a click sound. Options: `icon`, `chevron`, `muted`.
   - `pill()`, `drawPips()`, and `panel` (ink outline plus an inner light stroke).
+  - `popupFrame()`: the frame every pop-up shares (panel, dark header bar with the title, round back button). Content starts `HEADER` px below the top. There are no Done buttons: the back button closes.
+  - `segmented()` in `settingsPanel.ts`: the gold pick-one switch, used for pop-up tabs and settings.
   - Icons for the UI live in `UI_ICONS` in `art.ts`. Upgrade icons live in `ICONS`.
 - **Palette:** `COLORS` and `CSS` in `src/config.ts` (bg `#2b2118`, cream `#fff3dc`, gold `#f2b84b`, red `#e0533d`, green `#7fbf4d`, xp blue `#6cc7f0`). Level-up card colors by type: weapon orange `0xf08a3c`, topping blue `0x5aa9e6`, heal/coin green, combo gold with a spinning star.
 
@@ -47,7 +52,8 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 | File | What's in it |
 | --- | --- |
-| `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; the owner asked for +20%), colors, safe insets, `DEBUG` URL flags |
+| `src/main.ts` | Loads the font, then starts the game with the scenes Title, Menu, Game, Results. Exposes `window.__game` and `window.__save` for bots |
+| `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; the owner asked for +20%), colors, `FONT`, `VERSION` (from `package.json`), safe insets, `DEBUG` URL flags |
 | `src/data.ts` | **All tuning:** weapons, toppings, evolutions, bagels, Bakery upgrades, enemies, `STAGES` (one recipe per stage: cast, timeline banners, music, Dough pay, difficulty dials), `RUN` pacing, `xpNeeded` |
 | `src/weapons.ts` | The 10 weapon classes (normal and evolved behavior; damage numbers are inline here). `pickTargets` and `Lob` are shared by the thrown weapons, `PoolWeapon` by the two puddle weapons |
 | `src/scenes/GameScene.ts` | The run's core: setup, the frame loop (`step`, `renderWorld`), the player, stats, level-up choices, damage to you, Second Bake, pause, audio state, ending the run. It builds the parts below in `create()` and reaches them as `g.run`, `g.effects`, `g.floor`, `g.hz`, `g.foes`, `g.director`, `g.loot`, `g.hud`, `g.panels` |
@@ -63,13 +69,19 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 | `src/run/hud.ts` | The HUD, edge arrows, banners and the boss card |
 | `src/run/panels.ts` | Level-up, chest and pause panels |
 | `src/run/resume.ts` | Writing and applying the resume snapshot |
-| `src/scenes/MenuScene.ts` | Menu, bagel picker (swipe and chevrons), Full/Quick switch, toggles, Bakery shop, Cookbook |
+| `src/scenes/TitleScene.ts` | The first screen of every launch: logo, your current bagel huge, the Stale along the bottom. Tap goes to the menu |
+| `src/scenes/MenuScene.ts` | The bakery shelf menu: bagels on a shelf (swipe or tap a neighbour), name plate, the order ticket (stage, Extra Crispy, mode, PLAY or Resume), bottom bar (Bakery, Goals, Cookbook, Settings). Also the stage picker (with the Practice switch), Bakery, Goals, Cookbook, and the one-at-a-time notes on opening (`greet`: recovered save, What's new, backup reminder) |
+| `src/settings.ts` | `settings()`, `setSetting()` and the helpers the run uses to respect them: `shake()`, `flash()`, `blink()`, `reducedFlash()` |
+| `src/settingsPanel.ts` | The Settings screen (`buildSettings`): Game, Save and About tabs on the menu; only the Game rows from the pause screen |
+| `src/backupDialog.ts` | The copy and paste boxes for backup codes. Real page elements, because copy and paste need a real text box on phones |
+| `src/wipe.ts` | The bagel-ring screen wipe: `wipeTo(scene, key, data)` closes it and starts the next scene, which calls `wipeOpen()` |
+| `src/whatsnew.ts` | The "What's new" card's text. Rewrite it every milestone |
 | `src/scenes/ResultsScene.ts` | End of run, Dough payout, new-best banners |
 | `src/art.ts`, `src/floors.ts`, `src/textures.ts` | Drawn-in-code art |
-| `src/sfx.ts` | WebAudio buses (sfx 0.35, music 0.16 through a lowpass), all sound effects, voice cap, unlock on first tap |
+| `src/sfx.ts` | WebAudio buses (sfx 0.35, music 0.16 through a lowpass, each scaled by its volume setting: `setSoundVolume`, `setMusicVolume`), all sound effects, voice cap, unlock on first tap |
 | `src/music.ts` | Step sequencer and the songs `menu`, `run` (intensity layers), `boss`, `win`, `stale`. API: `playMusic`, `setRunIntensity`, `playJingle`, `stopMusic` |
 | `src/goals.ts` | The Goals page's challenges (`CHALLENGES`: id, name, Dough reward, `status(save)`), `claimGoals` (pays newly done ones) and `unseenGoals` (the red dot) |
-| `src/save.ts` | localStorage key `everything-bagel-save-v1`. Bests are keyed `'<stage>:<bagel>'` (`bestStage()`: `stage1`, `stage1q` Quick, `stage1e` Endless, plus `x` for Extra Crispy). `stage` = last picked stage, `stageClears` = clears per stage (unlocks the next stage) |
+| `src/save.ts` | localStorage key `everything-bagel-save-v1`. Save versions (`STEPS`), the spare copy, backup codes and reset (see "Saves and settings"). Bests are keyed `'<stage>:<bagel>'` (`bestStage()`: `stage1`, `stage1q` Quick, `stage1e` Endless, plus `x` for Extra Crispy). `stage` = last picked stage, `stageClears` = clears per stage (unlocks the next stage) |
 | `src/runsave.ts` | Run snapshot for resume after iOS kills the app |
 | `public/sw.js` | Network-first service worker (offline play) |
 
@@ -122,13 +134,24 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 - **Bakery:** 8 permanent upgrades, 5 ranks each, in two tabs (`tab` on the def). Basics: Crust health, Oven damage, Rise speed, Sticky Seeds magnet. Extras: Lucky Seed (better cards, more gold toasters), Reroll Rack, Second Bake (one revive per run), Hard Crust (-1 damage per hit, never below half). With no Extras bought, runs play exactly as before.
 - **Bagel quirks** (`quirkId` in `BAGELS`): Blueberry's `dash` (flick or SPACE, 5s cooldown ring, safe while dashing) Asiago's `aged` (+1% damage per 10s of stage time, up to +30%, HUD badge) and Jalapeño Cheddar's `spicy` (10% of hits set the enemy on fire for 3s: a tick every 0.5s for 30% of the hit, at least 3; burning enemies get an orange tint and a flickering flame, no sound or flash per tick). Goals can be `stageclear` or `stagetime` on a given `stage`; `checkUnlocks` runs when the menu opens.
 
+- **Saves and settings (M12):**
+  - **Changing the save's shape:** add a step to the end of `STEPS` in `save.ts`. Step N takes a save from version N to N + 1 and runs once per save. Never edit or reorder old steps, and add a fixture or a check to `tools/bots/savetest.cjs`.
+  - **Spare copy:** every clean load copies the save to `everything-bagel-save-spare`. If the main save can't be read, the spare loads and the menu says so (`takeRecovered`). Reset and a pasted backup code keep the old save as the spare first.
+  - **Backup code:** `EB1:` plus the save as base64 JSON (`backupCode`, `restoreCode`). A code that isn't a save is refused and changes nothing. The reminder card shows after the first stage clear and then every 30 days since the last backup or "Later" (`backupAt`, `backupNudge`).
+  - **Settings** live in `save.settings` (music and sound 0 to 100, `shake`, `flash`, `saver`, `lefty`) and are read through `settings.ts` only. In a run: use `shake(g, ms, amount)` and `flash(g, …)` instead of the camera's own, `blink()` for warning strobes (steady when flashing is Reduced), and check `saver` before adding lots of particles. The left-handed HUD is laid out in `hud.ts`.
+  - **Version:** `package.json`'s version is the game's version (`VERSION`, shown on the title screen and in Settings, About). Each milestone: bump it, and rewrite `whatsnew.ts`. The card shows once per version to anyone who has played before (`save.seenVersion`).
+  - **Practice** is a switch on the stage picker (`save.practice`); PLAY turns blue and reads PRACTICE while it's on. Music and Sound are sliders in Settings.
+- **Screen changes:** title to menu, menu to a run, and results to menu or a new run use the wipe. Resuming a saved run and the end of a run keep their fades.
+
 ## Testing
 
 - `npm run build` runs tsc plus the Vite build. CI (`.github/workflows/ci.yml`) runs the same thing on PRs.
 - **URL flags:** `?god` (no damage), `?speed=N` (1 to 20× game speed), `?t=SECONDS` (start at that stage time).
 - **`window.__game`** is the Phaser game. Use `scene.getScene('game')` to read or poke run state in bot tests: for example `g.run.level`, `g.run.pendingLevels`, `g.foes.list`, `g.foes.boss`, `g.loot.list`, `g.hz.shots`, `g.panels.openLevelUp()`, `g.panels.close()`.
-- Bot scripts are in `tools/bots/` (see its README). The preview server is `vite preview --port 4191`.
-- Take screenshots at 390×760 and deviceScaleFactor 2 (iPhone-like). Check compact heights too, because the menu has a compact layout.
+- Bot scripts are in `tools/bots/` (see its README). The preview server is `vite preview --port 4191`. The game opens on the title screen: bots start runs with `getScene('title').scene.start('game', …)` or tap through it. `savetest.cjs` loads a save from each era and checks the spare, backup codes and reset; run it after touching `save.ts`.
+- `window.__save` has `load`, `persist`, `backupCode`, `restoreCode`, `resetSave` and `takeRecovered`.
+- `node tools/icons.cjs` redraws the home-screen icons from the title art.
+- Take screenshots at 390×760 and deviceScaleFactor 2 (iPhone-like). Check 390×640 too, because the menu has a compact layout under 720 tall.
 
 ## Preview artifact (playable link for the owner)
 
@@ -147,6 +170,6 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 ## Ideas parked for later
 
-- **Phase 2:** see the design doc linked under Status. The doc is the source of truth for stages, enemies, bagels and weapons.
+- **Phase 3:** see the design doc linked under Status. It is the source of truth for the remaining milestones (M13 onboarding and story is next).
 - More tuning from the owner's phone runs. Easy dials: the stage dials in `STAGES`, the weapon numbers in `weapons.ts`, and the `RUN` timings.
 - Sesame Shot is the weakest weapon at level 3 (on purpose for the starter). Buff it if the owner says it feels slow.

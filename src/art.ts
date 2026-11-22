@@ -101,6 +101,47 @@ export function angryEye(c: Ctx, x: number, y: number, r: number, dir: number, l
   ink(c, Math.max(1.2, r * 0.62));
 }
 
+/**
+ * "Upgraded" lighting (the owner's style pick for Phase 3): relights whatever is already drawn on the canvas,
+ * inside its own outline. A warm key light from the top left, a cool core shadow on the lower right, a soft
+ * highlight and a little floor bounce along the bottom. Call it last, with the size of the drawing.
+ */
+export function relight(c: Ctx, w: number, h: number): void {
+  // The light is painted on a spare canvas, trimmed to the drawing's shape, then laid over it with "overlay":
+  // colors get lighter or deeper, while the dark ink outlines stay crisp and dark.
+  const src = c.canvas;
+  const spare = document.createElement('canvas');
+  spare.width = src.width;
+  spare.height = src.height;
+  const k = spare.getContext('2d')!;
+  k.scale(src.width / w, src.height / h);
+  let g = k.createLinearGradient(w * 0.2, 0, w * 0.8, h);
+  g.addColorStop(0, 'rgba(255,240,200,0.5)');
+  g.addColorStop(0.45, 'rgba(255,240,200,0)');
+  g.addColorStop(0.58, 'rgba(50,10,40,0)');
+  g.addColorStop(1, 'rgba(50,10,40,0.6)');
+  k.fillStyle = g;
+  k.fillRect(0, 0, w, h);
+  g = k.createRadialGradient(w * 0.33, h * 0.27, 0, w * 0.33, h * 0.27, w * 0.26);
+  g.addColorStop(0, 'rgba(255,255,255,0.75)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  k.fillStyle = g;
+  k.fillRect(0, 0, w, h);
+  g = k.createLinearGradient(0, h * 0.74, 0, h);
+  g.addColorStop(0, 'rgba(255,190,110,0)');
+  g.addColorStop(1, 'rgba(255,190,110,0.55)');
+  k.fillStyle = g;
+  k.fillRect(0, 0, w, h);
+  k.setTransform(1, 0, 0, 1, 0, 0);
+  k.globalCompositeOperation = 'destination-in';
+  k.drawImage(src, 0, 0);
+  c.save();
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'overlay';
+  c.drawImage(spare, 0, 0);
+  c.restore();
+}
+
 // ---------- Bagels ----------
 export interface BagelLook {
   base: string;
@@ -1758,6 +1799,26 @@ export const UI_ICONS: Record<string, (c: Ctx) => void> = {
     c.lineWidth = 3.6;
     c.strokeStyle = '#fff3dc';
     c.stroke();
+  },
+  // Settings: a gear.
+  ic_gear: (c) => {
+    c.save();
+    c.translate(18, 18);
+    c.beginPath();
+    for (let i = 0; i < 8; i++) {
+      c.save();
+      c.rotate((i / 8) * TAU);
+      c.roundRect(-3.5, -15, 7, 8, 2);
+      c.restore();
+    }
+    fillInk(c, '#cfc4b4', 2.2);
+    c.beginPath();
+    c.arc(0, 0, 10.5, 0, TAU);
+    fillInk(c, radial(c, -3, -4, 12, [[0, '#f4ece0'], [1, '#cfc4b4']]), 2.2);
+    c.beginPath();
+    c.arc(0, 0, 4, 0, TAU);
+    fillInk(c, '#5a4433', 2.2);
+    c.restore();
   },
   // Goals page: a secret not found yet.
   ic_secret: (c) => {

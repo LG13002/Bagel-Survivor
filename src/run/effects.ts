@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { settings } from '../settings';
 import { S } from '../config';
 import type { Enemy } from '../entities';
 import type { FxId } from '../weapons';
@@ -34,9 +35,14 @@ export class Effects {
     this.pool.push(im);
   }
 
+  /** How many effect sprites may be on screen before new ones are skipped. Battery saver halves it. */
+  private cap(n: number): number {
+    return settings().saver ? n / 2 : n;
+  }
+
   /** A white copy of the enemy that swells and fades where it died. */
   deathPop(e: Enemy): void {
-    if (this.particles > 140) return;
+    if (this.particles > this.cap(140)) return;
     const im = this.fx(e.sprite.texture.key, e.x, e.y, 39);
     const sc = e.sprite.scaleX;
     im.setScale(sc).setTintFill(0xffffff).setRotation(e.sprite.rotation).setFlipX(e.sprite.flipX);
@@ -45,7 +51,7 @@ export class Effects {
 
   /** A little fading dot behind a projectile (weapons at level 5 and evolved). */
   trailDot(x: number, y: number, color: number): void {
-    if (this.particles > 120) return;
+    if (settings().saver || this.particles > 120) return;
     const im = this.fx('dot', x, y, 18).setTint(color).setAlpha(0.85);
     im.setScale(0.42 / S);
     this.g.tweens.add({ targets: im, alpha: 0, scale: 0.1 / S, duration: 240, onComplete: () => this.done(im) });
@@ -53,7 +59,7 @@ export class Effects {
 
   /** Each weapon's own small hit spark ("Crisp" flare: quick, small, never hides enemies). */
   hitSpark(x: number, y: number, id: FxId): void {
-    if (this.particles > 110) return;
+    if (this.particles > this.cap(110)) return;
     // Damage-over-time weapons tick a lot, so they spark less often.
     if ((id === 'puddle' || id === 'jar' || id === 'storm' || id === 'combo') && Math.random() < 0.6) return;
     const tweens = this.g.tweens;
@@ -119,7 +125,7 @@ export class Effects {
 
   /** A puff of crumbs flying out from a point. */
   burst(x: number, y: number, color: number, n: number, dist: number): void {
-    if (this.particles > 160) return;
+    if (this.particles > this.cap(160)) return;
     for (let i = 0; i < n; i++) {
       const im = this.fx('dot', x, y, 40).setTint(color);
       const s = (0.4 + Math.random() * 0.6) / S;

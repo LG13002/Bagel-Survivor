@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { StageDef } from './data';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, drawButcherBlock, drawFreezerFloor, drawOvenFloor, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, relight, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -35,11 +35,43 @@ const BAGEL_LOOKS: Record<string, BagelLook> = {
 export function bigBagel(scene: Phaser.Scene, key: string): string {
   const look = BAGEL_LOOKS[key] ?? BAGEL_LOOKS.bagel_plain;
   ctex(scene, `${key}_big`, 160, 160, (c) => {
+    c.save();
     c.translate(80, 80);
     c.scale(4, 4);
     drawBagel(c, 0, 0, 15.5, look);
+    c.restore();
+    relight(c, 160, 160);
   });
   return `${key}_big`;
+}
+
+/** One bagel drawn `size` px across, for the title screen's giant bagel. The caller removes it when done. */
+export function giantBagel(scene: Phaser.Scene, key: string, size: number): string {
+  const look = BAGEL_LOOKS[key] ?? BAGEL_LOOKS.bagel_plain;
+  const name = `${key}_giant`;
+  if (scene.textures.exists(name)) scene.textures.remove(name);
+  ctex(scene, name, size, size, (c) => {
+    c.save();
+    c.translate(size / 2, size / 2);
+    c.scale(size / 40, size / 40);
+    drawBagel(c, 0, 0, 15.5, look);
+    c.restore();
+    relight(c, size, size);
+  });
+  return name;
+}
+
+/** A crumb gone grey and stale, for the title screen. */
+export function staleCrumb(scene: Phaser.Scene): string {
+  ctex(scene, 'stale_crumb', 24, 24, (c) => {
+    drawCrumb(c, 12, 12, 10);
+    // Drain the color inside the crumb's own shape, then lift it a little so it reads as grey, not dark.
+    c.globalCompositeOperation = 'source-atop';
+    c.fillStyle = 'rgba(150,146,140,0.62)';
+    c.fillRect(0, 0, 24, 24);
+    c.globalCompositeOperation = 'source-over';
+  });
+  return 'stale_crumb';
 }
 
 /**

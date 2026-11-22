@@ -1,4 +1,5 @@
 import { CSS } from '../config';
+import { shake } from '../settings';
 import { RUN, type EnemyKind } from '../data';
 import type { Enemy } from '../entities';
 import { sfx } from '../sfx';
@@ -115,7 +116,7 @@ export class Director {
       hud.banner(`${st.boss.name} returns, tougher!`, CSS.red, 26);
       sfx('roar');
       sfx('boss');
-      g.cameras.main.shake(400, 0.006);
+      shake(g, 400, 0.006);
     }
     if (!this.miniSpawned && t >= RUN.miniBossAt) {
       this.miniSpawned = true;
@@ -130,7 +131,7 @@ export class Director {
         sfx('roar');
       } else hud.banner(st.boss.banner, CSS.red, 30);
       sfx('boss');
-      g.cameras.main.shake(400, 0.006);
+      shake(g, 400, 0.006);
     }
   }
 

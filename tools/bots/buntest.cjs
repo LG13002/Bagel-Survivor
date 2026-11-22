@@ -6,7 +6,7 @@ const D = process.argv[2];
     const p = await b.newPage({ viewport: { width: 390, height: 760 }, deviceScaleFactor: 2 });
     const errs = []; p.on('pageerror', e => errs.push(e.message));
     await p.goto('http://localhost:4191/?god&speed=10&t=140', { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1500);
-    await p.evaluate((q) => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'cinnamon', practice: false, quick: q }), quick);
+    await p.evaluate((q) => window.__game.scene.getScene('title').scene.start('game', { bagel: 'cinnamon', practice: false, quick: q }), quick);
     const log = []; let shot = false; let lastBuns = 0; let bossSeen = false;
     for (let i = 0; i < 160; i++) {
       await p.waitForTimeout(500);

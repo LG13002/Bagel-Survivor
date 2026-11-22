@@ -1,7 +1,7 @@
 {
   "name": "Everything Bagel",
   "short_name": "Bagel",
-  "description": "Survive the Stale for 5 minutes. A one-thumb bagel roguelite.",
+  "description": "You are a bagel. Defend the last bakery from the Stale. A one-thumb roguelite.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

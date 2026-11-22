@@ -1,6 +1,27 @@
 import { ENEMY_BOOK, STAGES } from './data';
 
+/** Player options, changed on the Settings screen. */
+export interface Settings {
+  /** Volumes, 0 to 100. */
+  music: number;
+  sound: number;
+  shake: 'on' | 'reduced' | 'off';
+  flash: 'normal' | 'reduced';
+  /** Battery saver: fewer sparks, no trails. */
+  saver: boolean;
+  /** Left-handed HUD: the pause button and build row swap sides. */
+  lefty: boolean;
+}
+
 export interface SaveData {
+  /** Save format version: `load` runs each upgrade step in `STEPS` once, in order. */
+  v?: number;
+  settings?: Settings;
+  /** Game version whose "What's new" card has been seen. */
+  seenVersion?: string;
+  /** When a backup code was last copied (ms since 1970), and when the reminder was last waved away. */
+  backupAt?: number;
+  backupNudge?: number;
   dough: number;
   upgrades: Record<string, number>;
   unlocked: string[];
@@ -62,6 +83,9 @@ export interface RunRecords {
 }
 
 const KEY = 'everything-bagel-save-v1';
+/** The last save that loaded cleanly, kept as a spare in case the main one is ever unreadable. */
+const SPARE_KEY = 'everything-bagel-save-spare';
+const CODE_PREFIX = 'EB1:';
 
 function fresh(): SaveData {
   return {
@@ -76,25 +100,74 @@ function fresh(): SaveData {
   };
 }
 
+/**
+ * Upgrade steps, one per save format change. Step N takes a save from version N to N + 1, and each runs once.
+ * To change the save's shape, add a step at the end: never edit or reorder the old ones.
+ */
+const STEPS: ((d: SaveData) => void)[] = [
+  // 0 to 1: fix-ups for saves from before versions existed.
+  (d) => {
+    // Saves from before stage select: every clear so far was a Stage 1 clear.
+    if (!d.stageClears) d.stageClears = d.clears > 0 ? { stage1: d.clears } : {};
+    // Saves from before M8 that cleared the Freezer beat both of its bosses on the way.
+    if ((d.stageClears.stage2 ?? 0) > 0) d.beaten = [...new Set([...(d.beaten ?? []), 'waffle', 'fburn'])];
+    // Saves from before the Enemies tab: every enemy of a stage already cleared counts as met.
+    if (!d.met) d.met = STAGES.filter((st) => (d.stageClears?.[st.id] ?? 0) > 0).flatMap((st) => ENEMY_BOOK[st.id].map((e) => e.kind));
+  },
+  // 1 to 2: the Settings screen. The old Music and Sound switches become volumes.
+  (d) => {
+    d.settings = { music: d.music === false ? 0 : 100, sound: d.sound === false ? 0 : 100, shake: 'on', flash: 'normal', saver: false, lefty: false, ...(d.settings ?? {}) };
+  },
+];
+export const SAVE_VERSION = STEPS.length;
+
+/** Brings a save of any age up to the current format. */
+function upgrade(data: SaveData): SaveData {
+  for (let v = data.v ?? 0; v < STEPS.length; v++) STEPS[v](data);
+  data.v = Math.max(data.v ?? 0, STEPS.length);
+  return data;
+}
+
+/** A save read from storage or a backup code: an object with the fields every save has had since day one. */
+function parseSave(raw: string | null): SaveData | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object' || typeof d.dough !== 'number' || !Array.isArray(d.unlocked)) return null;
+    return { ...fresh(), ...d };
+  } catch {
+    return null;
+  }
+}
+
 let cache: SaveData | null = null;
+let recovered = false;
+
+/** True once if the main save was unreadable and the spare was loaded in its place (the menu says so). */
+export function takeRecovered(): boolean {
+  const r = recovered;
+  recovered = false;
+  return r;
+}
 
 export function load(): SaveData {
   if (cache) return cache;
-  let data = fresh();
+  let data: SaveData | null = null;
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) data = { ...data, ...JSON.parse(raw) };
+    data = parseSave(raw);
+    if (data) {
+      // A good load: keep it as the spare.
+      localStorage.setItem(SPARE_KEY, raw!);
+    } else if (raw) {
+      data = parseSave(localStorage.getItem(SPARE_KEY));
+      recovered = !!data;
+    }
   } catch {
     // Storage blocked (private mode etc.): play without saving.
   }
-  // Saves from before stage select: every clear so far was a Stage 1 clear.
-  if (!data.stageClears) data.stageClears = data.clears > 0 ? { stage1: data.clears } : {};
-  // Saves from before M8 that cleared the Freezer beat both of its bosses on the way.
-  if ((data.stageClears.stage2 ?? 0) > 0) data.beaten = [...new Set([...(data.beaten ?? []), 'waffle', 'fburn'])];
-  // Saves from before the Enemies tab: every enemy of a stage already cleared counts as met.
-  if (!data.met) data.met = STAGES.filter((st) => (data.stageClears?.[st.id] ?? 0) > 0).flatMap((st) => ENEMY_BOOK[st.id].map((e) => e.kind));
-  cache = data;
-  return data;
+  cache = upgrade(data ?? fresh());
+  return cache;
 }
 
 export function persist(): void {
@@ -104,6 +177,53 @@ export function persist(): void {
   } catch {
     // ignore
   }
+}
+
+/** Keeps the save as it is right now as the spare, before something replaces it. */
+function keepSpare(): void {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) localStorage.setItem(SPARE_KEY, raw);
+  } catch {
+    // ignore
+  }
+}
+
+/** The whole save as a block of text the player can keep somewhere safe. */
+export function backupCode(): string {
+  const json = JSON.stringify(load());
+  const bytes = new TextEncoder().encode(json);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return CODE_PREFIX + btoa(bin);
+}
+
+/** Replaces the save with the one in a backup code. Returns false (and changes nothing) if the code isn't a save. */
+export function restoreCode(code: string): boolean {
+  const text = code.replace(/\s+/g, '');
+  if (!text.startsWith(CODE_PREFIX)) return false;
+  let data: SaveData | null = null;
+  try {
+    const bin = atob(text.slice(CODE_PREFIX.length));
+    const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+    data = parseSave(new TextDecoder().decode(bytes));
+  } catch {
+    data = null;
+  }
+  if (!data) return false;
+  keepSpare();
+  cache = upgrade(data);
+  persist();
+  return true;
+}
+
+/** Starts over. The old save stays as the spare, and the player's settings are kept. */
+export function resetSave(): void {
+  const keep = load().settings;
+  keepSpare();
+  cache = upgrade(fresh());
+  if (keep) cache.settings = keep;
+  persist();
 }
 
 /** Best run for one bagel on one stage. A clear beats any time; then longer time, then more kills. Endless ranks by time only. */

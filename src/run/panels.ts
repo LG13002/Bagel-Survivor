@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { MAX_LEVEL, MAX_SLOTS, TOPPINGS, WEAPONS, type ToppingId, type WeaponId } from '../data';
 import { load, persist } from '../save';
-import { musicOn, setMusic, setSound, sfx, soundOn } from '../sfx';
+import { sfx } from '../sfx';
+import { buildSettings } from '../settingsPanel';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { COMBO } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
@@ -135,7 +136,9 @@ export class Panels {
       const name = txt(g, tx, -18 * S, info.name, 18, CSS.cream).setOrigin(0, 0.5);
       const maxName = cw - 100 * S;
       if (name.width > maxName) name.setScale(maxName / name.width);
-      const desc = txt(g, tx, 6 * S, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0.5);
+      const desc = txt(g, tx, -5 * S, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0).setLineSpacing(-2 * S);
+      // Two lines at most fit between the name and the pips: longer notes shrink.
+      if (desc.height > 30 * S) desc.setScale((30 * S) / desc.height);
       card.add([gr, icon, name, desc, rib, tag]);
       // Level pips: current level filled, the level you'd get glowing.
       const lvl = kind === 'wup' ? g.weaponOf(choice.id!)!.level : kind === 'tup' ? (g.toppings.get(choice.id as ToppingId) ?? 0) : kind === 'wnew' || kind === 'tnew' ? 0 : -1;
@@ -293,10 +296,16 @@ export class Panels {
 
   openPause(): void {
     const g = this.g;
-    const run = g.run;
     if (g.paused) return;
     g.setPaused('pause');
     g.writeSnapshot();
+    this.drawPause();
+  }
+
+  /** Draws the pause screen (the run is already paused). */
+  private drawPause(): void {
+    const g = this.g;
+    const run = g.run;
     const W = g.scale.width;
     const H = g.scale.height;
     const { c } = this.open(0.7);
@@ -365,15 +374,22 @@ export class Panels {
       g.endRun(false, true);
     }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
     c.add(quit);
-    const half = 96 * S;
-    const mus = button(g, W / 2 - half / 2 - 4 * S, top + 420 * S, half, 44 * S, `Music: ${musicOn() ? 'On' : 'Off'}`, () => {
-      setMusic(!musicOn());
-      (mus.getData('label') as Phaser.GameObjects.Text).setText(`Music: ${musicOn() ? 'On' : 'Off'}`);
-    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 14 });
-    const snd = button(g, W / 2 + half / 2 + 4 * S, top + 420 * S, half, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
-      setSound(!soundOn());
-      (snd.getData('label') as Phaser.GameObjects.Text).setText(`Sound: ${soundOn() ? 'On' : 'Off'}`);
-    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 14 });
-    c.add([mus, snd]);
+    // Volume, shake and the rest can be changed mid-run.
+    c.add(button(g, W / 2, top + 420 * S, 200 * S, 44 * S, 'Settings', () => this.openSettings(), { color: COLORS.panelLight, textColor: CSS.cream, size: 17 }));
+  }
+
+  /** Settings, from the pause screen. The back button returns to the pause screen. */
+  private openSettings(): void {
+    const g = this.g;
+    this.close();
+    const { c } = this.open(0.7);
+    buildSettings(g, c, {
+      inRun: true,
+      onClose: () => {
+        this.close();
+        g.hud.layout(); // the left-handed setting moves the HUD
+        this.drawPause();
+      },
+    });
   }
 }

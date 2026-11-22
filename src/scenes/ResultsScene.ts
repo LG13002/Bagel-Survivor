@@ -6,6 +6,7 @@ import { bigBagel } from '../textures';
 import type { RunResult } from './GameScene';
 import { BAGELS, WEAPONS, stageById } from '../data';
 import { nearestGoals } from '../progress';
+import { wipeOpen, wipeTo } from '../wipe';
 
 export class ResultsScene extends Phaser.Scene {
   private result!: RunResult;
@@ -26,7 +27,7 @@ export class ResultsScene extends Phaser.Scene {
     };
     this.scale.on('resize', onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off('resize', onResize));
-    this.cameras.main.fadeIn(300, 18, 12, 8);
+    if (!wipeOpen()) this.cameras.main.fadeIn(300, 18, 12, 8);
   }
 
   private build(): void {
@@ -49,7 +50,7 @@ export class ResultsScene extends Phaser.Scene {
     const st = stageById(r.stage);
     const tags = [r.quick ? 'Quick' : '', r.endless ? 'Endless' : '', r.crispy ? 'Extra Crispy' : ''].filter(Boolean).join(', ');
     txt(this, W / 2, top + 72 * S, `Stage ${st.num}: ${st.name}${tags ? ` (${tags})` : ''}`, 13, r.crispy ? '#ff9a5c' : CSS.muted, { stroke: false });
-    this.add.image(W / 2, top + 112 * S, bigBagel(this, BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain')).setScale(0.5).setAngle(r.victory ? 0 : 160);
+    this.add.image(W / 2, top + 119 * S, bigBagel(this, BAGELS.find((b) => b.id === r.bagel)?.tex ?? 'bagel_plain')).setScale(0.44).setAngle(r.victory ? 0 : 160);
 
     if (r.newBest) {
       const nbText = r.endless ? 'NEW ENDLESS BEST!' : r.quick ? 'NEW QUICK BEST!' : 'NEW BEST!';
@@ -95,7 +96,6 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   private go(scene: string, data: object): void {
-    this.cameras.main.fadeOut(200, 18, 12, 8);
-    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start(scene, data));
+    wipeTo(this, scene, data);
   }
 }
