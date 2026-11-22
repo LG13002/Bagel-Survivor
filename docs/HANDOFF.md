@@ -211,10 +211,27 @@ Bugs fixed:
 Optimizations:
 
 - **Art on demand** (see the art notes in `CLAUDE.md`). Bot, 3x screen: pictures drawn before the menu shows went from 200 to 100, about half the time, and picture memory at the menu from about 38 MB to about 8 MB (about 19 MB after a Bakery run, 27 MB after playing all three stages). The rest is drawn during the fade into the first run.
-- **Effect sprites are reused** (`fx` / `fxDone`) instead of created and destroyed.
+- **Effect sprites are reused** (`fx` / `fxDone`, now `effects.fx` / `effects.done`) instead of created and destroyed.
 - **Drums** in the music play slices of the shared noise sample instead of making fresh noise per hit.
 - The safe-area lookup is kept for a second at a time instead of read every frame.
 - Removed: two unused sounds, a duplicate floor texture, and a few unused fields and parameters.
+
+### Code review pass, group C: reorganizing
+
+The rest of the review, approved by the owner. Nothing about play, art or sound changed.
+
+- **`GameScene.ts` split into parts** (from about 3,500 lines to under 1,000): `src/run/` holds `state` (the run's numbers), `effects`, `floor`, `hazards`, `enemies`, `behaviors`, `director`, `pickups`, `hud`, `panels`, `resume` and `modes`. See the code map in `CLAUDE.md`.
+- **Each part resets itself.** The run's numbers live in `RunState`, made fresh for every run, and each part is made fresh when the run starts. This replaces about 70 hand-written resets.
+- **Shared boss shots:** `hz.ring()` and `hz.fan()` replace the ring and fan loops each boss had.
+- **One menu pop-up frame** (`openPopup`, `closePopup`, `doneButton` in `MenuScene.ts`) for the stage picker, Goals, Cookbook, Enemies and the Bakery.
+- **One puddle helper** (`PoolWeapon` in `weapons.ts`) for Cream Cheese Puddle and Jam Jar.
+- **One best-score line** (`bestText`) for the menu and the stage picker.
+- **Starter bagels** are marked with `starter: true` on their `BAGELS` entry instead of by position.
+- Bot scripts in `tools/bots/` use the new paths.
+
+How it was checked: 16 recorded runs (every stage, Quick, Endless, Extra Crispy, practice, resume) replayed frame by frame with a fixed random seed matched the old code exactly, and 30 menu screens matched pixel for pixel.
+
+Bug found and fixed while checking: if an enemy shot or a Broiler flame line knocked you out while Second Bake was ready, the revive cleared the shots in the middle of the loop that was moving them, and that frame crashed (`Cannot read properties of undefined`). The shot and flame loops now stop when the revive has cleared them.
 
 ## Weapon benchmark (bot, M11 part 3)
 

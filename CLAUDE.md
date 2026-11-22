@@ -9,7 +9,7 @@ Read this first. It is the handoff for any Claude session working on this repo. 
 - **Live:** https://lg13002.github.io/Bagel-Survivor/. Pushes to `main` deploy through GitHub Actions to Pages.
 - **Repo:** `LG13002/Bagel-Survivor` is public, and `index.html` has a noindex meta tag (the owner's choice).
 - **Stack:** Phaser 3.90, TypeScript, Vite. There are no image or audio files: **all art is drawn in code** with Canvas2D, and **all music and sound are synthesized** with WebAudio.
-- **Status (2026-11-11):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. M8 (4 new weapons, then the "Crisp" flare pass the owner picked on the style board) is built. M9 (the Toaster Oven, two parts) is built. M10 (Endless mode and the Extra Crispy hard toggle) [change list](https://claude.ai/artifact/EEsQTPuvpDQm2qZ3TxVpaV) is built. M11 ([change list](https://claude.ai/artifact/2epR6A5tmgMBGMFsuzTkCr)): Part 1 (Goals page, Cookbook Enemies tab) is built; Part 2 (the secret Rainbow bagel and the Lox and Schmear combo evolution) and Part 3 (the full balance pass, numbers in `docs/HANDOFF.md`) share one PR. That completes Phase 2. After it, a code review pass ([findings](https://claude.ai/artifact/6HTNUYVxC6hHcH62aC1CCc)) fixed 8 bugs and added the optimizations listed in `docs/HANDOFF.md`; no gameplay numbers changed.
+- **Status (2026-11-11):** Stage 1 and the prototype (M1 to M4) are complete. **Phase 2** (content) is planned in the [Phase 2 design doc](https://claude.ai/artifact/TBqYzaqW3kXDxSGh1ieQfa) as milestones M5 to M11. M5 (stage framework and stage picker), M6 (the Freezer, in two parts) and M7 (Blueberry, Asiago and the Bakery's Extras tab) are built. M8 (4 new weapons, then the "Crisp" flare pass the owner picked on the style board) is built. M9 (the Toaster Oven, two parts) is built. M10 (Endless mode and the Extra Crispy hard toggle) [change list](https://claude.ai/artifact/EEsQTPuvpDQm2qZ3TxVpaV) is built. M11 ([change list](https://claude.ai/artifact/2epR6A5tmgMBGMFsuzTkCr)): Part 1 (Goals page, Cookbook Enemies tab) is built; Part 2 (the secret Rainbow bagel and the Lox and Schmear combo evolution) and Part 3 (the full balance pass, numbers in `docs/HANDOFF.md`) share one PR. That completes Phase 2. After it, a code review pass ([findings](https://claude.ai/artifact/6HTNUYVxC6hHcH62aC1CCc)) fixed 8 bugs and added the optimizations listed in `docs/HANDOFF.md`; no gameplay numbers changed. A second pass (group C) split `GameScene.ts` into the parts in `src/run/` and merged repeated code, with no change to play.
 
 ## How to work with the owner (rules)
 
@@ -49,8 +49,20 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 | --- | --- |
 | `src/config.ts` | `S` (device scale, max 3), `ZOOM = 1.2` (world zoom; the owner asked for +20%), colors, safe insets, `DEBUG` URL flags |
 | `src/data.ts` | **All tuning:** weapons, toppings, evolutions, bagels, Bakery upgrades, enemies, `STAGES` (one recipe per stage: cast, timeline banners, music, Dough pay, difficulty dials), `RUN` pacing, `xpNeeded` |
-| `src/weapons.ts` | The 10 weapon classes (normal and evolved behavior; damage numbers are inline here). `pickTargets` and `Lob` are shared by the thrown weapons |
-| `src/scenes/GameScene.ts` | The run: director/spawning, pickups, the Sticky Bun, chests, level-up, HUD, pause, audio state, Quick Run pacing, resume snapshot |
+| `src/weapons.ts` | The 10 weapon classes (normal and evolved behavior; damage numbers are inline here). `pickTargets` and `Lob` are shared by the thrown weapons, `PoolWeapon` by the two puddle weapons |
+| `src/scenes/GameScene.ts` | The run's core: setup, the frame loop (`step`, `renderWorld`), the player, stats, level-up choices, damage to you, Second Bake, pause, audio state, ending the run. It builds the parts below in `create()` and reaches them as `g.run`, `g.effects`, `g.floor`, `g.hz`, `g.foes`, `g.director`, `g.loot`, `g.hud`, `g.panels` |
+| `src/run/state.ts` | `RunState`: every plain number of one run (level, xp, kills, coins, frost, dash, …). Made fresh in `init()` |
+| `src/run/modes.ts` | Quick, Practice, Extra Crispy and Endless constants |
+| `src/run/effects.ts` | Sparks, crumbs, trail dots, death pops (`fx` / `done`, reused sprites) |
+| `src/run/floor.ts` | Floor chunks: props, ice patches, rack posts, `pushOut` |
+| `src/run/hazards.ts` | Enemy shots (`fireShot`, `ring`, `fan`), Tyrant rings, Freezer melts and frost circles, oven coils, grease, embers and flame lines |
+| `src/run/enemies.ts` | The enemy list, spawning, the spatial grid (`query`, `nearest`), movement, burning, kills, boss defeats |
+| `src/run/behaviors.ts` | Enemy AI (`behave`) and the four big bosses' attack patterns |
+| `src/run/director.ts` | The timeline: waves, ant lines, elites, surprise elites, mini-boss, boss, Endless returns |
+| `src/run/pickups.ts` | Seeds, coins, chests, the Sticky Bun, Warm Mugs |
+| `src/run/hud.ts` | The HUD, edge arrows, banners and the boss card |
+| `src/run/panels.ts` | Level-up, chest and pause panels |
+| `src/run/resume.ts` | Writing and applying the resume snapshot |
 | `src/scenes/MenuScene.ts` | Menu, bagel picker (swipe and chevrons), Full/Quick switch, toggles, Bakery shop, Cookbook |
 | `src/scenes/ResultsScene.ts` | End of run, Dough payout, new-best banners |
 | `src/art.ts`, `src/floors.ts`, `src/textures.ts` | Drawn-in-code art |
@@ -100,8 +112,8 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - It lands on the far side of the boss, never drifts toward you, gets an edge arrow, and is saved in the snapshot.
   - **There is no automatic seed pull anywhere.** The owner found it jarring.
 - **Seeds:** once there are more than 300 on the floor, new ones merge into the nearest seed, so nothing is lost.
-- **Run state is reset by hand in `GameScene.init()`.** The scene object is reused between runs, so every new field that holds run state needs a line there (a missed one left invisible oven knobs in other stages).
-- **Effect sprites** (sparks, crumbs, trail dots, death pops) come from `fx()` and go back with `fxDone()`: they are reused, never destroyed. Anything that loops forever (`repeat: -1`) must be stopped when its sprite goes (`tweens.killTweensOf`), because Phaser keeps animating destroyed sprites.
+- **Where new run state goes:** the scene object is reused between runs, so never put run state in a plain `GameScene` field. Put numbers in `RunState` (made fresh in `init()`) and anything with sprites in the part that owns it (the parts are made fresh in `create()`). Before this, every field was reset by hand and a missed one left invisible oven knobs in other stages.
+- **Effect sprites** (sparks, crumbs, trail dots, death pops) come from `g.effects.fx()` and go back with `g.effects.done()`: they are reused, never destroyed. Anything that loops forever (`repeat: -1`) must be stopped when its sprite goes (`tweens.killTweensOf`), because Phaser keeps animating destroyed sprites.
 - **One panel at a time:** chests aren't collected while a panel is open, so two chests touched together open one after the other.
 - **Build limits:** 4 weapon slots and 4 topping slots, each up to level 5. A level 5 weapon plus its matching topping evolves from a chest.
 - **Chests only level up what you own** (`chestUpgrades`): they never add a new weapon or topping, so empty slots are filled only from level-up cards (the owner's call: it keeps build choices with the player). Nothing left to level means a full heal.
@@ -114,7 +126,7 @@ Every character, enemy, item and name is original and bakery or breakfast themed
 
 - `npm run build` runs tsc plus the Vite build. CI (`.github/workflows/ci.yml`) runs the same thing on PRs.
 - **URL flags:** `?god` (no damage), `?speed=N` (1 to 20× game speed), `?t=SECONDS` (start at that stage time).
-- **`window.__game`** is the Phaser game. Use `scene.getScene('game')` to read or poke run state in bot tests.
+- **`window.__game`** is the Phaser game. Use `scene.getScene('game')` to read or poke run state in bot tests: for example `g.run.level`, `g.run.pendingLevels`, `g.foes.list`, `g.foes.boss`, `g.loot.list`, `g.hz.shots`, `g.panels.openLevelUp()`, `g.panels.close()`.
 - Bot scripts are in `tools/bots/` (see its README). The preview server is `vite preview --port 4191`.
 - Take screenshots at 390×760 and deviceScaleFactor 2 (iPhone-like). Check compact heights too, because the menu has a compact layout.
 
