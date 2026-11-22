@@ -136,18 +136,21 @@ export class Panels {
       const name = txt(g, tx, -18 * S, info.name, 18, CSS.cream).setOrigin(0, 0.5);
       const maxName = cw - 100 * S;
       if (name.width > maxName) name.setScale(maxName / name.width);
-      const desc = txt(g, tx, -5 * S, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0).setLineSpacing(-2 * S);
-      // Two lines at most fit between the name and the pips: longer notes shrink.
-      if (desc.height > 30 * S) desc.setScale((30 * S) / desc.height);
+      const desc = txt(g, tx, 0, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0).setLineSpacing(-2 * S);
       card.add([gr, icon, name, desc, rib, tag]);
       // Level pips: current level filled, the level you'd get glowing.
       const lvl = kind === 'wup' ? g.weaponOf(choice.id!)!.level : kind === 'tup' ? (g.toppings.get(choice.id as ToppingId) ?? 0) : kind === 'wnew' || kind === 'tnew' ? 0 : -1;
       if (lvl >= 0) {
         const pg = g.add.graphics();
-        drawPips(pg, tx + 5 * S, 27 * S, MAX_LEVEL, lvl, true, col, 3.6 * S, 12 * S);
+        drawPips(pg, tx + 5 * S, 30 * S, MAX_LEVEL, lvl, true, col, 3.6 * S, 12 * S);
         card.add(pg);
-        desc.setY(4 * S);
       }
+      // The note sits between the name and the level pips (or the card's bottom edge when there are none),
+      // centred in that gap. A note too tall for it, such as two lines above the pips, shrinks to fit.
+      const noteTop = -6 * S;
+      const noteRoom = (lvl >= 0 ? 29 : 38) * S;
+      if (desc.height > noteRoom) desc.setScale(noteRoom / desc.height);
+      desc.setY(noteTop + (noteRoom - desc.displayHeight) / 2);
       if (combo) {
         const sp = g.add.image(-cw / 2 + 66 * S, -24 * S, 'ic_star').setScale(0.55);
         card.add(sp);
