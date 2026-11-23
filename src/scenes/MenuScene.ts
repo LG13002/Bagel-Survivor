@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Face } from '../face';
 import { COLORS, CSS, S, VERSION, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, ENEMIES, ENEMY_BOOK, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
 import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
@@ -15,7 +16,7 @@ import { buildSettings, segmented } from '../settingsPanel';
 import { WHATS_NEW } from '../whatsnew';
 import { wipeOpen, wipeTo } from '../wipe';
 import { MENU_LOCK, TIPS, clearFresh, markTip, menuFresh, menuOpen, tipDue, type MenuItem, type TipId } from '../tips';
-import { tipBox } from '../run/tutor';
+import { tipBox, tipIn } from '../run/tutor';
 
 const SECRET_BAGEL_HINT = 'A secret bagel. Keep clearing stages to find it.';
 const SECRET_RECIPE_HINT = 'A secret recipe. Keep evolving weapons to find it.';
@@ -245,10 +246,28 @@ export class MenuScene extends Phaser.Scene {
     const hs = R / (62 * S); // hero texture scale (bagel radius is 62 in the 160 '_big' texture)
     const shadow = this.add.ellipse(W / 2, shelfTop + 1 * S, R * 1.7, R * 0.3, 0x120c08, 0.5);
     c.add(shadow);
-    const hero = this.add.image(W / 2, by, bigBagel(this, bagel.tex)).setScale(hs);
+    // An unlocked bagel is alive: its eyes blink and glance about. A locked one is a dark shape.
+    const hero = this.add.image(W / 2, by, bigBagel(this, bagel.tex, locked)).setScale(hs);
     if (locked) hero.setTint(0x222222);
     c.add(hero);
-    this.tweens.add({ targets: hero, y: by - 7 * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    let face: Face | null = null;
+    if (!locked) {
+      face = new Face(this, hero, 62, (o) => c.add(o));
+      face.idle = true;
+    }
+    const bob = () => this.tweens.add({ targets: hero, y: by - 7 * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    bob();
+    // Tap the bagel and it hops.
+    const hop = () => {
+      this.tweens.killTweensOf(hero);
+      hero.setPosition(W / 2, by).setScale(hs * 1.12, hs * 0.86).setAlpha(1);
+      face?.blink();
+      sfx('pop');
+      this.tweens.add({ targets: hero, y: by - 30 * S, scaleX: hs * 0.95, scaleY: hs * 1.07, duration: 170, ease: 'Quad.Out', yoyo: true, onComplete: () => {
+        hero.setScale(hs);
+        bob();
+      } });
+    };
     this.tweens.add({ targets: shadow, scaleX: 0.88, alpha: 0.34, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     const slide: (Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObjects.Container)[] = [hero];
     if (locked) {
@@ -323,6 +342,7 @@ export class MenuScene extends Phaser.Scene {
       sx = null;
       if (Math.abs(dx) > 40 * S) go(dx < 0 ? 1 : -1);
       else if (Math.abs(dx) < 12 * S && Math.abs(tapped - W / 2) > R + 8 * S && zone.getBounds().contains(p.x, p.y)) go(tapped < W / 2 ? -1 : 1);
+      else if (Math.abs(dx) < 12 * S && !locked && Math.abs(tapped - W / 2) < R && zone.getBounds().contains(p.x, p.y)) hop();
     };
     this.input.on('pointerup', onUp);
     c.once(Phaser.GameObjects.Events.DESTROY, () => this.input.off('pointerup', onUp));
@@ -722,7 +742,7 @@ export class MenuScene extends Phaser.Scene {
         this.drawStages(save, 0);
         if (save.practice && tipDue('practice')) {
           markTip('practice');
-          const note = tipBox(this, W / 2, py - 62 * S, TIPS.practice, 14);
+          const note = tipIn(this, tipBox(this, W / 2, py - 62 * S, TIPS.practice, 14), 0);
           this.popup?.add(note);
           this.tweens.add({ targets: note, alpha: 0, delay: 4200, duration: 400, onComplete: () => note.destroy() });
         }

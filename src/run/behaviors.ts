@@ -268,6 +268,7 @@ function freezerBurn(g: GameScene, e: Enemy, m: Move, dt: number, t: number): vo
     e.attack2T = 1.5;
     e.stateT = 4;
     g.hud.banner('The Freezer Burn is thawing out... and furious!', '#bfe6fb', 20);
+    e.roarT = 0.8;
     sfx('roar');
     shake(g, 400, 0.007);
   }
@@ -353,6 +354,7 @@ function broiler(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
     e.attack2T = 1.5;
     e.stateT = 5;
     g.hud.banner('The Broiler cranks the heat to max!', '#ffb36b', 20);
+    e.roarT = 0.8;
     sfx('roar');
     shake(g, 400, 0.007);
   }

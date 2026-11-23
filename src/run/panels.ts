@@ -10,7 +10,7 @@ import { COMBO } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
 import type { Choice } from './state';
 import { TIPS, markTip, nextHint, openMenu, tipDue } from '../tips';
-import { tipBox } from './tutor';
+import { tipBox, tipIn } from './tutor';
 
 /**
  * The pop-ups that pause a run: level-up cards, chests and the pause menu. Only one is open at a time. Made fresh
@@ -121,7 +121,7 @@ export class Panels {
     // The first level-up explains the cards.
     if (!g.practice && tipDue('cards')) {
       markTip('cards');
-      c.add(tipBox(g, W / 2, Math.max(ins.top * S + 40 * S, title.y - 62 * S), TIPS.cards, 14));
+      c.add(tipIn(g, tipBox(g, W / 2, Math.max(ins.top * S + 40 * S, title.y - 62 * S), TIPS.cards, 14)));
     }
     g.tweens.resumeAll();
     title.setScale(0.5);
@@ -211,10 +211,21 @@ export class Panels {
         if (run.pendingLevels > 0) this.openLevelUp();
         else g.setPaused('');
       });
-      card.setAlpha(0);
-      card.y = y + 60 * S;
-      g.tweens.add({ targets: card, alpha: 1, y, delay: 70 * i, duration: 240, ease: 'Back.Out' });
-      c.add(card);
+      // The cards are dealt face down and flip over one after another.
+      const back = g.add.graphics();
+      back.fillStyle(0x1d140d).fillRoundedRect(-cw / 2, -ch / 2 + 5 * S, cw, ch, 16 * S);
+      back.fillStyle(tile, 1).fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 16 * S);
+      back.lineStyle(3.5 * S, col).strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 16 * S);
+      back.fillStyle(0xffffff, 0.1).fillRoundedRect(-cw / 2 + 10 * S, -ch / 2 + 10 * S, cw - 20 * S, ch - 20 * S, 10 * S);
+      back.setPosition(W / 2, y + 40 * S).setAlpha(0);
+      card.scaleY = 0;
+      g.tweens.add({ targets: back, alpha: 1, y, delay: 60 * i, duration: 130, ease: 'Cubic.Out' });
+      g.tweens.add({ targets: back, scaleY: 0, delay: 60 * i + 130, duration: 80, ease: 'Sine.In', onComplete: () => {
+        back.destroy();
+        sfx('flip');
+      } });
+      g.tweens.add({ targets: card, scaleY: 1, delay: 60 * i + 210, duration: 150, ease: 'Back.Out' });
+      c.add([back, card]);
     });
 
     if (run.rerolls > 0) {
@@ -311,25 +322,119 @@ export class Panels {
     const W = g.scale.width;
     const H = g.scale.height;
     const { c, dim } = this.open(0.7);
-    const extra = Math.max(0, line.split('\n').length - 2) * 20 * S;
+    // One text per reward, so they can come out one at a time. The panel grows to hold them.
+    const wrap = Math.min(W / S - 70, 300);
+    const rewards = line.split('\n').map((l) => txt(g, W / 2, 0, l, 16, '#e8d8c0', { wrap, bold: false }));
+    const blockH = rewards.reduce((a, r) => a + r.height, 0);
+    const extra = Math.max(0, blockH - 44 * S);
     c.add(panel(g, W / 2, H / 2 + extra / 2, Math.min(W - 40 * S, 340 * S), 250 * S + extra));
-    const im = g.add.image(W / 2, H / 2 - 60 * S, icon).setScale(2.2);
+    const cy = H / 2 - 60 * S;
+    const im = g.add.image(W / 2, cy, icon).setScale(2.2);
     const t1 = txt(g, W / 2, H / 2 + 6 * S, title, evo || gold ? 28 : 24, evo || gold ? CSS.gold : CSS.cream);
-    const t2 = txt(g, W / 2, H / 2 + 56 * S + extra / 2, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
+    let ry = H / 2 + 56 * S + extra / 2 - blockH / 2;
+    for (const r of rewards) {
+      r.setY(ry + r.height / 2);
+      ry += r.height;
+    }
     const t3 = txt(g, W / 2, H / 2 + 100 * S + extra, 'Tap to continue', 13, CSS.muted).setAlpha(0);
-    c.add([im, t1, t2, t3]);
+    c.add([im, t1, ...rewards, t3]);
     // The first chest explains what chests do.
     if (!g.practice && tipDue('chest')) {
       markTip('chest');
-      c.add(tipBox(g, W / 2, H / 2 - 125 * S - 44 * S, TIPS.chest, 14));
+      c.add(tipIn(g, tipBox(g, W / 2, H / 2 - 125 * S - 44 * S, TIPS.chest, 14)));
     }
     g.tweens.resumeAll();
-    im.setScale(0.5);
-    g.tweens.add({ targets: im, scale: 2.2, angle: evo ? 360 : 0, duration: 500, ease: 'Back.Out' });
-    g.tweens.add({ targets: t3, alpha: 1, delay: 600, duration: 200 });
+
+    // The reveal: every step is a tween that can be jumped to its end, so a tap skips straight to the rewards.
+    const ends: (() => void)[] = [];
+    type Target = Phaser.GameObjects.Image | Phaser.GameObjects.Text;
+    const play = (target: Target, to: Partial<Record<'x' | 'y' | 'scale' | 'alpha' | 'angle', number>>, cfg: Phaser.Types.Tweens.TweenBuilderConfig | object, onEnd?: () => void): void => {
+      let ended = false;
+      const end = () => {
+        if (ended) return;
+        ended = true;
+        onEnd?.();
+      };
+      const tw = g.tweens.add({ targets: target, ...to, ...cfg, onComplete: end });
+      ends.push(() => {
+        tw.stop();
+        if (!target.scene) return;
+        for (const [k, v] of Object.entries(to)) {
+          if (k === 'scale') target.setScale(v);
+          else (target as unknown as Record<string, number>)[k] = v;
+        }
+        end();
+      });
+    };
+    /** A flash of ring and stars around the icon. */
+    const pop = () => {
+      if (!c.scene) return;
+      const ring = g.add.image(W / 2, cy, 'hitring').setTint(0xffe2a0).setScale(1);
+      c.add(ring);
+      g.tweens.add({ targets: ring, scale: 5.5, alpha: 0, duration: 380, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+      for (let i = 0; i < 8; i++) {
+        const st = g.add.image(W / 2, cy, 'star4').setTint(i % 2 ? 0xffffff : 0xffd34d).setScale(2.2);
+        c.add(st);
+        const a = (i / 8) * Math.PI * 2 + 0.3;
+        g.tweens.add({ targets: st, x: W / 2 + Math.cos(a) * 92 * S, y: cy + Math.sin(a) * 70 * S, angle: 200, scale: 0.4, alpha: 0, duration: 520, ease: 'Cubic.Out', onComplete: () => st.destroy() });
+      }
+    };
+    /** Title, then the rewards one after another, then the tap line. */
+    const payOut = (at: number) => {
+      t1.setScale(0.4).setAlpha(0);
+      play(t1, { scale: 1, alpha: 1 }, { delay: at, duration: 220, ease: 'Back.Out' });
+      rewards.forEach((r, i) => {
+        const y = r.y;
+        r.setAlpha(0).setY(y - 22 * S);
+        play(r, { y, alpha: 1 }, { delay: at + 140 + i * 130, duration: 220, ease: 'Back.Out', onStart: () => sfx('tick') });
+      });
+      play(t3, { alpha: 1 }, { delay: at + 240 + rewards.length * 130, duration: 200 });
+    };
+    if (evo || merge) {
+      // Old and new side by side: the two halves of the recipe slide together and become the new weapon.
+      const parts = merge ? [WEAPONS.lox.icon, WEAPONS.puddle.icon] : [evo!.def.icon, TOPPINGS[evo!.def.evolveWith].icon];
+      im.setScale(0).setAlpha(0);
+      const halves = parts.map((ic, i) => g.add.image(W / 2 + (i ? 52 : -52) * S, cy, ic).setScale(1.5));
+      const plus = txt(g, W / 2, cy, '+', 26, CSS.cream);
+      const star = g.add.image(W / 2 + 34 * S, cy - 30 * S, 'ic_star').setScale(0).setVisible(!merge);
+      c.add([...halves, plus, star]);
+      let merged = false;
+      const join = () => {
+        if (merged) return;
+        merged = true;
+        halves.forEach((h) => h.destroy());
+        plus.destroy();
+        pop();
+      };
+      halves.forEach((h, i) => play(h, { x: W / 2 }, { delay: 380, duration: 300, ease: 'Back.In' }, i ? join : undefined));
+      play(plus, { alpha: 0 }, { delay: 380, duration: 200 });
+      play(im, { scale: 2.2, alpha: 1 }, { delay: 680, duration: 320, ease: 'Back.Out' });
+      play(star, { scale: 0.8, angle: 360 }, { delay: 760, duration: 420, ease: 'Back.Out' });
+      payOut(760);
+    } else if (gold) {
+      // The golden toaster rattles, pops, and the rewards come out.
+      im.setScale(1.9);
+      play(im, { angle: 0 }, { duration: 420, ease: 'Linear', onUpdate: (tw: Phaser.Tweens.Tween) => im.setAngle(Math.sin(tw.progress * 26) * 9 * (1 - tw.progress * 0.3)) }, pop);
+      play(im, { scale: 2.2 }, { delay: 420, duration: 260, ease: 'Back.Out', onStart: () => im.setScale(2.9) });
+      payOut(480);
+    } else {
+      im.setScale(0.5);
+      play(im, { scale: 2.2 }, { duration: 380, ease: 'Back.Out' });
+      payOut(160);
+    }
     const openedAt = performance.now();
+    let skipped = false;
     dim.on('pointerup', () => {
-      if (performance.now() - openedAt < 600) return;
+      const dt = performance.now() - openedAt;
+      // The first moments ignore taps (a thumb lifting off the joystick). After that a tap skips the reveal,
+      // and a tap once it's all shown carries on.
+      if (dt < 250) return;
+      if (!skipped && t3.alpha < 1) {
+        skipped = true;
+        ends.splice(0).forEach((end) => end());
+        return;
+      }
+      if (dt < 600) return;
       this.close();
       g.setPaused('');
     });

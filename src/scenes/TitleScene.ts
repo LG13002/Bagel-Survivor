@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Face } from '../face';
 import { CSS, S, VERSION, safeInsets } from '../config';
 import { BAGELS } from '../data';
 import { playMusic } from '../music';
@@ -81,7 +82,9 @@ export class TitleScene extends Phaser.Scene {
     const size = Math.round((R * 2.3) / S);
     const by = Math.min(cy, bottom - 110 * S - R);
     const shadow = this.add.ellipse(W / 2, by + R * 1.0, R * 1.7, R * 0.3, 0x120c08, 0.4);
-    const hero = this.add.image(W / 2, by, giantBagel(this, bagel.tex, size));
+    const hero = this.add.image(W / 2, by, giantBagel(this, bagel.tex, size, false));
+    const face = new Face(this, hero, (size * 15.5) / 40, () => undefined);
+    face.idle = true;
     const hs = (R * 2) / (hero.width * (31 / 40)); // the bagel fills 31/40 of its picture
     hero.setScale(hs);
     this.tweens.add({ targets: hero, y: by - 8 * S, scaleX: hs * 1.02, scaleY: hs * 0.98, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });

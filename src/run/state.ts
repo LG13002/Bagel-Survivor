@@ -69,6 +69,13 @@ export class RunState {
   armor: number;
   /** Warm Mugs picked up this run (they count toward Jam Jar Lob's unlock). */
   runMugs = 0;
+  /** When the bagel was last hurt (it flattens for a moment). */
+  hurtAt = -9;
+  /** Time until the next after-image of Blueberry's dash. */
+  smearT = 0;
+  /** Real seconds of slow motion left (a boss just fell), and whether the win follows it. */
+  slowT = 0;
+  pendingWin = false;
   /** Seconds until the next resume snapshot. */
   snapT = 0;
   // Blueberry's dash, Asiago's age, Cinnamon Raisin's kill heal, Poppy's mines and Onion's aura

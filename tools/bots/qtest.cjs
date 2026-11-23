@@ -25,7 +25,7 @@ const SP = process.argv[2];
   }
   // kill the boss to test victory
   await p.evaluate(() => { const s = window.__game.scene.getScene('game'); s.run.miniKilled = true; s.endRun(true); });
-  await p.waitForTimeout(4000);
+  await p.waitForTimeout(7000); // the win holds for a moment (the hop), then fades
   console.log('scenes', await p.evaluate(() => window.__game.scene.getScenes(true).map(x=>x.scene.key).join()));
   await p.waitForTimeout(1500);
   await p.screenshot({ path: `${SP}/q_results.png` });

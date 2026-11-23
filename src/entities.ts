@@ -41,6 +41,16 @@ export class Enemy {
   burnDmg = 0;
   burnShown = false;
   flame: Phaser.GameObjects.Image | null = null;
+  /** Elites, mini-bosses and bosses (radius over 20): they get the full pose animation. */
+  big = false;
+  /** Seconds of hit squash left (big enemies). */
+  sq = 0;
+  /** Seconds left of a boss's drop onto the field: it can't move or hurt you until it lands. */
+  dropT = 0;
+  /** Seconds left of the half-health roar pose. */
+  roarT = 0;
+  /** Last frame's attack timer, to spot the moment an attack goes off. */
+  prevAtk = 0;
 }
 
 export class Player {
@@ -64,6 +74,8 @@ export interface Pickup {
   kind: 'xp' | 'coin' | 'heal' | 'chest' | 'goldchest' | 'bun' | 'mug';
   value: number;
   magnet: boolean;
+  /** Seconds left of the little hop a seed, coin or heart makes as it drops. */
+  hop?: number;
 }
 
 export interface EnemyShot {

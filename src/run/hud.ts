@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { settings } from '../settings';
+import { reducedFlash, settings } from '../settings';
 import { COLORS, CSS, S, ZOOM, fmtTime, safeInsets } from '../config';
 import { MAX_SLOTS, TOPPINGS } from '../data';
 import { button, fit, pill, txt } from '../ui';
@@ -21,8 +21,17 @@ export class Hud {
   private pause: Phaser.GameObjects.Container;
   private build: Phaser.GameObjects.Container;
   private bossName: Phaser.GameObjects.Text;
-  private bossBg: Phaser.GameObjects.Rectangle;
+  /** The boss bar's frame: name plate, ink outline, track and (for bosses with a second phase) the half-health mark. */
+  private bossBg: Phaser.GameObjects.Graphics;
+  /** The pale bar that trails behind the red one, so a big hit shows as a chunk coming off. */
+  private bossGhost: Phaser.GameObjects.Rectangle;
   private bossFill: Phaser.GameObjects.Rectangle;
+  private bossMark: Phaser.GameObjects.Graphics;
+  private bossShown = '';
+  private ghost = 1;
+  /** The screen's edge tint for the stage (always on), and the red glow at low health. */
+  private lowGlow: Phaser.GameObjects.Image;
+  private slots: string[] = [];
   private arrowGfx: Phaser.GameObjects.Graphics;
   private bossBarW = 0;
   private buildSig = '';
@@ -47,9 +56,12 @@ export class Hud {
     this.aged = g.bagel.quirkId === 'aged' ? g.ui(pill(g, 0, 0, 'ic_bk_oven', '+30%', { size: 14, h: 28, color: CSS.gold })) : null;
     this.pause = g.ui(button(g, 0, 0, 36 * S, 36 * S, 'II', () => g.panels.openPause(), { color: COLORS.panelLight, textColor: CSS.cream, size: 16, radius: 11 }));
     this.build = g.ui(g.add.container(0, 0));
-    this.bossName = g.ui(txt(g, 0, 0, '', 14, CSS.gold).setVisible(false));
-    this.bossBg = g.ui(g.add.rectangle(0, 0, 10, 10, 0x1d140d).setVisible(false));
+    this.bossBg = g.ui(g.add.graphics().setVisible(false));
+    this.bossGhost = g.ui(g.add.rectangle(0, 0, 10, 10, 0xffe2c4).setOrigin(0, 0.5).setVisible(false));
     this.bossFill = g.ui(g.add.rectangle(0, 0, 10, 10, COLORS.red).setOrigin(0, 0.5).setVisible(false));
+    this.bossMark = g.ui(g.add.graphics().setVisible(false));
+    this.bossName = g.ui(txt(g, 0, 0, '', 14, CSS.gold).setVisible(false));
+    this.lowGlow = g.ui(g.add.image(0, 0, 'vignette').setOrigin(0).setTint(0xff2a1a).setAlpha(0).setDepth(-5));
   }
 
   /** Lay everything out for the current screen size and safe area. */
@@ -79,11 +91,15 @@ export class Hud {
     const agedY = top + (this.g.quick || this.g.endless ? 96 : 60) * S;
     this.aged?.setPosition(lefty ? pad + this.aged.width / 2 : W - pad - this.aged.width / 2, agedY);
     this.build.setPosition(lefty ? W - pad - (3 * 28 + 24) * S : pad, top + 90 * S);
-    this.bossName.setPosition(W / 2, top + 140 * S);
+    this.bossName.setPosition(W / 2, top + 141 * S);
     const bw = Math.min(W - 40 * S, 320 * S);
-    this.bossBg.setPosition(W / 2, top + 158 * S).setSize(bw, 10 * S);
-    this.bossFill.setPosition(W / 2 - bw / 2 + 2 * S, top + 158 * S).setSize(bw - 4 * S, 6 * S);
+    this.bossBg.setPosition(W / 2, top + 158 * S);
+    this.bossMark.setPosition(W / 2, top + 158 * S);
+    this.bossFill.setPosition(W / 2 - bw / 2 + 2 * S, top + 158 * S).setSize(bw - 4 * S, 7 * S);
+    this.bossGhost.setPosition(W / 2 - bw / 2 + 2 * S, top + 158 * S).setSize(bw - 4 * S, 7 * S);
     this.bossBarW = bw - 4 * S;
+    this.bossShown = '';
+    this.lowGlow.setDisplaySize(W, this.g.scale.height);
   }
 
   update(): void {
@@ -114,11 +130,53 @@ export class Hud {
     this.bossName.setVisible(show);
     this.bossBg.setVisible(show);
     this.bossFill.setVisible(show);
+    this.bossGhost.setVisible(show);
     if (b && show) {
-      this.bossName.setText(b.kind === g.stage.boss.kind ? g.stage.boss.name : g.stage.mini.name);
-      this.bossFill.setSize(this.bossBarW * Math.max(0, b.hp / b.maxHp), 6 * S);
-    }
+      const isBoss = b.kind === g.stage.boss.kind;
+      const mark = isBoss && !!g.stage.boss.phase2;
+      if (this.bossShown !== b.kind) {
+        this.bossShown = b.kind;
+        this.ghost = b.hp / b.maxHp;
+        this.bossName.setText(isBoss ? g.stage.boss.name : g.stage.mini.name);
+        this.drawBossFrame(isBoss, mark);
+      }
+      const frac = Math.max(0, b.hp / b.maxHp);
+      this.ghost = frac > this.ghost ? frac : Math.max(frac, this.ghost - 0.006);
+      this.bossFill.setSize(this.bossBarW * frac, 7 * S);
+      this.bossGhost.setSize(this.bossBarW * this.ghost, 7 * S);
+      // Past the half-health mark the bar burns hotter.
+      this.bossFill.setFillStyle(mark && b.enraged ? 0xff7a2a : COLORS.red);
+    } else this.bossShown = '';
+    this.bossMark.setVisible(show && !!b && b.kind === g.stage.boss.kind && !!g.stage.boss.phase2);
+    // Low health: the screen's edges glow red and beat like the heartbeat (a steady glow when flashing is Reduced).
+    const hpFrac = g.player.hp / g.stats.maxHp;
+    const low = g.player.hp > 0 && hpFrac < 0.25;
+    const want = low ? (reducedFlash() ? 0.42 : 0.34 + 0.2 * Math.max(0, Math.sin(performance.now() / 135))) : 0;
+    const la = this.lowGlow.alpha + (want - this.lowGlow.alpha) * 0.2;
+    this.lowGlow.setAlpha(la < 0.01 ? 0 : la);
     this.drawArrows();
+  }
+
+  /** The boss bar's frame: a dark name plate, the bar's ink outline and track, and the half-health mark. */
+  private drawBossFrame(isBoss: boolean, mark: boolean): void {
+    const bw = this.bossBarW + 4 * S;
+    const gr = this.bossBg;
+    gr.clear();
+    const nw = this.bossName.width + 26 * S;
+    // Name plate: a tab sitting on the bar.
+    gr.fillStyle(0x24160d, 1).fillRoundedRect(-nw / 2 - 2 * S, -29 * S, nw + 4 * S, 26 * S, { tl: 10 * S, tr: 10 * S, bl: 0, br: 0 });
+    gr.fillStyle(isBoss ? 0x5a1d12 : 0x4a3a1c, 1).fillRoundedRect(-nw / 2, -27 * S, nw, 24 * S, { tl: 8 * S, tr: 8 * S, bl: 0, br: 0 });
+    gr.fillStyle(0x24160d, 1).fillRoundedRect(-bw / 2 - 2.5 * S, -8 * S, bw + 5 * S, 16 * S, 8 * S);
+    gr.fillStyle(0x1d140d, 1).fillRoundedRect(-bw / 2, -5.5 * S, bw, 11 * S, 5.5 * S);
+    const m = this.bossMark;
+    m.clear();
+    if (mark) {
+      // A notch at half health, where the boss changes.
+      m.fillStyle(0x24160d, 1).fillRect(-2.5 * S, -8 * S, 5 * S, 16 * S);
+      m.fillStyle(COLORS.gold, 1).fillRect(-1 * S, -6.5 * S, 2 * S, 13 * S);
+      m.fillStyle(0x24160d, 1).fillTriangle(-6 * S, 8 * S, 6 * S, 8 * S, 0, 2 * S);
+      m.fillStyle(COLORS.gold, 1).fillTriangle(-3.5 * S, 7.5 * S, 3.5 * S, 7.5 * S, 0, 4 * S);
+    }
   }
 
   /** Chunky XP bar: ink outline, fill, and a shine; drawn behind the level badge. */
@@ -141,9 +199,12 @@ export class Hud {
     const g = this.g;
     const sig = g.weapons.map((w) => `${w.def.id}${w.level}${w.evolved ? '*' : ''}`).join(',') + '|' + [...g.toppings].map(([id, lv]) => `${id}${lv}`).join(',');
     if (sig === this.buildSig) return;
+    const first = this.buildSig === '';
     this.buildSig = sig;
     const c = this.build;
     c.removeAll(true);
+    const was = this.slots;
+    this.slots = [];
     const sz = 24 * S;
     const step = 28 * S;
     const slot = (x: number, y: number, icon: string | null, lv: string, evolved: boolean) => {
@@ -151,10 +212,25 @@ export class Hud {
       gr.fillStyle(0x1d140d, icon ? 0.85 : 0.45).fillRoundedRect(x, y, sz, sz, 6 * S);
       gr.lineStyle(1.5 * S, evolved ? COLORS.gold : COLORS.panelLight, icon ? 1 : 0.5).strokeRoundedRect(x, y, sz, sz, 6 * S);
       c.add(gr);
+      const id = `${icon}${lv}`;
+      const n = this.slots.push(id) - 1;
       if (!icon) return;
-      c.add(g.add.image(x + sz / 2, y + sz / 2, icon).setScale((sz * 0.82) / (36 * S)));
+      const sc = (sz * 0.82) / (36 * S);
+      const im = g.add.image(x + sz / 2, y + sz / 2, icon).setScale(sc);
+      c.add(im);
       const t = txt(g, x + sz - 1 * S, y + sz - 2 * S, lv, 10, evolved ? CSS.gold : CSS.cream).setOrigin(1, 1);
       c.add(t);
+      // A slot that just changed pops, with a ring in its color.
+      if (first || was[n] === id) return;
+      im.setScale(sc * 2.1);
+      g.tweens.add({ targets: im, scale: sc, duration: 380, ease: 'Back.Out' });
+      t.setScale(2);
+      g.tweens.add({ targets: t, scale: 1, duration: 380, ease: 'Back.Out' });
+      const ring = g.add.graphics();
+      ring.lineStyle(2.5 * S, evolved ? COLORS.gold : 0xfff3dc, 1).strokeRoundedRect(-sz / 2, -sz / 2, sz, sz, 6 * S);
+      ring.setPosition(x + sz / 2, y + sz / 2);
+      c.add(ring);
+      g.tweens.add({ targets: ring, scale: 1.8, alpha: 0, duration: 420, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
     };
     for (let i = 0; i < MAX_SLOTS; i++) {
       const w = g.weapons[i];

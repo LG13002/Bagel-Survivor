@@ -9,6 +9,8 @@ import type { GameScene } from '../scenes/GameScene';
  * Short-lived effect sprites: sparks, crumbs, trail dots and death pops. These come and go by the hundred, so finished
  * ones are kept and reused instead of being created and thrown away. Made fresh for every run.
  */
+export type DeathStyle = 'pop' | 'crumble' | 'splat';
+
 export class Effects {
   /** Effect sprites on screen right now (busy effects are skipped when there are too many). */
   particles = 0;
@@ -40,13 +42,79 @@ export class Effects {
     return settings().saver ? n / 2 : n;
   }
 
-  /** A white copy of the enemy that swells and fades where it died. */
-  deathPop(e: Enemy): void {
+  /**
+   * How an enemy goes. Pop: a white copy swells and fades. Crumble: it breaks into chunks that tumble down.
+   * Splat: it flattens into a smear on the floor.
+   */
+  death(e: Enemy, style: DeathStyle, color: number): void {
     if (this.particles > this.cap(140)) return;
-    const im = this.fx(e.sprite.texture.key, e.x, e.y, 39);
-    const sc = e.sprite.scaleX;
-    im.setScale(sc).setTintFill(0xffffff).setRotation(e.sprite.rotation).setFlipX(e.sprite.flipX);
-    this.g.tweens.add({ targets: im, scaleX: sc * 1.6, scaleY: sc * 0.4, alpha: 0, duration: 140, ease: 'Quad.Out', onComplete: () => this.done(im) });
+    const tweens = this.g.tweens;
+    const sc = 1 / S;
+    const im = this.fx(e.sprite.texture.key, e.x, e.y, style === 'splat' ? 4 : 39);
+    im.setScale(sc).setRotation(style === 'splat' ? 0 : e.sprite.rotation).setFlipX(e.sprite.flipX);
+    if (style === 'splat') {
+      im.setTint(color).setAlpha(0.85);
+      tweens.add({ targets: im, scaleX: sc * 1.7, scaleY: sc * 0.34, y: e.y + e.radius * 0.6, duration: 110, ease: 'Quad.Out' });
+      tweens.add({ targets: im, alpha: 0, duration: 380, delay: 110, onComplete: () => this.done(im) });
+      return;
+    }
+    im.setTintFill(0xffffff);
+    if (style === 'pop') {
+      tweens.add({ targets: im, scaleX: sc * 1.6, scaleY: sc * 0.4, alpha: 0, duration: 140, ease: 'Quad.Out', onComplete: () => this.done(im) });
+      return;
+    }
+    tweens.add({ targets: im, scale: sc * 0.6, alpha: 0, duration: 90, onComplete: () => this.done(im) });
+    if (this.particles > this.cap(110)) return;
+    for (let i = 0; i < 3; i++) {
+      const ch = this.fx('chip', e.x, e.y, 39).setTint(color).setRotation(Math.random() * 6.3);
+      const big = (1.1 + Math.random() * 0.7) / S;
+      ch.setScale(big);
+      const dx = (i - 1) * 9 + (Math.random() - 0.5) * 8;
+      tweens.add({ targets: ch, x: e.x + dx, duration: 330, ease: 'Linear' });
+      tweens.add({ targets: ch, y: e.y + e.radius * 0.8 + Math.random() * 4, rotation: ch.rotation + (dx > 0 ? 3 : -3), duration: 330, ease: 'Back.In', onComplete: () => this.done(ch) });
+      tweens.add({ targets: ch, alpha: 0, duration: 110, delay: 220 });
+    }
+  }
+
+  /** The ring of dust where something heavy lands. */
+  dust(x: number, y: number, r: number): void {
+    const tweens = this.g.tweens;
+    const ring = this.fx('hitring', x, y, 6).setTint(0xf0dcb0).setAlpha(0.9);
+    ring.setScale((r / 20) / S, (r / 44) / S);
+    tweens.add({ targets: ring, scaleX: (r / 5.5) / S, scaleY: (r / 12) / S, alpha: 0, duration: 420, ease: 'Cubic.Out', onComplete: () => this.done(ring) });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const im = this.fx('dot', x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.25, 36).setTint(0xf0dcb0).setAlpha(0.9);
+      im.setScale((0.9 + Math.random() * 0.6) / S);
+      tweens.add({ targets: im, x: x + Math.cos(a) * r * 2.3, y: y + Math.sin(a) * r * 0.9 - 6, scale: 0.2 / S, alpha: 0, duration: 420 + Math.random() * 160, ease: 'Cubic.Out', onComplete: () => this.done(im) });
+    }
+  }
+
+  /** A stage boss comes apart: a white copy that swells, two shock rings, and waves of crumbs. */
+  bossBurst(e: Enemy): void {
+    const tweens = this.g.tweens;
+    const sc = 1 / S;
+    const im = this.fx(e.sprite.texture.key, e.x, e.y, 39).setTintFill(0xffffff).setFlipX(e.sprite.flipX);
+    im.setScale(sc);
+    tweens.add({ targets: im, scale: sc * 2.4, alpha: 0, duration: 420, ease: 'Cubic.Out', onComplete: () => this.done(im) });
+    for (let i = 0; i < 2; i++) {
+      const ring = this.fx('hitring', e.x, e.y, 41).setTint(i ? 0xfff3dc : 0xffb060);
+      ring.setScale(0.6 / S);
+      tweens.add({ targets: ring, scale: (i ? 7 : 5) / S, alpha: 0, duration: 520 + i * 160, delay: i * 90, ease: 'Cubic.Out', onComplete: () => this.done(ring) });
+    }
+    const few = settings().saver;
+    for (let i = 0; i < (few ? 3 : 6); i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const d = i < 3 ? 20 : 46;
+      this.burst(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, i % 2 ? 0xff7a2a : 0xffd27a, 14, 110);
+    }
+    for (let i = 0; i < (few ? 4 : 10); i++) {
+      const st = this.fx('star4', e.x, e.y, 41).setTint(0xfff3dc);
+      st.setScale(1.6 / S);
+      const a = Math.random() * Math.PI * 2;
+      const d = 60 + Math.random() * 90;
+      tweens.add({ targets: st, x: e.x + Math.cos(a) * d, y: e.y + Math.sin(a) * d, rotation: 4, scale: 0.3 / S, alpha: 0, duration: 600, ease: 'Cubic.Out', onComplete: () => this.done(st) });
+    }
   }
 
   /** A little fading dot behind a projectile (weapons at level 5 and evolved). */

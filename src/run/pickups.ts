@@ -1,9 +1,12 @@
 import type { Pickup } from '../entities';
+import { S } from '../config';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 
 /** A Warm Mug keeps frost away for this long. */
 const MUG_SAFE = 5;
+/** Seconds a dropped seed spends hopping out. */
+const HOP = 0.26;
 
 /**
  * Things on the floor to pick up: seeds (XP), coins, heals, chests, the Sticky Bun and the Warm Mug. Made fresh for
@@ -37,19 +40,34 @@ export class Pickups {
     this.drop('xp', x, y, value);
   }
 
-  drop(kind: Pickup['kind'], x: number, y: number, value: number): void {
+  drop(kind: Pickup['kind'], x: number, y: number, value: number, land = true): void {
     const g = this.g;
     const tex = kind === 'xp' ? gemTex(value) : kind;
     const isChest = kind === 'chest' || kind === 'goldchest' || kind === 'bun' || kind === 'mug';
     const sprite = g.img(tex, x, y, isChest ? 12 : 10);
+    const base = sprite.scaleX;
     if (isChest) {
-      g.tweens.add({ targets: sprite, y: y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      // Chests, buns and mugs fall in and land with a bounce, then bob.
+      if (land) {
+        sprite.y = y - 46;
+        sprite.setScale(base * 0.85, base * 1.2);
+        g.tweens.add({ targets: sprite, scaleX: base, scaleY: base, duration: 420, ease: 'Bounce.Out' });
+        g.tweens.add({ targets: sprite, y, duration: 420, ease: 'Bounce.Out', onComplete: () => this.bob(sprite, kind, y, base) });
+      } else this.bob(sprite, kind, y, base);
     }
-    if (kind === 'bun' || kind === 'mug') {
-      const base = sprite.scaleX;
-      g.tweens.add({ targets: sprite, scale: base * 1.15, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    const it: Pickup = { sprite, x, y, kind, value, magnet: false };
+    if (!isChest && land) {
+      // Seeds, coins and hearts hop out of what dropped them.
+      it.hop = HOP;
+      sprite.setScale(base * 0.5);
     }
-    this.list.push({ sprite, x, y, kind, value, magnet: false });
+    this.list.push(it);
+  }
+
+  private bob(sprite: Pickup['sprite'], kind: Pickup['kind'], y: number, base: number): void {
+    if (!sprite.scene) return;
+    this.g.tweens.add({ targets: sprite, y: y - 4, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    if (kind === 'bun' || kind === 'mug') this.g.tweens.add({ targets: sprite, scale: base * 1.15, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
   }
 
   has(kind: Pickup['kind']): boolean {
@@ -76,8 +94,18 @@ export class Pickups {
         if (d < 24 && !g.paused) this.collect(it, i);
         continue;
       }
+      if (it.hop) {
+        it.hop = Math.max(0, it.hop - dt);
+        const k = 1 - it.hop / HOP;
+        it.sprite.y = it.y - Math.sin(Math.PI * k) * 13;
+        it.sprite.setScale((0.5 + 0.5 * k) / S);
+      }
       if (!it.magnet && d < mag) it.magnet = true;
       if (it.magnet) {
+        if (it.hop) {
+          it.hop = 0;
+          it.sprite.setScale(1 / S);
+        }
         const sp = 260 + Math.max(0, 420 - d * 2);
         it.x += (dx / d) * sp * dt;
         it.y += (dy / d) * sp * dt;

@@ -2,8 +2,17 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, ZOOM } from '../config';
 import { MAX_LEVEL } from '../data';
 import { TIPS, markTip, tipDue, tipsOn, type TipId } from '../tips';
+import { sfx } from '../sfx';
 import { txt } from '../ui';
 import type { GameScene } from '../scenes/GameScene';
+
+/** Slide a tip box up into place with its soft two-note sound (the tips on panels and the menu). */
+export function tipIn<T extends Phaser.GameObjects.Container>(scene: Phaser.Scene, box: T, delay = 250): T {
+  const y = box.y;
+  box.setAlpha(0).setY(y + 18 * S);
+  scene.tweens.add({ targets: box, y, alpha: 1, delay, duration: 260, ease: 'Cubic.Out', onStart: () => sfx('tip') });
+  return box;
+}
 
 /** A tip's box: cream text on a dark plate with a gold edge. Centred on x/y (device px). */
 export function tipBox(scene: Phaser.Scene, x: number, y: number, text: string, size = 15): Phaser.GameObjects.Container {
@@ -100,7 +109,10 @@ export class Tutor {
     if (!cur.leaving && cur.age > (cur.tip.until ? 1.5 : SHOW) && !held) cur.leaving = cur.age;
     const out = cur.leaving ? (cur.age - cur.leaving) / FADE : 0;
     cur.box.setAlpha(Math.min(1, cur.age / FADE) * (1 - Math.min(1, out)));
-    cur.box.setScale(0.85 + 0.15 * Math.min(1, cur.age / FADE));
+    // It slides up into place as it fades in.
+    const k = Math.min(1, cur.age / FADE);
+    cur.box.setScale(0.85 + 0.15 * k);
+    cur.box.setY(g.scale.height / 2 + 96 * S + (1 - k) * (1 - k) * 22 * S);
     if (!cur.leaving) {
       if (cur.tip.id === 'move') this.drawThumb();
       if (cur.tip.id === 'seeds') this.drawSeedArrow();
@@ -117,6 +129,7 @@ export class Tutor {
     markTip(tip.id);
     const box = g.ui(tipBox(g, g.scale.width / 2, g.scale.height / 2 + 96 * S, TIPS[tip.id]).setDepth(850).setAlpha(0));
     this.cur = { tip, box, age: 0, leaving: 0 };
+    sfx('tip');
   }
 
   /** A ghost joystick sliding side to side, low on the screen, until a thumb goes down. */

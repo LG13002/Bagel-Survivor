@@ -16,20 +16,22 @@ import {
 } from '../data';
 import { Player, type Enemy, type Stats } from '../entities';
 import { bestStage, load, persist, recordBest } from '../save';
-import { makeRunTextures } from '../textures';
+import { bodyBagel, makeRunTextures } from '../textures';
+import { Face } from '../face';
 import { createWeapon, type FxId, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, sfx, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
 import { claimGoals } from '../goals';
 import { clearRun, loadRun, type RunSnapshot } from '../runsave';
+import { Ambient } from '../run/ambient';
 import { Director } from '../run/director';
 import { Effects } from '../run/effects';
 import { Enemies } from '../run/enemies';
 import { Floor } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { Hud } from '../run/hud';
-import { CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP } from '../run/modes';
+import { CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -103,6 +105,9 @@ export class GameScene extends Phaser.Scene implements World {
 
   // Layers, cameras and the bagel's own drawings, made in create().
   worldLayer!: Phaser.GameObjects.Layer;
+  /** The bagel's eyes (they blink, look where it's going and squint when hurt). */
+  face!: Face;
+  ambient!: Ambient;
   private uiLayer!: Phaser.GameObjects.Layer;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
   private floorTile!: Phaser.GameObjects.TileSprite;
@@ -186,13 +191,18 @@ export class GameScene extends Phaser.Scene implements World {
     this.director = new Director(this);
     this.loot = new Pickups(this);
 
-    this.player.sprite = this.img(this.bagel.tex, 0, 0, 50);
+    this.player.sprite = this.img(bodyBagel(this, this.bagel.tex), 0, 0, 50);
+    this.face = new Face(this, this.player.sprite, 15.5, (o) => {
+      o.setDepth(50.5);
+      this.worldLayer.add(o);
+    });
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
     this.hpFill = this.add.rectangle(0, 0, 30, 4, COLORS.red).setDepth(52).setOrigin(0, 0.5);
     this.worldLayer.add([this.hpBg, this.hpFill]);
 
     this.joyGfx = this.add.graphics().setDepth(900);
     this.uiLayer.add(this.joyGfx);
+    this.ambient = new Ambient(this);
     this.hud = new Hud(this);
     this.panels = new Panels(this);
     this.tutor = new Tutor(this);
@@ -433,8 +443,21 @@ export class GameScene extends Phaser.Scene implements World {
       this.hitstop -= dt;
       return;
     }
+    const r = this.run;
+    let slow = 1;
+    if (r.slowT > 0) {
+      // The boss just fell: half a second of slow motion, then (unless it's Endless) the run is won.
+      r.slowT -= dt;
+      slow = SLOWMO;
+      this.tweens.timeScale = r.slowT > 0 ? SLOWMO : 1;
+      if (r.slowT <= 0 && r.pendingWin) {
+        this.renderWorld();
+        this.endRun(true);
+        return;
+      }
+    }
     const steps = DEBUG.speed;
-    for (let i = 0; i < steps && !this.paused; i++) this.step(dt);
+    for (let i = 0; i < steps && !this.paused; i++) this.step(dt * slow);
     this.renderWorld();
     this.updateAudio();
   }
@@ -473,6 +496,8 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   writeSnapshot(): void {
+    // Not in the moment between the boss falling and the win: that would save a run with no boss left to beat.
+    if (this.run.pendingWin) return;
     writeSnapshot(this);
   }
 
@@ -561,6 +586,14 @@ export class GameScene extends Phaser.Scene implements World {
       r.vel.x = r.dashV.x * 0.35;
       r.vel.y = r.dashV.y * 0.35;
       if (this.effects.particles < 120 && Math.random() < 0.6) this.effects.burst(p.x, p.y, 0x7d6fd0, 1, 14);
+      // A smear of fading copies behind the dash.
+      r.smearT -= dt;
+      if (r.smearT <= 0 && this.effects.particles < 140) {
+        r.smearT = 0.028;
+        const im = this.effects.fx(p.sprite.texture.key, p.x, p.y, 49).setTint(0xb7a6ff).setAlpha(0.55);
+        im.setScale(p.sprite.scaleX, p.sprite.scaleY);
+        this.tweens.add({ targets: im, alpha: 0, duration: 220, onComplete: () => this.effects.done(im) });
+      }
       if (this.stage.frost) this.updateFrost(dt, true);
       return;
     }
@@ -623,7 +656,7 @@ export class GameScene extends Phaser.Scene implements World {
   damagePlayer(d: number): void {
     const p = this.player;
     const r = this.run;
-    if (DEBUG.god || this.paused || this.now < p.invulnUntil) return;
+    if (DEBUG.god || this.paused || r.pendingWin || this.now < p.invulnUntil) return;
     if (this.crispy) d *= CRISPY_DMG;
     // Hard Crust blocks 1 per rank, but a hit always does at least half.
     const armor = r.armor + (this.toppings.get('frosting') ?? 0);
@@ -633,6 +666,8 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.foes.boss) r.bossClean = false;
     shake(this, 110, 0.005);
     sfx('hurt');
+    r.hurtAt = this.now;
+    this.face.wince(0.4);
     // Shove nearby enemies away so there is room to escape.
     this.query(p.x, p.y, 70, (e) => {
       if (e.boss) return;
@@ -683,7 +718,24 @@ export class GameScene extends Phaser.Scene implements World {
     const base = 1 / S;
     const moving = Math.hypot(p.moveX, p.moveY) > 0.1;
     const squash = moving ? 0.07 * Math.sin(this.now * 20) : 0.03 * Math.sin(this.now * 4);
-    p.sprite.setPosition(p.x, p.y).setScale(base * (1 - squash), base * (1 + squash));
+    let sx = 1 - squash;
+    let sy = 1 + squash;
+    const r = this.run;
+    // A hit flattens the bagel for a moment; a dash stretches it the way it's going.
+    const hurt = Math.max(0, 1 - (this.now - r.hurtAt) / 0.22);
+    if (hurt > 0) {
+      sx *= 1 + 0.28 * hurt;
+      sy *= 1 - 0.22 * hurt;
+    }
+    if (r.dashT > 0) {
+      const dl = Math.hypot(r.dashV.x, r.dashV.y) || 1;
+      const ax = Math.abs(r.dashV.x) / dl;
+      const ay = Math.abs(r.dashV.y) / dl;
+      sx *= 1 + 0.4 * ax - 0.22 * ay;
+      sy *= 1 + 0.4 * ay - 0.22 * ax;
+    }
+    p.sprite.setPosition(p.x, p.y).setScale(base * sx, base * sy);
+    this.face.look(p.moveX, p.moveY);
     p.sprite.setRotation(moving ? p.moveX * 0.12 : 0);
     p.sprite.setAlpha(this.now < p.invulnUntil ? (Math.floor(this.now * 20) % 2 ? 0.45 : 1) : 1);
     this.hpBg.setPosition(p.x, p.y + 22);
@@ -691,6 +743,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.cameras.main.centerOn(p.x, p.y);
     this.floorTile.setPosition(Math.round(p.x / 256) * 256, Math.round(p.y / 256) * 256);
     this.hud.update();
+    this.ambient.update();
     this.drawShadows();
     this.floor.update();
     this.drawFrost();
@@ -765,6 +818,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.uiCam?.setSize(W, H);
     this.floorTile?.setSize(W / S / ZOOM + 640, H / S / ZOOM + 640);
     this.hud?.layout();
+    this.ambient?.layout();
   }
 
   // ---------------------------------------------------------------- Input
@@ -984,12 +1038,28 @@ export class GameScene extends Phaser.Scene implements World {
       firstClear,
     };
     const p = this.player.sprite;
-    if (!victory && !quit) {
-      this.tweens.add({ targets: p, angle: 540, alpha: 0, scale: 0, duration: 800, ease: 'Cubic.In' });
+    const base = 1 / S;
+    this.tweens.timeScale = 1;
+    p.setAlpha(1).setRotation(0);
+    if (victory) {
+      // A happy hop and a spin.
+      this.face.mood = 'happy';
+      this.tweens.add({ targets: p, y: p.y - 26, duration: 210, ease: 'Quad.Out', yoyo: true, repeat: 1 });
+      this.tweens.add({ targets: p, angle: 360, duration: 420, delay: 420, ease: 'Cubic.Out' });
+      this.tweens.add({ targets: p, scaleX: base * 1.15, scaleY: base * 0.88, duration: 105, yoyo: true, repeat: 3 });
+    } else if (!quit) {
+      // Defeat: the bagel droops and goes flat.
+      this.face.mood = 'sad';
+      this.tweens.add({ targets: p, scaleX: base * 1.35, scaleY: base * 0.42, y: p.y + 7, duration: 520, ease: 'Bounce.Out' });
     }
-    this.cameras.main.fadeOut(quit ? 200 : 900, 18, 12, 8);
-    this.uiCam.fadeOut(quit ? 200 : 900, 18, 12, 8);
-    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('results', result));
+    // A win holds for a moment so the hop is seen before the fade.
+    const fade = () => {
+      this.cameras.main.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
+      this.uiCam.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('results', result));
+    };
+    if (victory && !quit) this.time.delayedCall(600, fade);
+    else fade();
   }
 }
 

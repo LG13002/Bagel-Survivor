@@ -157,7 +157,8 @@ export interface BagelLook {
   sprinkles?: boolean;
 }
 
-export function drawBagel(c: Ctx, cx: number, cy: number, r: number, look: BagelLook): void {
+/** `eyes: false` leaves the eyes off, for bagels whose eyes are live sprites (see `face.ts`). */
+export function drawBagel(c: Ctx, cx: number, cy: number, r: number, look: BagelLook, eyes = true): void {
   const hole = r * 0.36;
   const line = Math.max(1.6, r * 0.15);
   const ring = () => {
@@ -256,6 +257,7 @@ export function drawBagel(c: Ctx, cx: number, cy: number, r: number, look: Bagel
   c.beginPath();
   c.arc(cx, cy, hole, 0, TAU);
   ink(c, line);
+  if (!eyes) return;
   eye(c, cx - r * 0.31, cy - r * 0.6, r * 0.24, line * 0.75);
   eye(c, cx + r * 0.31, cy - r * 0.6, r * 0.24, line * 0.75);
 }

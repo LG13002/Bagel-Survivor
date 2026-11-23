@@ -1,10 +1,10 @@
 // The "What's new" card: shown once on the menu after an update, and any time from Settings.
 // Keep it to two or three short lines about what a player will notice.
 export const WHATS_NEW: { title: string; lines: string[] } = {
-  title: 'The story begins',
+  title: 'Everything moves',
   lines: [
-    'An intro comic: meet the Stale and the king behind it. Watch it any time from Settings, About.',
-    'Every boss now arrives with a card and a line. The Toaster Tyrant has something to say.',
-    'Tips for new players, a How to play page in Settings, and cards that show what evolves with what.',
+    'Your bagel is alive: it blinks, looks where it is going, winces when hit and hops when you win.',
+    'Bosses drop in, rear up before they attack and go out with a bang. Enemies pop, crumble and splat.',
+    'Cards flip, the golden toaster pops, results count up, and every stage has its own light and air.',
   ],
 };

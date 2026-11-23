@@ -214,7 +214,8 @@ export interface StageDef {
   /** `line`: what the mini-boss says under its name when it arrives. */
   mini: { kind: EnemyKind; name: string; banner: string; line: string };
   /** `card`: the boss's line on the big announcement card when it arrives. */
-  boss: { kind: EnemyKind; name: string; banner: string; card: string };
+  /** `phase2`: it changes at half health (the boss bar marks the spot). */
+  boss: { kind: EnemyKind; name: string; banner: string; card: string; phase2?: boolean };
   /** One line of story on the results screen the first time the stage is cleared. */
   outro: string;
   music: { run: SongId; boss: SongId };
@@ -289,7 +290,7 @@ export const STAGES: StageDef[] = [
     ],
     extras: [{ at: 240, kind: 'tyrantjr', banner: 'Tyrant Jr. wants a turn!', color: '#ffb36b' }],
     mini: { kind: 'waffle', name: 'Frozen Waffle', banner: 'Frozen Waffle!', line: 'Chill out!' },
-    boss: { kind: 'fburn', name: 'The Freezer Burn', banner: 'THE FREEZER BURN', card: 'Time to feel the burn!' },
+    boss: { kind: 'fburn', name: 'The Freezer Burn', banner: 'THE FREEZER BURN', card: 'Time to feel the burn!', phase2: true },
     outro: 'The Stale flees into the Toaster Oven. After it!',
     music: { run: 'frun', boss: 'fboss' },
   },
@@ -327,7 +328,7 @@ export const STAGES: StageDef[] = [
     elites: [{ kind: 'muffin', banner: 'A Molten Muffin! Mind the fire.', color: '#ff9a3c' }],
     extras: [{ at: 240, kind: 'fburnt', banner: 'The Freezer Burn is back for revenge!', color: '#ff7a5c' }],
     mini: { kind: 'flapjack', name: 'Flapjack Stack', banner: 'Flapjack Stack!', line: "You're about to get flattened!" },
-    boss: { kind: 'broiler', name: 'The Broiler', banner: 'THE BROILER', card: 'Things are heating up!' },
+    boss: { kind: 'broiler', name: 'The Broiler', banner: 'THE BROILER', card: 'Things are heating up!', phase2: true },
     outro: 'The oven is yours. But in the bread bin, a crown glints in the dark...',
     music: { run: 'orun', boss: 'oboss' },
   },

@@ -6,7 +6,8 @@ import { load, persist } from '../save';
 import { sfx, type Sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { behave, type Move } from './behaviors';
-import { CRISPY_HP, ENDLESS_BOSS_EVERY, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY } from './modes';
+import type { DeathStyle } from './effects';
+import { CRISPY_HP, ENDLESS_BOSS_EVERY, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, SLOWMO_TIME } from './modes';
 
 /** Spatial grid cell size for hit checks and crowd separation. */
 const CELL = 48;
@@ -22,6 +23,15 @@ const KILL_SFX: Record<EnemyKind, Sfx> = {
   ember: 'crunch', btoast: 'crunch', hotsauce: 'splat', popcorn: 'popcorn', popbit: 'crunch', tot: 'clatter', wafflebit: 'crunch', mscoop: 'splat',
   muffin: 'pop', fburnt: 'shatter', flapjack: 'pop', broiler: 'pop',
 };
+
+/** How an enemy comes apart: a pop (soft things, elites), a crumble (dry and hard things) or a splat (wet things). */
+const DEATH: Partial<Record<Sfx, DeathStyle>> = { crunch: 'crumble', clatter: 'crumble', shatter: 'crumble', splat: 'splat' };
+/** Big enemies that rear up just before a timed attack (the attack's own timing is untouched). */
+const WINDUP = new Set<EnemyKind>(['croissant', 'toaster', 'fcroissant', 'tyrantjr', 'fburn', 'fburnt', 'flapjack', 'broiler']);
+const WIND = 0.4;
+/** A boss's drop onto the field. */
+export const DROP_TIME = 0.7;
+const ROAR_TIME = 0.8;
 
 /**
  * Every enemy in the run: spawning, the per-step update (movement, crowding, contact damage), burning, deaths and
@@ -51,7 +61,7 @@ export class Enemies {
    * A point just off-screen. While the player is moving, most spawns land in the direction
    * of travel (within ±75°), so running away never leaves an empty lane ahead.
    */
-  spawnPoint(aheadBias = 0.7): { x: number; y: number } {
+  spawnPoint(aheadBias = 0.7, off = 40): { x: number; y: number } {
     const g = this.g;
     const p = g.player;
     const moving = Math.hypot(p.moveX, p.moveY) > 0.3;
@@ -61,7 +71,7 @@ export class Enemies {
     const dx = Math.cos(a);
     const dy = Math.sin(a);
     const edge = Math.min(g.viewW() / 2 / Math.max(Math.abs(dx), 1e-3), g.viewH() / 2 / Math.max(Math.abs(dy), 1e-3));
-    const d = edge + 40;
+    const d = edge + off;
     return { x: p.x + dx * d, y: p.y + dy * d };
   }
 
@@ -69,6 +79,17 @@ export class Enemies {
   spawnNear(kind: EnemyKind, hpMult = 1): Enemy | null {
     const sp = this.spawnPoint();
     return this.spawn(kind, sp.x, sp.y, hpMult);
+  }
+
+  /** A boss's entrance: it drops from above onto a spot just inside the screen edge, and lands with a ring of dust. */
+  dropIn(kind: EnemyKind): Enemy | null {
+    const sp = this.spawnPoint(0.7, -(ENEMIES[kind].radius + 6));
+    const e = this.spawn(kind, sp.x, sp.y, 1);
+    if (e) {
+      e.dropT = DROP_TIME;
+      e.sprite.setVisible(false);
+    }
+    return e;
   }
 
   /** A ring of n enemies all around the screen edge, closing in; kinds take turns. */
@@ -124,6 +145,9 @@ export class Enemies {
     e.burnUntil = 0;
     e.burnShown = false;
     e.flashOn = false;
+    e.big = isBig;
+    e.sq = e.dropT = e.roarT = 0;
+    e.prevAtk = e.attackT;
     e.hitCd.clear();
     this.list.push(e);
     if (isBig) this.bigs.push(e);
@@ -225,6 +249,8 @@ export class Enemies {
         if (!e.alive) continue;
       }
       behave(g, e, m, dt);
+      // A boss in the middle of its drop stays where it will land.
+      if (e.dropT > 0) m.mvx = m.mvy = e.kx = e.ky = 0;
 
       e.x += (m.mvx + e.kx) * dt;
       e.y += (m.mvy + e.ky) * dt;
@@ -276,7 +302,7 @@ export class Enemies {
       const cx = e.x - p.x;
       const cy = e.y - p.y;
       const rr = e.radius + p.radius - 3;
-      if (cx * cx + cy * cy < rr * rr) {
+      if (cx * cx + cy * cy < rr * rr && e.dropT <= 0) {
         if (g.bagel.quirkId === 'tank' && !e.boss) {
           const dl = Math.hypot(cx, cy) || 1;
           g.hit(e, 15 * g.stats.damage, (cx / dl) * 260, (cy / dl) * 260, 'tank', 0.4);
@@ -291,9 +317,72 @@ export class Enemies {
         // The white hit flash becomes a soft pink tint when Flashing effects is Reduced.
         if (flashing) reducedFlash() ? e.sprite.setTint(0xffb8b0) : e.sprite.setTintFill(0xffffff);
         else e.sprite.clearTint();
+        // A hit squashes it: small enemies for as long as the flash, big ones with a springy wobble (in `pose`).
+        if (e.big) {
+          if (flashing) e.sq = 0.16;
+        } else e.sprite.setScale(flashing ? SQ_X : BASE, flashing ? SQ_Y : BASE);
       }
+      if (e.big) this.pose(e, dt);
       if (g.paused === 'over') return;
     }
+  }
+
+  /** A big enemy's pose for this frame: breathing, hit wobble, wind-up, roar and the drop onto the field. */
+  private pose(e: Enemy, dt: number): void {
+    const g = this.g;
+    const t = g.now;
+    const br = 0.02 * Math.sin(t * 3 + e.phase);
+    let sx = 1 + br;
+    let sy = 1 - br;
+    let oy = 0;
+    if (e.sq > 0) {
+      e.sq -= dt;
+      const k = Math.max(0, e.sq) / 0.16;
+      sx += 0.1 * k;
+      sy -= 0.1 * k;
+    }
+    if (WINDUP.has(e.kind)) {
+      // Rear up before a timed attack, and flatten out as it goes off.
+      if (e.attackT > 0 && e.attackT < WIND) {
+        const k = 1 - e.attackT / WIND;
+        sx -= 0.07 * k;
+        sy += 0.12 * k;
+      }
+      if (e.attackT > e.prevAtk + 0.5) e.sq = 0.22;
+      e.prevAtk = e.attackT;
+    } else if (e.kind === 'waffle') {
+      // The Frozen Waffle crouches before a charge and stretches out during it.
+      if (e.state === 1) {
+        const k = 1 - Math.max(0, e.stateT) / 0.8;
+        sx += 0.1 * k;
+        sy -= 0.13 * k;
+      } else if (e.state === 2) {
+        sx -= 0.06;
+        sy += 0.09;
+      }
+    }
+    if (e.roarT > 0) {
+      e.roarT -= dt;
+      const k = Math.sin(Math.PI * Math.min(1, 1 - e.roarT / ROAR_TIME));
+      sx += 0.24 * k;
+      sy += 0.24 * k;
+      oy -= 6 * k;
+    }
+    if (e.dropT > 0) {
+      e.dropT -= dt;
+      const k = Math.max(0, e.dropT) / DROP_TIME;
+      oy -= k * k * (g.viewH() * 0.9);
+      sx *= 1 - 0.14 * k;
+      sy *= 1 + 0.22 * k;
+      e.sprite.setVisible(true);
+      if (e.dropT <= 0) {
+        e.sq = 0.3;
+        g.effects.dust(e.x, e.y + e.radius * 0.7, e.radius);
+        sfx('thud');
+        shake(g, 220, 0.008);
+      }
+    }
+    e.sprite.setPosition(e.x, e.y + oy).setScale(BASE * sx, BASE * sy);
   }
 
   /** Move dead enemies to the pool. */
@@ -378,10 +467,12 @@ export class Enemies {
       g.player.hp = Math.min(g.stats.maxHp, g.player.hp + 1);
     }
     sfx(KILL_SFX[e.kind]);
-    g.effects.deathPop(e);
     const big = e.radius > 20;
     const def = ENEMIES[e.kind];
-    g.effects.burst(e.x, e.y, def.burst ?? 0xb57a3c, big ? 18 : 6, big ? 60 : 30);
+    const color = def.burst ?? 0xb57a3c;
+    const style: DeathStyle = big ? 'pop' : DEATH[KILL_SFX[e.kind]] ?? 'pop';
+    g.effects.death(e, style, color);
+    g.effects.burst(e.x, e.y, color, big ? 18 : style === 'pop' ? 6 : 3, big ? 60 : 30);
     if (def.split) {
       const n = def.split.n;
       for (let i = 0; i < n; i++) {
@@ -435,9 +526,14 @@ export class Enemies {
     if (g.run.bossClean) g.run.noHitBoss = true;
     shake(g, 600, 0.012);
     flash(g, 300, 255, 240, 200);
-    for (let i = 0; i < 4; i++) g.effects.burst(e.x + (Math.random() - 0.5) * 60, e.y + (Math.random() - 0.5) * 60, 0xff7a2a, 16, 90);
+    g.effects.bossBurst(e);
+    // Half a second of slow motion to take it in.
+    g.run.slowT = SLOWMO_TIME;
     if (!g.endless) {
-      g.endRun(true);
+      // The win follows the slow motion (see `GameScene.update`). Nothing can hurt the bagel in between.
+      g.run.pendingWin = true;
+      g.hz.clearShots();
+      g.hz.clearBeams();
       return;
     }
     // Endless: the stage counts as cleared, and the run carries on, harder.
@@ -458,6 +554,10 @@ export class Enemies {
     } else g.hud.banner(`${g.stage.boss.name} beaten again!`, CSS.gold, 24);
   }
 }
+
+const BASE = 1 / S;
+const SQ_X = BASE * 1.2;
+const SQ_Y = BASE * 0.82;
 
 function cellKey(cx: number, cy: number): number {
   return ((cx & 0xffff) << 16) | (cy & 0xffff);

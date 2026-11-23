@@ -22,6 +22,8 @@ interface Song {
   loop: boolean;
   /** Run themes: layers join as the run's intensity rises, and the tempo can be nudged. */
   layered?: boolean;
+  /** The song's level in the mix (1 if left out). Set from measured loudness so no song jumps out: see MIX below. */
+  level?: number;
   tracks: Track[];
 }
 
@@ -45,6 +47,10 @@ const hz = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
 // ---------------------------------------------------------------- Songs
 
+// MIX (M14): each song's `level` comes from measuring its average loudness on the music bus with
+// `tools/bots/mixtest.cjs`. Before, the boss themes were 4 to 6 dB quieter than the run theme they cut in on, and the
+// bass layer made the run themes jump 7 to 10 dB at 2:00. Now every run theme at full strength and every boss theme
+// sits within about 1.5 dB of the others, with the boss a touch on top. Re-run the bot after changing a song.
 const SONGS: Record<SongId, Song> = {
   // Relaxed, jazzy bakery tune with a walking bass.
   menu: {
@@ -76,6 +82,7 @@ const SONGS: Record<SongId, Song> = {
 
   // Upbeat run theme: lead and bouncy chords from the start, drums join at 1:00, bass at 2:00.
   run: {
+    level: 1.35,
     bpm: 132,
     res: 2,
     loop: true,
@@ -98,6 +105,7 @@ const SONGS: Record<SongId, Song> = {
       {
         inst: 'bass',
         layer: 2,
+        vol: 0.6,
         steps: seq(`F2 F3 F2 F3 F2 F3 F2 F3 | D2 D3 D2 D3 D2 D3 D2 D3 | Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 | C2 C3 C2 C3 C2 C3 C2 C3
                     F2 F3 F2 F3 F2 F3 F2 F3 | D2 D3 D2 D3 D2 D3 D2 D3 | Bb1 Bb2 Bb1 Bb2 C2 C3 C2 C3 | F2 F3 F2 F3 F2 F3 F2 F3`),
       },
@@ -106,6 +114,7 @@ const SONGS: Record<SongId, Song> = {
 
   // Heavier boss loop in A minor.
   boss: {
+    level: 2.1,
     bpm: 150,
     res: 2,
     loop: true,
@@ -166,6 +175,7 @@ const SONGS: Record<SongId, Song> = {
 
   // The Freezer Burn: heavy, in D minor, with icy bell stabs.
   fboss: {
+    level: 1.7,
     bpm: 150,
     res: 2,
     loop: true,
@@ -196,6 +206,7 @@ const SONGS: Record<SongId, Song> = {
 
   // The Toaster Oven: fast and hot in E minor, with a frying-pan sizzle in the drums. Drums join at 1:00, bass at 2:00.
   orun: {
+    level: 1.35,
     bpm: 140,
     res: 2,
     loop: true,
@@ -219,6 +230,7 @@ const SONGS: Record<SongId, Song> = {
       {
         inst: 'bass',
         layer: 2,
+        vol: 0.6,
         steps: seq(`E2 E3 E2 E3 E2 E3 E2 E3 | D2 D3 D2 D3 D2 D3 D2 D3 | C2 C3 C2 C3 C2 C3 C2 C3 | B1 B2 B1 B2 B1 B2 B1 B2
                     E2 E3 E2 E3 E2 E3 E2 E3 | C2 C3 C2 C3 C2 C3 C2 C3 | A1 A2 A1 A2 B1 B2 B1 B2 | E2 E3 E2 E3 E2 E3 E2 E3`),
       },
@@ -227,6 +239,7 @@ const SONGS: Record<SongId, Song> = {
 
   // The Broiler: the heaviest loop in the game. Fast, low and grinding, in E minor with sizzle on every step.
   oboss: {
+    level: 1.35,
     bpm: 164,
     res: 2,
     loop: true,
@@ -272,6 +285,7 @@ const SONGS: Record<SongId, Song> = {
 
   // Slightly sad "wah-wah-wah-waaah" for going stale.
   stale: {
+    level: 1.6,
     bpm: 96,
     res: 2,
     loop: false,
@@ -448,11 +462,25 @@ function stepLen(p: Playing): number {
   return 60 / (p.song.bpm * (p.song.layered ? tempo : 1)) / p.song.res;
 }
 
+/** A song on its way out keeps playing while it fades, so one song melts into the next. */
+let fading: { p: Playing; until: number }[] = [];
+/** Crossfade times, in seconds: the old song's fade out and the new one's fade in. */
+const FADE_OUT = 0.9;
+const FADE_IN = 0.6;
+
 function schedule(): void {
   const ctx = audioCtx();
   const out = musicOut();
-  const p = current;
-  if (!ctx || !out || !p || p.done || ctx.state !== 'running') return;
+  if (!ctx || !out || ctx.state !== 'running') return;
+  if (current && !current.done) scheduleOne(ctx, current);
+  if (fading.length) {
+    for (const f of fading) if (ctx.currentTime < f.until) scheduleOne(ctx, f.p);
+    fading = fading.filter((f) => ctx.currentTime < f.until);
+  }
+}
+
+function scheduleOne(ctx: AudioContext, p: Playing): void {
+  if (p.done) return;
   const total = Math.max(...p.song.tracks.map((tr) => tr.steps.length));
   while (p.next < ctx.currentTime + 0.15) {
     if (p.step >= total) {
@@ -483,21 +511,36 @@ function schedule(): void {
   }
 }
 
+/** Fade a song out. It keeps playing under the fade (`quick`: a short fade, for when a jingle cuts in). */
+function retire(ctx: AudioContext, old: Playing, quick: boolean): void {
+  const dur = quick ? 0.35 : FADE_OUT;
+  const g = old.gain.gain;
+  g.cancelScheduledValues(ctx.currentTime);
+  g.setValueAtTime(g.value, ctx.currentTime);
+  g.linearRampToValueAtTime(0.0001, ctx.currentTime + dur);
+  if (!old.done) fading.push({ p: old, until: ctx.currentTime + dur });
+  window.setTimeout(() => {
+    old.done = true;
+    old.gain.disconnect();
+  }, dur * 1000 + 400);
+}
+
 function start(id: SongId): void {
   const ctx = audioCtx();
   const out = musicOut();
   if (!ctx || !out) return;
-  if (current) {
-    // Quick fade on the old song, then let it go.
-    const old = current;
-    old.done = true;
-    old.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12);
-    window.setTimeout(() => old.gain.disconnect(), 800);
-  }
+  const song = SONGS[id];
+  // A looping song fades in over the one before it. A jingle starts at full strength, and the old song ducks fast.
+  const cross = song.loop && !!current && !current.done;
+  if (current) retire(ctx, current, !song.loop);
   const gain = ctx.createGain();
-  gain.gain.value = 1;
+  const level = song.level ?? 1;
+  if (cross) {
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(level, ctx.currentTime + FADE_IN);
+  } else gain.gain.value = level;
   gain.connect(out);
-  current = { id, song: SONGS[id], gain, step: 0, next: ctx.currentTime + 0.06, done: false };
+  current = { id, song, gain, step: 0, next: ctx.currentTime + 0.06, done: false };
   if (timer === null) timer = window.setInterval(schedule, 25);
   schedule();
 }
@@ -532,14 +575,36 @@ export function playJingle(id: 'win' | 'stale'): void {
 export function stopMusic(): void {
   wanted = null;
   const ctx = audioCtx();
-  if (current && ctx) {
-    const old = current;
-    old.done = true;
-    old.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12);
-    window.setTimeout(() => old.gain.disconnect(), 800);
-  }
+  if (current && ctx) retire(ctx, current, true);
   current = null;
 }
+
+/**
+ * For the mix bot (`tools/bots/mixtest.cjs`): how loud the music bus is right now, as RMS over the last 2048 samples.
+ * The meter is only attached the first time this is called, so the game itself never pays for it.
+ */
+let meter: AnalyserNode | null = null;
+(window as unknown as { __musicLevel: () => number }).__musicLevel = () => {
+  const ctx = audioCtx();
+  const out = musicOut();
+  if (!ctx || !out) return 0;
+  if (!meter) {
+    meter = ctx.createAnalyser();
+    meter.fftSize = 2048;
+    out.connect(meter);
+  }
+  const buf = new Float32Array(meter.fftSize);
+  meter.getFloatTimeDomainData(buf);
+  let sum = 0;
+  for (const v of buf) sum += v * v;
+  return Math.sqrt(sum / buf.length);
+};
+(window as unknown as { __musicTest: (id: SongId, level: number) => void }).__musicTest = (id, level) => {
+  wanted = id;
+  intensity = level;
+  tempo = 1;
+  start(id);
+};
 
 // Read-only peek for automated tests.
 (window as unknown as { __music: () => object }).__music = () => ({ id: current?.done ? null : (current?.id ?? null), wanted, intensity, tempo, step: current?.step ?? -1 });

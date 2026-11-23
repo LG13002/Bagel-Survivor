@@ -18,6 +18,7 @@ This is the history and the decisions behind the current game. The working rules
 | Phase 3 style board | https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D |
 | M12 change list (Foundations) | https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA |
 | M13 change list (Onboarding and story) | https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44 |
+| M14 change list (Animation and feel) | https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL |
 
 ## The owner's standing decisions
 
@@ -277,6 +278,29 @@ Decisions made while building: the comic plays once for existing saves too (it i
 
 How it was checked: `tutortest.cjs` (a brand-new save from the title screen through the comic, the locked menu, a first run with each tip once and in order, the Bakery button, NEW tags, a second run with no tips, Tips off, Replay tutorial) at 390x760 and 390x640. `savetest.cjs` grew to 72 checks with an M12-era save: old saves get no tutorial and every button open. Quick Run clear and Sticky Bun bots pass. Weapon bench against the M12 build, run side by side: Rolling Pin level 3 at 251 to 279 damage a second on M13 and 251 to 304 on M12 (the same spread run to run), Sesame Shot level 3 at 95 (M12: 91).
 
+### Phase 3, M14: Animation and feel (version 0.14)
+
+Built from the approved [M14 change list](https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL) (27 items plus the three suggestions), on the same branch and PR as M12 and M13. No gameplay numbers changed.
+
+- **Bagels:** living eyes (`src/face.ts`: blink, look where you move, squint when hit), a flattening wince on a hit, a smear of after-images behind Blueberry's dash, a hop and spin on a win, a droop on defeat. The title and menu bagels blink and glance about, and the menu bagel hops when tapped.
+- **Enemies:** a squash on every hit, three ways to go (pop, crumble, splat, picked by the enemy's kill sound), seeds that hop out, chests, buns and mugs that land with a bounce.
+- **Bosses:** mini-bosses and bosses drop in with a ring of dust, rear up before a timed attack, roar at half health (Freezer Burn, Broiler), and go out with a bigger burst and half a second of slow motion.
+- **HUD and pop-ups:** build slots pop when they change, the boss bar has a name plate and a half-health notch, the screen's edges glow red under 25% health, level-up cards flip over, the golden toaster rattles and pops and its rewards come out one at a time, evolutions show both halves of the recipe sliding together. A tap skips any of these.
+- **Results:** numbers count up, the run's Dough flies to a purse on the panel, a new best stamps down, and the nearest bagel unlock has a progress bar. A tap skips.
+- **Stages:** the upgraded lighting on the in-run bagel, enemies, bosses and pickups; a tinted edge per stage (warm Bakery, cold Freezer, red-hot oven); specks in the air (flour dust, frost, sparks and heat haze); three new floor props per stage (whisk, eggshells, recipe card; frozen berries, freezer pop, frost crystal; oven mitt, fork, thermometer dial).
+- **Sound:** songs crossfade. The mix was measured (`tools/bots/mixtest.cjs`): the boss themes were 4 to 6 dB quieter than the run theme they cut in on (Bakery boss -20.7 dB against -14.3 dB), and the bass layer made the run themes jump by up to 10 dB at 2:00. Now every run theme at full strength and every boss theme sits between -15.6 and -13.5 dB. Repeated sounds vary slightly in pitch. New sounds: a thud, a card flip, a tip's two notes, a counting tick.
+
+Deviations from the list, told to the owner:
+- **Bosses and mini-bosses appear closer.** To be seen dropping in, they land just inside the screen edge instead of walking in from about 40 units outside it: roughly 80 to 90 units closer than before. For the 0.7 seconds of the drop they stand still and can't hurt by touch. `bosstime.cjs` on both builds: every boss arrives at 4:30 and first attacks about 1.45s later, same as M13.
+- **The win holds for 0.6 seconds** before the fade (so the hop is seen), after the half second of slow motion.
+- **Battery saver also turns off the edge tint,** not only the specks (see the frame-rate note).
+- **Item 26's fallback was built in from the start:** regular enemies only ever get the cheap squash (a scale change when the hit flash turns on or off). Only big enemies are posed every frame.
+
+How it was checked:
+- Frame rate (`fpsbench.cjs`, 12 seconds from about 4:10, M14 and M13 served side by side): Bakery 15.8 against 18.4 frames a second, Freezer 16.1 against 19.0, oven 14.7 against 16.7; a second Bakery pair read 17.6 against 18.5. So 5 to 15% lower in the bot. The bot draws without a graphics chip, where filling the screen is the slow part, and the stage's edge tint is one more screen-sized layer: with the tint hidden the Bakery read 18.3, level with M13. A phone's graphics chip handles one such layer easily, but if the owner's phone feels slower, the tint is the first thing to cut (Battery saver already does).
+- Weapon bench against M13, alternating: Rolling Pin level 3 at 217 and 272 damage a second (M13: 300 and 264), Sesame Shot level 3 at 99 and 104 (M13: 109 and 103). The usual run-to-run spread.
+- `savetest.cjs` (72 checks), `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Screens and slowed-down frames of each animation were looked at by hand.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
@@ -308,4 +332,7 @@ Sesame Shot stays weak at level 3 on purpose (it's the starter). Evolved numbers
 - **Overlay colors on finished art** (`source-atop`) wash out the ink outlines. `relight` uses the "overlay" blend through a spare canvas so dark stays dark.
 - **A missing texture doesn't throw:** it draws a placeholder box. After adding art, check with a bot that no sprite's texture key is `__MISSING`.
 - **The weapon bench drifts with the machine's frame rate:** the same build can read 250 or 300 on the same weapon. To compare two builds, build the old commit into a second folder, serve it on another port (`PORT=`) and alternate runs.
+- **A scene's clock runs slow in headless runs** (few frames, and each frame's time is capped), so a 600 ms delay can take seconds. Bots should wait for a state (`scene.isActive('results')`, `results.playing`) instead of a fixed time.
+- **To photograph an animation,** slow it down: `scene.tweens.timeScale = 0.08`, then take screenshots a second apart.
+- **Full-screen layers are what the bot's frame rate feels.** It draws without a graphics chip, so one screen-sized see-through picture costs it about 5%. Phones barely notice, but keep such layers few.
 - **Old version on the owner's phone after a deploy:** fully close and reopen the home-screen app.
