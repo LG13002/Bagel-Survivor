@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { StageDef } from './data';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, drawButcherBlock, drawFreezerFloor, drawOvenFloor, drawStageThumb } from './floors';
-import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, type BagelLook } from './art';
+import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, relight, type BagelLook } from './art';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -32,14 +32,67 @@ const BAGEL_LOOKS: Record<string, BagelLook> = {
 };
 
 /** The large (160px) picture of one bagel, for the menu's hero bagel and the results screen. Drawn the first time it's shown. */
-export function bigBagel(scene: Phaser.Scene, key: string): string {
+export function bigBagel(scene: Phaser.Scene, key: string, eyes = true): string {
   const look = BAGEL_LOOKS[key] ?? BAGEL_LOOKS.bagel_plain;
-  ctex(scene, `${key}_big`, 160, 160, (c) => {
+  const name = `${key}_big${eyes ? '' : 'body'}`;
+  ctex(scene, name, 160, 160, (c) => {
+    c.save();
     c.translate(80, 80);
     c.scale(4, 4);
-    drawBagel(c, 0, 0, 15.5, look);
+    drawBagel(c, 0, 0, 15.5, look, eyes);
+    c.restore();
+    relight(c, 160, 160);
   });
-  return `${key}_big`;
+  return name;
+}
+
+/** The small (40px) bagel with no eyes and the upgraded lighting: the one that runs around, with a `Face` on top. */
+export function bodyBagel(scene: Phaser.Scene, key: string): string {
+  const look = BAGEL_LOOKS[key] ?? BAGEL_LOOKS.bagel_plain;
+  ctex(scene, `${key}_body`, 40, 40, (c) => {
+    drawBagel(c, 20, 20, 15.5, look, false);
+    relight(c, 40, 40);
+  });
+  return `${key}_body`;
+}
+
+/** One bagel drawn `size` px across, for the title screen's giant bagel. The caller removes it when done. */
+export function giantBagel(scene: Phaser.Scene, key: string, size: number, eyes = true): string {
+  const look = BAGEL_LOOKS[key] ?? BAGEL_LOOKS.bagel_plain;
+  const name = `${key}_giant`;
+  if (scene.textures.exists(name)) scene.textures.remove(name);
+  ctex(scene, name, size, size, (c) => {
+    c.save();
+    c.translate(size / 2, size / 2);
+    c.scale(size / 40, size / 40);
+    drawBagel(c, 0, 0, 15.5, look, eyes);
+    c.restore();
+    relight(c, size, size);
+  });
+  return name;
+}
+
+/** A crumb gone grey and stale, for the title screen. */
+export function staleCrumb(scene: Phaser.Scene): string {
+  ctex(scene, 'stale_crumb', 24, 24, (c) => {
+    drawCrumb(c, 12, 12, 10);
+    // Drain the color inside the crumb's own shape, then lift it a little so it reads as grey, not dark.
+    c.globalCompositeOperation = 'source-atop';
+    c.fillStyle = 'rgba(150,146,140,0.62)';
+    c.fillRect(0, 0, 24, 24);
+    c.globalCompositeOperation = 'source-over';
+  });
+  return 'stale_crumb';
+}
+
+/** A texture with the upgraded lighting on top (enemies, bosses and pickups; never the XP seeds or flat floor art). */
+function lit(scene: Phaser.Scene, key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void): void {
+  ctex(scene, key, w, h, (c) => {
+    c.save();
+    draw(c);
+    c.restore();
+    relight(c, w, h);
+  });
 }
 
 /**
@@ -59,17 +112,17 @@ export function makeTextures(scene: Phaser.Scene): void {
     ctex(scene, `thumb_${id}_sm`, 40, 30, (c) => drawStageThumb(c, id, 40, 30));
   }
   // The Stale Crumb is also the kill counter's icon.
-  ctex(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));
+  lit(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));
   // Pickups: bright and glowing so they never read as enemies.
   ctex(scene, 'gem1', 16, 16, (c) => drawGem(c, 16, 8, '#45d9f3', '#e6fbff', '#1b6f86'));
   ctex(scene, 'gem2', 16, 16, (c) => drawGem(c, 16, 10, '#7dff8a', '#efffef', '#22813a'));
   ctex(scene, 'gem3', 16, 16, (c) => drawGem(c, 16, 12.5, '#ff6bd5', '#ffe6f8', '#8f2a78'));
-  ctex(scene, 'coin', 14, 14, (c) => drawCoin(c, 14));
-  ctex(scene, 'heal', 18, 18, (c) => drawHeal(c, 18));
-  ctex(scene, 'chest', 30, 26, (c) => drawBasket(c, 30, 26));
-  ctex(scene, 'goldchest', 30, 28, (c) => drawGoldToaster(c, 30, 28));
-  ctex(scene, 'bun', 38, 38, (c) => drawStickyBun(c, 38));
-  ctex(scene, 'mug', 36, 36, (c) => drawWarmMug(c, 36));
+  lit(scene, 'coin', 14, 14, (c) => drawCoin(c, 14));
+  lit(scene, 'heal', 18, 18, (c) => drawHeal(c, 18));
+  lit(scene, 'chest', 30, 26, (c) => drawBasket(c, 30, 26));
+  lit(scene, 'goldchest', 30, 28, (c) => drawGoldToaster(c, 30, 28));
+  lit(scene, 'bun', 38, 38, (c) => drawStickyBun(c, 38));
+  lit(scene, 'mug', 36, 36, (c) => drawWarmMug(c, 36));
   tex(scene, 'dot', 8, 8, (g) => {
     g.fillStyle(0xffffff).fillCircle(4, 4, 4);
   });
@@ -90,50 +143,50 @@ export function makeTextures(scene: Phaser.Scene): void {
 /** Every enemy's picture, all stages (they are small). */
 export function makeEnemyTextures(scene: Phaser.Scene): void {
   // Enemies: dark bodies with red eyes so they never read as loot.
-  ctex(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));
-  ctex(scene, 'en_mold', 32, 32, (c) => drawMold(c, 16, 16, 14));
-  ctex(scene, 'en_moldling', 22, 22, (c) => drawMold(c, 11, 11, 9.5));
-  ctex(scene, 'en_elite', 64, 64, (c) => drawElite(c, 32, 33, 27));
-  ctex(scene, 'en_knife', 40, 14, (c) => drawKnife(c, 14));
-  ctex(scene, 'en_ant', 20, 14, (c) => drawAnt(c, 14));
-  ctex(scene, 'en_croissant', 72, 56, (c) => drawCroissant(c));
-  ctex(scene, 'en_toaster', 84, 76, (c) => drawToaster(c));
+  lit(scene, 'en_crumb', 24, 24, (c) => drawCrumb(c, 12, 12, 10));
+  lit(scene, 'en_mold', 32, 32, (c) => drawMold(c, 16, 16, 14));
+  lit(scene, 'en_moldling', 22, 22, (c) => drawMold(c, 11, 11, 9.5));
+  lit(scene, 'en_elite', 64, 64, (c) => drawElite(c, 32, 33, 27));
+  lit(scene, 'en_knife', 40, 14, (c) => drawKnife(c, 14));
+  lit(scene, 'en_ant', 20, 14, (c) => drawAnt(c, 14));
+  lit(scene, 'en_croissant', 72, 56, (c) => drawCroissant(c));
+  lit(scene, 'en_toaster', 84, 76, (c) => drawToaster(c));
   // Freezer enemies
-  ctex(scene, 'en_fcrumb', 24, 26, (c) => drawFrostCrumb(c, 12, 14, 10));
-  ctex(scene, 'en_icecube', 30, 30, (c) => drawIceCube(c, 15, 15, 12.5));
-  ctex(scene, 'en_peapod', 30, 26, (c) => drawPeaPod(c, 14, 14, 11.5));
-  ctex(scene, 'en_popsicle', 26, 36, (c) => drawPopsicle(c, 26, 36));
-  ctex(scene, 'en_pophalf', 20, 22, (c) => drawPopsicle(c, 20, 22, 1));
-  ctex(scene, 'en_fmold', 40, 40, (c) => drawMold(c, 20, 20, 17, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
-  ctex(scene, 'en_fmoldling', 24, 24, (c) => drawMold(c, 12, 12, 10, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
-  ctex(scene, 'en_sprinkle', 18, 18, (c) => drawSprinkleFlake(c, 18));
-  ctex(scene, 'en_scoop', 64, 62, (c) => drawScoop(c, 32, 30, 28));
-  ctex(scene, 'en_fcroissant', 62, 48, (c) => drawFrostedCroissant(c, 62, 48));
-  ctex(scene, 'en_tyrantjr', 56, 51, (c) => drawTyrantJr(c, 56, 51));
-  ctex(scene, 'en_waffle', 72, 72, (c) => drawWaffle(c, 72));
-  ctex(scene, 'en_wafflesq', 26, 26, (c) => drawWaffle(c, 26, true));
-  ctex(scene, 'en_fburn', 104, 104, (c) => drawFreezerBurn(c, 104));
+  lit(scene, 'en_fcrumb', 24, 26, (c) => drawFrostCrumb(c, 12, 14, 10));
+  lit(scene, 'en_icecube', 30, 30, (c) => drawIceCube(c, 15, 15, 12.5));
+  lit(scene, 'en_peapod', 30, 26, (c) => drawPeaPod(c, 14, 14, 11.5));
+  lit(scene, 'en_popsicle', 26, 36, (c) => drawPopsicle(c, 26, 36));
+  lit(scene, 'en_pophalf', 20, 22, (c) => drawPopsicle(c, 20, 22, 1));
+  lit(scene, 'en_fmold', 40, 40, (c) => drawMold(c, 20, 20, 17, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
+  lit(scene, 'en_fmoldling', 24, 24, (c) => drawMold(c, 12, 12, 10, { body: '#8fbfae', dark: '#4f8473', hi: '#d6f1ea' }));
+  lit(scene, 'en_sprinkle', 18, 18, (c) => drawSprinkleFlake(c, 18));
+  lit(scene, 'en_scoop', 64, 62, (c) => drawScoop(c, 32, 30, 28));
+  lit(scene, 'en_fcroissant', 62, 48, (c) => drawFrostedCroissant(c, 62, 48));
+  lit(scene, 'en_tyrantjr', 56, 51, (c) => drawTyrantJr(c, 56, 51));
+  lit(scene, 'en_waffle', 72, 72, (c) => drawWaffle(c, 72));
+  lit(scene, 'en_wafflesq', 26, 26, (c) => drawWaffle(c, 26, true));
+  lit(scene, 'en_fburn', 104, 104, (c) => drawFreezerBurn(c, 104));
   ctex(scene, 'melt', 64, 42, (c) => drawMeltPuddle(c, 64, 42));
   // Toaster Oven enemies and hazards
-  ctex(scene, 'en_ember', 26, 26, (c) => drawEmberCrumb(c, 13, 13, 10));
-  ctex(scene, 'en_btoast', 30, 38, (c) => {
+  lit(scene, 'en_ember', 26, 26, (c) => drawEmberCrumb(c, 13, 13, 10));
+  lit(scene, 'en_btoast', 30, 38, (c) => {
     c.translate(0, 6);
     drawBurntToast(c, 30, 32);
   });
-  ctex(scene, 'en_hotsauce', 24, 34, (c) => drawHotSauce(c, 24, 34));
-  ctex(scene, 'en_popcorn', 30, 30, (c) => drawPopcorn(c, 30, 30));
-  ctex(scene, 'en_popbit', 18, 18, (c) => drawPopBit(c, 18));
-  ctex(scene, 'en_tot', 30, 27, (c) => drawTot(c, 30, 27));
-  ctex(scene, 'en_mscoop', 32, 32, (c) => drawScoop(c, 16, 15, 13.5));
+  lit(scene, 'en_hotsauce', 24, 34, (c) => drawHotSauce(c, 24, 34));
+  lit(scene, 'en_popcorn', 30, 30, (c) => drawPopcorn(c, 30, 30));
+  lit(scene, 'en_popbit', 18, 18, (c) => drawPopBit(c, 18));
+  lit(scene, 'en_tot', 30, 27, (c) => drawTot(c, 30, 27));
+  lit(scene, 'en_mscoop', 32, 32, (c) => drawScoop(c, 16, 15, 13.5));
   ctex(scene, 'post', 40, 40, (c) => drawRackPost(c, 40));
   ctex(scene, 'ember', 16, 22, (c) => drawEmberSpark(c, 16, 22));
   ctex(scene, 'grease', 48, 48, (c) => drawGreaseSpot(c, 48));
   ctex(scene, 'flame', 12, 16, (c) => drawFlame(c, 12, 16));
-  ctex(scene, 'en_muffin', 60, 60, (c) => drawMoltenMuffin(c, 60));
-  ctex(scene, 'en_fburnt', 64, 64, (c) => drawFreezerBurnt(c, 64));
+  lit(scene, 'en_muffin', 60, 60, (c) => drawMoltenMuffin(c, 60));
+  lit(scene, 'en_fburnt', 64, 64, (c) => drawFreezerBurnt(c, 64));
   // Flapjack Stack: one texture per number of pancakes left (5 down to 1).
-  for (let n = 1; n <= 5; n++) ctex(scene, `en_flap${n}`, 72, 80, (c) => drawFlapjack(c, 72, 80, n));
-  ctex(scene, 'en_broiler', 112, 96, (c) => drawBroiler(c, 112, 96));
+  for (let n = 1; n <= 5; n++) lit(scene, `en_flap${n}`, 72, 80, (c) => drawFlapjack(c, 72, 80, n));
+  lit(scene, 'en_broiler', 112, 96, (c) => drawBroiler(c, 112, 96));
 
 }
 
@@ -151,6 +204,24 @@ export function makeRunTextures(scene: Phaser.Scene, stage: StageDef): void {
   }
   if (stage.grease) ctex(scene, 'slick', 120, 80, (c) => drawSlick(c, 120, 80));
   ctex(scene, 'mine', 10, 10, (c) => drawMine(c, 10));
+  // Screen edges: a soft frame that the stage tints (warm or cold), and the red glow at low health.
+  ctex(scene, 'vignette', 64, 64, (c) => {
+    const g = c.createRadialGradient(32, 32, 14, 32, 32, 46);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.28)');
+    g.addColorStop(1, 'rgba(255,255,255,1)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 64, 64);
+  });
+  // A soft speck for the air: flour dust, frost and rising heat.
+  ctex(scene, 'mote', 12, 12, (c) => {
+    const g = c.createRadialGradient(6, 6, 0, 6, 6, 6);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.4, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 12, 12);
+  });
   makeEnemyTextures(scene);
   // Player projectiles
   ctex(scene, 'seed', 10, 10, (c) => drawSesame(c, 5, 5, 3.9, 2.5));

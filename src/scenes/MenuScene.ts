@@ -1,23 +1,32 @@
 import Phaser from 'phaser';
-import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
+import { Face } from '../face';
+import { COLORS, CSS, S, VERSION, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, ENEMIES, ENEMY_BOOK, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
 import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
 import { COMBO } from '../weapons';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
-import { bestStage, getBest, load, persist, type BestScore, type RunMode, type SaveData } from '../save';
+import { bestStage, getBest, load, persist, takeRecovered, type BestScore, type RunMode, type SaveData } from '../save';
+import { ctex } from '../art';
 import { bigBagel, makeEnemyTextures, makeTextures } from '../textures';
-import { button, drawPips, panel, pill, txt } from '../ui';
-import { musicOn, setMusic, setSound, sfx, soundOn, unlockAudio } from '../sfx';
+import { HEADER, button, drawPips, fit, pill, popupFrame, txt } from '../ui';
+import { sfx, unlockAudio } from '../sfx';
 import { playMusic } from '../music';
+import { buildSettings, segmented } from '../settingsPanel';
+import { WHATS_NEW } from '../whatsnew';
+import { wipeOpen, wipeTo } from '../wipe';
+import { MENU_LOCK, TIPS, clearFresh, markTip, menuFresh, menuOpen, tipDue, type MenuItem, type TipId } from '../tips';
+import { tipBox, tipIn } from '../run/tutor';
 
-/** Height of the menu's stage button row, in CSS px. */
-const STAGE_ROW = 48;
-const STAGE_ROW_COMPACT = 40;
 const SECRET_BAGEL_HINT = 'A secret bagel. Keep clearing stages to find it.';
 const SECRET_RECIPE_HINT = 'A secret recipe. Keep evolving weapons to find it.';
-/** Charred brown for the stage button and card frame when Extra Crispy is on. */
+/** Charred brown for the stage row and card frame when Extra Crispy is on. */
 const CRISPY_COLOR = 0x6b2e14;
+const INK = 0x24160d;
+/** Blue for anything about practice runs (the PLAY button, the picker's switch note). */
+const PRACTICE_COLOR = 0x5aa9e6;
+/** The backup reminder comes back this long after the last backup or the last "Later". */
+const BACKUP_EVERY_MS = 30 * 24 * 3600 * 1000;
 
 /**
  * A best-score line. The stage picker's list: "Endless: 12:34", "Full: ♛ cleared · 412 kills".
@@ -35,15 +44,21 @@ function bestText(label: string, best: BestScore | undefined, endless: boolean, 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
   private root!: Phaser.GameObjects.Container;
-  /** The open pop-up (Bakery, Goals, Cookbook or the stage picker), if any. */
+  /** The open pop-up (Bakery, Goals, Cookbook, Settings, the stage picker or a notice), if any. */
   private popup: Phaser.GameObjects.Container | null = null;
   private doughPill: Phaser.GameObjects.Container | null = null;
   private slideFrom = 0;
   /** Card shown in the stage picker. */
   private stageIdx = 0;
+  /** A pop-up to open straight away (the first run's results screen sends the player to the Bakery). */
+  private openOn = '';
 
   constructor() {
     super('menu');
+  }
+
+  init(data: { open?: string }): void {
+    this.openOn = data?.open ?? '';
   }
 
   create(): void {
@@ -58,11 +73,86 @@ export class MenuScene extends Phaser.Scene {
     const onResize = () => this.build();
     this.scale.on('resize', onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off('resize', onResize));
-    this.cameras.main.fadeIn(250, 43, 33, 24);
+    if (!wipeOpen()) this.cameras.main.fadeIn(250, 43, 33, 24);
+    if (this.openOn === 'bakery' && menuOpen(save, 'bakery')) {
+      clearFresh(save, 'bakery');
+      this.openBakery();
+    } else this.greet(save);
+  }
+
+  /** One note at most each time the menu opens: a recovered save, what's new after an update, or the backup reminder. */
+  private greet(save: SaveData): void {
+    const played = save.totalKills > 0 || save.dough > 0;
+    if (takeRecovered()) {
+      this.notice('SAVE RESTORED', "Your save couldn't be read, so the game loaded its spare copy. Your last run or two may be missing.", [['OK', () => this.closePopup(false)]]);
+      return;
+    }
+    if (save.seenVersion !== VERSION) {
+      save.seenVersion = VERSION;
+      persist();
+      // Someone opening the game for the first time has nothing to compare with.
+      if (played) {
+        this.notice("WHAT'S NEW", WHATS_NEW.lines.map((l) => `• ${l}`).join('\n'), [['Nice!', () => this.closePopup(false)]], WHATS_NEW.title);
+        return;
+      }
+    }
+    const last = Math.max(save.backupAt ?? 0, save.backupNudge ?? 0);
+    if (save.clears > 0 && Date.now() - last > BACKUP_EVERY_MS) {
+      save.backupNudge = Date.now();
+      persist();
+      this.notice('BACK UP YOUR SAVE?', 'Your progress lives on this phone only. A backup code keeps it safe if the browser data is ever cleared. It takes a few seconds.', [
+        ['Later', () => this.closePopup(false)],
+        ['Back up', () => this.openSettings(1)],
+      ]);
+    }
+  }
+
+  /** A small card over the menu: a title, a few lines and one or two buttons (the last one is the gold one). */
+  private notice(title: string, body: string, buttons: [string, () => void][], lead?: string): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    this.popup?.destroy();
+    const c = this.add.container(0, 0);
+    this.popup = c;
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    const pw = Math.min(W - 40 * S, 340 * S);
+    const text = txt(this, W / 2, 0, body, 14, '#e8d8c0', { bold: false, stroke: false, wrap: (pw - 44 * S) / S, align: lead ? 'left' : 'center' }).setOrigin(0.5, 0).setLineSpacing(3 * S);
+    const leadH = lead ? 34 * S : 0;
+    const ph = (HEADER + 22) * S + leadH + text.height + 84 * S;
+    const top = H / 2 - ph / 2;
+    c.add(popupFrame(this, W / 2, H / 2, pw, ph, title, buttons[0][1]));
+    if (lead) c.add(txt(this, W / 2, top + (HEADER + 30) * S, lead, 18, CSS.gold));
+    text.setY(top + (HEADER + 22) * S + leadH);
+    c.add(text);
+    const bw = buttons.length > 1 ? (pw - 54 * S) / 2 : 170 * S;
+    buttons.forEach(([label, fn], i) => {
+      const main = i === buttons.length - 1;
+      const x = buttons.length > 1 ? W / 2 + (i ? 1 : -1) * (bw / 2 + 6 * S) : W / 2;
+      c.add(button(this, x, top + ph - 42 * S, bw, 46 * S, label, fn, main ? { size: 19 } : { size: 19, color: COLORS.panelLight, textColor: CSS.cream }));
+    });
+    c.setAlpha(0);
+    this.tweens.add({ targets: c, alpha: 1, duration: 200, delay: 250 });
+  }
+
+  /** The Settings screen (Game, Save and About tabs). */
+  private openSettings(tab = 0): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    this.popup?.destroy();
+    const c = this.add.container(0, 0);
+    this.popup = c;
+    c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
+    buildSettings(this, c, {
+      tab,
+      onClose: () => this.closePopup(false),
+      onIntro: () => wipeTo(this, 'intro'),
+      // A pasted or reset save changes everything the menu shows: start the menu again from it.
+      onSaveReplaced: () => this.scene.restart(),
+    });
   }
 
   private build(): void {
-    // Looping animations from the last layout (bouncing bagel, scrolling floor) go with it.
+    // Looping animations from the last layout (bouncing bagel, pulsing PLAY) go with it.
     this.tweens.killAll();
     this.root?.destroy();
     this.popup?.destroy();
@@ -78,12 +168,51 @@ export class MenuScene extends Phaser.Scene {
     const open = modesOpen(save, stage);
     const mode: RunMode = save.endless && open ? 'endless' : save.quick ? 'quick' : 'full';
     const crispy = !!save.crispy && open;
+    const practice = !!save.practice && mode !== 'endless';
     const c = this.add.container(0, 0);
     this.root = c;
 
-    const floor = this.add.tileSprite(0, 0, W, H, 'floor_stage1').setOrigin(0).setTileScale(1).setAlpha(0.35);
-    c.add(floor);
-    this.tweens.add({ targets: floor, tilePositionY: -128 * S, duration: 8000, repeat: -1 });
+    // The layout is planned from the bottom up: bottom bar, order ticket, the bagel's name and notes, then the
+    // shelf. The bagel gets whatever height is left, so short screens (iPhone mini, the in-app preview) still fit.
+    const compact = (bottom - top) / S < 720;
+    const barH = (compact ? 58 : 70) * S;
+    const barTop = bottom - barH;
+    const cw = Math.min(W - 32 * S, 360 * S);
+    const th = (compact ? 194 : 232) * S;
+    const ty = barTop - (compact ? 9 : 14) * S - th;
+    const plateH = (compact ? 34 : 42) * S;
+    const infoH = (compact ? 50 : 62) * S;
+    const shelfH = 28 * S;
+    const shelfBottom = ty - 6 * S - infoH - plateH - 10 * S;
+    const shelfTop = shelfBottom - shelfH;
+    const R = Math.max(34 * S, Math.min((compact ? 74 : 88) * S, (shelfTop - top - 56 * S) / 2, W * 0.24));
+    const by = shelfTop - R * 0.97;
+
+    // Back wall: staggered tiles, with a warm light behind the bagel.
+    const wall = this.add.graphics();
+    wall.fillStyle(0x3a2a1e, 1).fillRect(0, 0, W, H);
+    wall.fillStyle(0x4a382a, 1);
+    const tile = 44 * S;
+    for (let y = shelfTop - Math.ceil(shelfTop / tile) * tile, row = 0; y < shelfBottom + tile * 0.9; y += tile, row++) {
+      for (let x = row % 2 ? -tile / 2 : 0; x < W; x += tile) wall.fillRoundedRect(x + 2 * S, y + 2 * S, tile - 4 * S, tile - 4 * S, 5 * S);
+    }
+    c.add(wall);
+    ctex(this, 'menu_glow', 64, 64, (g) => {
+      const gr = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,220,140,0.55)');
+      gr.addColorStop(0.55, 'rgba(255,205,120,0.18)');
+      gr.addColorStop(1, 'rgba(255,205,120,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 64, 64);
+    });
+    const glow = this.add.image(W / 2, by, 'menu_glow').setScale((R * 5.2) / (64 * S));
+    c.add(glow);
+    this.tweens.add({ targets: glow, alpha: 0.8, duration: 1800, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    // Everything under the shelf sits in its shade.
+    const shade = this.add.graphics();
+    shade.fillStyle(0x1d140d, 0.38).fillRect(0, shelfBottom, W, H - shelfBottom);
+    shade.fillStyle(0x120c08, 0.3).fillRect(0, shelfBottom, W, 9 * S);
+    c.add(shade);
 
     // Dough counter
     const dp = pill(this, 0, top + 28 * S, 'coin', `${save.dough} Dough`, { size: 16, color: CSS.gold, h: 32 });
@@ -91,76 +220,105 @@ export class MenuScene extends Phaser.Scene {
     c.add(dp);
     this.doughPill = dp;
 
-    // Title
-    // Short screens (e.g. iPhone mini, or the in-app preview with its top bar) get a compact layout.
-    const compact = (bottom - top) / S < 720;
-    const k = compact ? 0.7 : 1;
-    const titleY = top + (compact ? 62 * S : Math.max(96 * S, H * 0.13));
-    c.add(txt(this, W / 2, titleY, 'EVERYTHING', 40 * k, CSS.gold));
-    c.add(txt(this, W / 2, titleY + 44 * k * S, 'BAGEL', 54 * k, CSS.cream));
-    // Short screens skip the tagline to make room for the bagel.
-    if (!compact) c.add(txt(this, W / 2, titleY + 86 * k * S, mode === 'endless' ? 'Survive the Stale as long as you can' : mode === 'quick' ? 'Survive the Stale for 3 minutes' : 'Survive the Stale for 5 minutes', 15, CSS.muted, { bold: false }));
-
-    // Bagel picker
+    // The shelf: your bagel in the middle, its neighbours waiting on either side.
     const bagel = BAGELS[this.idx];
     const locked = !save.unlocked.includes(bagel.id);
     // A secret bagel stays a mystery until it's found: no name, no goal.
     const hidden = locked && !!bagel.secret;
     const gs = locked && bagel.goal && !hidden ? goalStatus(save, bagel) : null;
-    // Description first, so the picker can be sized to fit above the buttons on any screen height.
-    const desc = txt(this, W / 2, 0, hidden ? SECRET_BAGEL_HINT : gs ? `Unlock: ${bagel.goal!.text}` : bagel.quirk, 14, '#e8d8c0', {
-      wrap: Math.min(W / S - 60, 320),
-      bold: false,
-    }).setOrigin(0.5, 0);
-    const extraBelow = gs && !compact ? 26 * S : 0; // progress bar under a locked bagel's goal
-    const stageRow = compact ? STAGE_ROW_COMPACT : STAGE_ROW;
-    const buttonsTop = bottom - 150 * S - 66 * S - 48 * S - stageRow * S - (compact ? 26 : 32) * S; // top of the stage button, with a gap
-    const titleBottom = titleY + (compact ? 64 * k + 8 : 86 * k + 16) * S;
-    // Below the bagel: dots, name, best line, then the description.
-    const sp = compact ? 0.84 : 1; // tighter spacing under the bagel on short screens
-    const belowBagel = 94 * sp * S + desc.height + extraBelow;
-    const avail = buttonsTop - titleBottom;
-    const R = Math.max(30 * S, Math.min((compact ? 58 : 74) * S, (avail - belowBagel - (compact ? 10 : 24) * S) / 2)); // on-screen bagel radius
+    const shelf = this.add.graphics();
+    shelf.fillStyle(0x8a5d3b, 1).fillRect(0, shelfTop, W, shelfH - 8 * S);
+    shelf.fillStyle(0xb98356, 1).fillRect(0, shelfTop, W, 4 * S);
+    shelf.fillStyle(0x5e3c22, 1).fillRect(0, shelfBottom - 8 * S, W, 8 * S);
+    shelf.fillStyle(INK, 1).fillRect(0, shelfTop - 1.5 * S, W, 3 * S).fillRect(0, shelfBottom - 1.5 * S, W, 3 * S);
+    c.add(shelf);
+    const r2 = R * 0.5;
+    const nx = Math.min(W / 2 - r2 - 4 * S, R + r2 + 34 * S);
+    for (const d of [-1, 1]) {
+      const nb = BAGELS[(this.idx + d + BAGELS.length) % BAGELS.length];
+      const x = W / 2 + d * nx;
+      c.add(this.add.ellipse(x, shelfTop + 1 * S, r2 * 1.7, r2 * 0.3, 0x120c08, 0.4));
+      const im = this.add.image(x, shelfTop - r2 * 0.97, bigBagel(this, nb.tex)).setScale(r2 / (62 * S));
+      if (save.unlocked.includes(nb.id)) im.setAlpha(0.62);
+      else im.setTint(0x222222).setAlpha(0.8);
+      c.add(im);
+    }
     const hs = R / (62 * S); // hero texture scale (bagel radius is 62 in the 160 '_big' texture)
-    const by = titleBottom + Math.max(12 * S, (avail - (2 * R + belowBagel)) / 2) + R;
-    const dotsY = by + R + 22 * sp * S;
-    desc.setY(by + R + 90 * sp * S);
-
-    const shadow = this.add.ellipse(W / 2, by + R * 1.02, R * 1.7, R * 0.34, 0x120c08, 0.45);
+    const shadow = this.add.ellipse(W / 2, shelfTop + 1 * S, R * 1.7, R * 0.3, 0x120c08, 0.5);
     c.add(shadow);
-    const hero = this.add.image(W / 2, by, bigBagel(this, bagel.tex)).setScale(hs);
+    // An unlocked bagel is alive: its eyes blink and glance about. A locked one is a dark shape.
+    const hero = this.add.image(W / 2, by, bigBagel(this, bagel.tex, locked)).setScale(hs);
     if (locked) hero.setTint(0x222222);
     c.add(hero);
-    this.tweens.add({ targets: hero, y: by - 10 * k * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    this.tweens.add({ targets: shadow, scaleX: 0.85, alpha: 0.3, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    const slide: Phaser.GameObjects.GameObject[] = [hero, shadow];
+    let face: Face | null = null;
+    if (!locked) {
+      face = new Face(this, hero, 62, (o) => c.add(o));
+      face.idle = true;
+    }
+    const bob = () => this.tweens.add({ targets: hero, y: by - 7 * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    bob();
+    // Tap the bagel and it hops.
+    const hop = () => {
+      this.tweens.killTweensOf(hero);
+      hero.setPosition(W / 2, by).setScale(hs * 1.12, hs * 0.86).setAlpha(1);
+      face?.blink();
+      sfx('pop');
+      this.tweens.add({ targets: hero, y: by - 30 * S, scaleX: hs * 0.95, scaleY: hs * 1.07, duration: 170, ease: 'Quad.Out', yoyo: true, onComplete: () => {
+        hero.setScale(hs);
+        bob();
+      } });
+    };
+    this.tweens.add({ targets: shadow, scaleX: 0.88, alpha: 0.34, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    const slide: (Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObjects.Container)[] = [hero];
     if (locked) {
       const lock = this.add.image(W / 2, by + R * 0.1, 'ic_lock').setScale(Math.max(1.3, hs * 1.8));
       c.add(lock);
       slide.push(lock);
     }
-    const nameT = txt(this, W / 2, by + R + 48 * sp * S, hidden ? '???' : bagel.name, compact ? 22 : 26, locked ? CSS.muted : CSS.cream);
-    c.add(nameT);
-    slide.push(nameT);
-    // Short screens have no room for a locked bagel's progress bar: its progress goes in the best line's place.
-    if (gs && compact) c.add(txt(this, W / 2, by + R + 72 * sp * S, gs.progress, 14, CSS.muted, { bold: false }));
-    if (!locked) {
+    // One dot per bagel along the shelf's front edge: gold for this one, cream when unlocked, faint when locked.
+    const dots = this.add.graphics();
+    BAGELS.forEach((b, i) => {
+      const x = W / 2 + (i - (BAGELS.length - 1) / 2) * 14 * S;
+      const on = i === this.idx;
+      dots.fillStyle(INK, 0.55).fillCircle(x, shelfTop + 12 * S, (on ? 5.5 : 4) * S);
+      if (on) dots.fillStyle(COLORS.gold, 1);
+      else dots.fillStyle(COLORS.cream, save.unlocked.includes(b.id) ? 0.9 : 0.35);
+      dots.fillCircle(x, shelfTop + 12 * S, (on ? 4 : 2.8) * S);
+    });
+    c.add(dots);
+
+    // Name plate, hanging from the shelf.
+    const plateY = shelfBottom + 10 * S + plateH / 2;
+    const nameT = txt(this, 0, -1 * S, hidden ? '???' : bagel.name, compact ? 19 : 22, locked ? CSS.muted : CSS.dark, { stroke: false });
+    const plateW = Math.max(150 * S, nameT.width + 48 * S);
+    const pg = this.add.graphics();
+    pg.lineStyle(2.5 * S, INK, 1).lineBetween(-plateW / 2 + 16 * S, -plateH / 2, -plateW / 2 + 16 * S, -plateH / 2 - 12 * S).lineBetween(plateW / 2 - 16 * S, -plateH / 2, plateW / 2 - 16 * S, -plateH / 2 - 12 * S);
+    pg.fillStyle(INK, 1).fillRoundedRect(-plateW / 2 - 2.5 * S, -plateH / 2 - 2.5 * S, plateW + 5 * S, plateH + 8 * S, 12 * S);
+    pg.fillStyle(locked ? 0x3d2e22 : 0xb9822c, 1).fillRoundedRect(-plateW / 2, -plateH / 2 + 3 * S, plateW, plateH, 10 * S);
+    pg.fillStyle(locked ? COLORS.panelLight : COLORS.gold, 1).fillRoundedRect(-plateW / 2, -plateH / 2, plateW, plateH, 10 * S);
+    pg.fillStyle(0xffffff, locked ? 0.08 : 0.28).fillRoundedRect(-plateW / 2 + 7 * S, -plateH / 2 + 4 * S, plateW - 14 * S, 9 * S, 5 * S);
+    const plate = this.add.container(W / 2, plateY, [pg, nameT]);
+    c.add(plate);
+    slide.push(plate);
+
+    // Under the plate: what the bagel does (or how to unlock it), then its best run here.
+    const infoTop = plateY + plateH / 2 + (compact ? 9 : 12) * S;
+    const desc = txt(this, W / 2, infoTop, hidden ? SECRET_BAGEL_HINT : gs ? `Unlock: ${bagel.goal!.text}` : bagel.quirk, 14, '#f0e2c8', {
+      wrap: Math.min(W / S - 40, 340),
+      bold: false,
+    }).setOrigin(0.5, 0);
+    // Long notes shrink to two lines' worth of room.
+    const lineRoom = infoH - (compact ? 9 : 12) * S - 19 * S;
+    if (desc.height > lineRoom) desc.setScale(Math.max(0.78, lineRoom / desc.height));
+    c.add(desc);
+    const subY = Math.min(ty - 13 * S, desc.y + desc.displayHeight + 10 * S);
+    if (gs) c.add(txt(this, W / 2, subY, gs.progress, 13, CSS.gold));
+    else if (!locked) {
       const best = getBest(save, bagel.id, bestStage(stage.id, mode, crispy));
       const label = `Stage ${stage.num}${mode === 'quick' ? ' Quick' : mode === 'endless' ? ' Endless' : ''}${crispy ? ' Crispy' : ''}`;
-      const line = bestText(label, best, mode === 'endless', true);
-      c.add(txt(this, W / 2, by + R + 72 * sp * S, line, 14, best ? CSS.gold : CSS.muted, { bold: !!best }));
+      c.add(txt(this, W / 2, subY, bestText(label, best, mode === 'endless', true), 13, best ? CSS.gold : CSS.muted));
     }
-    c.add(desc);
-    if (gs && !compact) {
-      const bw = Math.min(W - 100 * S, 240 * S);
-      const y = desc.y + desc.height + 14 * S;
-      const g = this.add.graphics();
-      g.fillStyle(0x24160d, 1).fillRoundedRect(W / 2 - bw / 2 - 2 * S, y - 7 * S, bw + 4 * S, 14 * S, 7 * S);
-      g.fillStyle(0x3d2e22, 1).fillRoundedRect(W / 2 - bw / 2, y - 5 * S, bw, 10 * S, 5 * S);
-      if (gs.frac > 0) g.fillStyle(COLORS.gold, 1).fillRoundedRect(W / 2 - bw / 2, y - 5 * S, Math.max(10 * S, bw * gs.frac), 10 * S, 5 * S);
-      c.add(g);
-      c.add(txt(this, W / 2, y + 17 * S, gs.progress, 12, CSS.muted, { bold: false, stroke: false }));
-    }
+
     const go = (d: number) => {
       this.idx = (this.idx + d + BAGELS.length) % BAGELS.length;
       if (save.unlocked.includes(BAGELS[this.idx].id)) {
@@ -172,85 +330,60 @@ export class MenuScene extends Phaser.Scene {
       if (!save.unlocked.includes(BAGELS[this.idx].id)) sfx('lock');
       this.build();
     };
-    const dots = this.add.graphics();
-    BAGELS.forEach((b, i) => {
-      const x = W / 2 + (i - (BAGELS.length - 1) / 2) * 14 * S;
-      const on = i === this.idx;
-      // Every bagel gets a dot that shows on the wood floor: gold for this one, cream when unlocked, faint cream when locked.
-      if (on) dots.fillStyle(COLORS.gold, 1);
-      else dots.fillStyle(COLORS.cream, save.unlocked.includes(b.id) ? 0.85 : 0.3);
-      dots.fillCircle(x, dotsY, (on ? 4 : 3) * S);
-    });
-    c.add(dots);
-    const ad = 50 * S;
-    const ax = Math.min(W / 2 - 36 * S, R + 70 * S);
-    c.add(button(this, W / 2 - ax, by, ad, ad, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 25 }));
-    c.add(button(this, W / 2 + ax, by, ad, ad, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 25 }));
-    // Swipe on the bagel to switch.
-    const zone = this.add.zone(W / 2, by, Math.max(2 * R + 40 * S, W - 2 * ax - ad), 2 * R + 40 * S).setInteractive();
+    // Swipe along the shelf, or tap a neighbour, to switch bagels.
+    const zone = this.add.zone(W / 2, shelfTop - R, W, 2 * R + 30 * S).setInteractive();
     c.add(zone);
     let sx: number | null = null;
     zone.on('pointerdown', (p: Phaser.Input.Pointer) => (sx = p.x));
     const onUp = (p: Phaser.Input.Pointer) => {
       if (sx === null) return;
       const dx = p.x - sx;
+      const tapped = sx;
       sx = null;
       if (Math.abs(dx) > 40 * S) go(dx < 0 ? 1 : -1);
+      else if (Math.abs(dx) < 12 * S && Math.abs(tapped - W / 2) > R + 8 * S && zone.getBounds().contains(p.x, p.y)) go(tapped < W / 2 ? -1 : 1);
+      else if (Math.abs(dx) < 12 * S && !locked && Math.abs(tapped - W / 2) < R && zone.getBounds().contains(p.x, p.y)) hop();
     };
     this.input.on('pointerup', onUp);
     c.once(Phaser.GameObjects.Events.DESTROY, () => this.input.off('pointerup', onUp));
     // Slide the new bagel in from the side it came from.
     if (this.slideFrom) {
-      const off = this.slideFrom * 130 * S;
-      for (const o of slide as (Phaser.GameObjects.Components.Transform & Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.GameObject)[]) {
+      const off = this.slideFrom * 110 * S;
+      for (const o of slide) {
         const x0 = o.x;
         o.x = x0 + off;
         o.alpha = 0;
-        this.tweens.add({ targets: o, x: x0, alpha: (o as unknown) === shadow ? 0.45 : 1, duration: 220, ease: 'Cubic.Out' });
+        this.tweens.add({ targets: o, x: x0, alpha: 1, duration: 220, ease: 'Cubic.Out' });
       }
       this.slideFrom = 0;
     }
 
-    // Buttons
-    const playY = bottom - 150 * S;
-    const tw = Math.min((Math.min(W - 60 * S, 300 * S) - 16 * S) / 3, 100 * S);
-    const toggle = (x: number, label: () => string, flip: () => void) => {
-      const b = button(this, x, playY - 66 * S, tw, 40 * S, label(), () => {
-        unlockAudio();
-        flip();
-        (b.getData('label') as Phaser.GameObjects.Text).setText(label());
-      }, { color: COLORS.panel, textColor: CSS.cream, size: 13, radius: 10 });
-      c.add(b);
-    };
-    const saved = loadRun();
-    if (saved) {
-      const name = BAGELS.find((b) => b.id === saved.bagel)?.name ?? 'run';
-      const label = `Resume ${saved.endless ? 'Endless ' : saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}, ${fmtTime(saved.now)}`;
-      const rb = button(this, W / 2, playY - 66 * S, Math.min(W - 60 * S, 300 * S), 44 * S, label, () => {
-        unlockAudio();
-        this.cameras.main.fadeOut(200, 18, 12, 8);
-        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { resume: true }));
-      }, { color: COLORS.green, textColor: CSS.dark, size: label.length > 34 ? 14 : 16, radius: 12 });
-      c.add(rb);
-    } else {
-      // Practice is off in Endless.
-      toggle(W / 2 - tw - 8 * S, () => `Practice: ${save.practice && mode !== 'endless' ? 'On' : 'Off'}`, () => {
-        if (mode === 'endless') {
-          sfx('lock');
-          this.toast('No practice runs in Endless', playY - 66 * S - 40 * S);
-          return;
-        }
-        save.practice = !save.practice;
-        persist();
-      });
-      toggle(W / 2, () => `Music: ${musicOn() ? 'On' : 'Off'}`, () => setMusic(!musicOn()));
-      toggle(W / 2 + tw + 8 * S, () => `Sound: ${soundOn() ? 'On' : 'Off'}`, () => setSound(!soundOn()));
-    }
-    // Full / Quick / Endless switch: a three-part pill above the toggles. Remembers the last choice.
+    // The order ticket: where (stage, Extra Crispy), how long (mode) and PLAY.
+    const tl = W / 2 - cw / 2;
+    const tk = this.add.graphics();
+    tk.fillStyle(INK, 1).fillRoundedRect(tl - 2.5 * S, ty - 2.5 * S, cw + 5 * S, th + 10 * S, 13 * S);
+    tk.fillStyle(0xd9c9a8, 1).fillRoundedRect(tl, ty + 5 * S, cw, th, 10 * S);
+    tk.fillStyle(COLORS.cream, 1).fillRoundedRect(tl, ty, cw, th, 10 * S);
+    c.add(tk);
+    const pad = 14 * S;
+    c.add(txt(this, W / 2, ty + (compact ? 11 : 14) * S, "TODAY'S ORDER", compact ? 10 : 11, '#9a7a56', { stroke: false }));
+    const rowH = (compact ? 38 : 42) * S;
+    const rowY = ty + (compact ? 22 : 27) * S + rowH / 2;
+    const fw = rowH;
+    const toastY = ty - 22 * S;
+    c.add(this.stageRow(stage, tl + pad + (cw - 2 * pad - fw - 8 * S) / 2, rowY, cw - 2 * pad - fw - 8 * S, rowH, crispy));
+    c.add(this.crispyButton(tl + cw - pad - fw / 2, rowY - 2 * S, fw, crispy, open, toastY));
+    // Tear line between the stage and the mode.
+    const tearY = rowY + rowH / 2 + (compact ? 8 : 10) * S;
+    const tear = this.add.graphics();
+    tear.fillStyle(INK, 0.3);
+    for (let x = tl + pad; x < tl + cw - pad - 6 * S; x += 12 * S) tear.fillRect(x, tearY - 1 * S, 7 * S, 2 * S);
+    c.add(tear);
+    // Full / Quick / Endless switch. Remembers the last choice.
     {
-      const sw = Math.min(W - 60 * S, 300 * S);
-      const sh = 38 * S;
-      const y = playY - 66 * S - 52 * S;
+      const sw = cw - 2 * pad;
+      const sh = (compact ? 34 : 38) * S;
+      const y = tearY + (compact ? 8 : 11) * S + sh / 2;
       const seg = sw / 3;
       const modes: [RunMode, string, string | null][] = [
         ['full', 'Full 5:00', null],
@@ -259,8 +392,8 @@ export class MenuScene extends Phaser.Scene {
       ];
       const sel = modes.findIndex((m) => m[0] === mode);
       const g = this.add.graphics();
-      g.fillStyle(0x24160d, 1).fillRoundedRect(W / 2 - sw / 2 - 2.5 * S, y - sh / 2 - 2.5 * S, sw + 5 * S, sh + 5 * S, sh / 2 + 2.5 * S);
-      g.fillStyle(0x1d140d, 1).fillRoundedRect(W / 2 - sw / 2, y - sh / 2, sw, sh, sh / 2);
+      g.fillStyle(INK, 1).fillRoundedRect(W / 2 - sw / 2 - 2.5 * S, y - sh / 2 - 2.5 * S, sw + 5 * S, sh + 5 * S, sh / 2 + 2.5 * S);
+      g.fillStyle(0x3d2e22, 1).fillRoundedRect(W / 2 - sw / 2, y - sh / 2, sw, sh, sh / 2);
       const x0 = W / 2 - sw / 2 + sel * seg;
       g.fillStyle(COLORS.gold, 1).fillRoundedRect(x0 + 3 * S, y - sh / 2 + 3 * S, seg - 6 * S, sh - 6 * S, sh / 2 - 3 * S);
       g.fillStyle(0xffffff, 0.22).fillRoundedRect(x0 + 10 * S, y - sh / 2 + 6 * S, seg - 20 * S, 8 * S, 4 * S);
@@ -269,17 +402,20 @@ export class MenuScene extends Phaser.Scene {
         const on = i === sel;
         const lockedMode = m === 'endless' && !open;
         const cx = W / 2 - sw / 2 + seg * (i + 0.5);
-        const shift = icon ? 8 * S : 0;
-        const t = txt(this, cx + shift, y, label, 14, on ? CSS.dark : CSS.muted, { stroke: false });
+        const shift = icon ? 9 * S : 0;
+        const t = txt(this, cx + shift, y, label, 13, on ? CSS.dark : CSS.muted, { stroke: false });
         if (lockedMode) t.setAlpha(0.6);
+        // Keep the label and its icon inside their third of the switch.
+        const room = seg - 16 * S - (icon ? 20 * S : 0);
+        if (t.width > room) t.setScale(room / t.width);
         c.add(t);
-        if (icon) c.add(this.add.image(t.x - t.width / 2 - 10 * S, y, lockedMode ? 'ic_lock' : icon).setScale(lockedMode ? 0.42 : 0.5).setAlpha(on ? 1 : 0.6));
+        if (icon) c.add(this.add.image(t.x - t.displayWidth / 2 - 10 * S, y, lockedMode ? 'ic_lock' : icon).setScale(lockedMode ? 0.4 : 0.46).setAlpha(on ? 1 : 0.6));
         const z = this.add.zone(cx, y, seg, sh + 8 * S).setInteractive();
         z.on('pointerup', () => {
           if (on) return;
           if (lockedMode) {
             sfx('lock');
-            this.toast('Clear this stage to unlock Endless', y - sh / 2 - (compact ? STAGE_ROW_COMPACT : STAGE_ROW) * S - 30 * S);
+            this.toast('Clear this stage to unlock Endless', toastY);
             return;
           }
           sfx('click');
@@ -287,72 +423,149 @@ export class MenuScene extends Phaser.Scene {
           save.endless = m === 'endless';
           persist();
           this.build();
+          if (m !== 'full') this.firstTime(m, toastY);
         });
         c.add(z);
       });
-      // Stage button above the switch: shows the picked stage and opens the stage picker.
-      // The flame button beside it is the Extra Crispy toggle.
-      const rowY = y - sh / 2 - 12 * S - ((compact ? STAGE_ROW_COMPACT : STAGE_ROW) / 2 - 4) * S;
-      const fw = (compact ? 34 : 40) * S;
-      c.add(this.stageButton(stage, W / 2 - (fw + 8 * S) / 2, rowY, sw - fw - 8 * S, compact, crispy));
-      c.add(this.crispyButton(W / 2 + sw / 2 - fw / 2, rowY, fw, crispy, open, rowY - fw / 2 - 26 * S));
     }
-    const play = button(this, W / 2, playY, Math.min(W - 60 * S, 280 * S), 70 * S, locked ? 'LOCKED' : 'PLAY', () => {
+    // PLAY. A run that was cut short (the phone closed the game) can be picked up from here too.
+    const playH = (compact ? 58 : 68) * S;
+    const playY = ty + th - (compact ? 10 : 14) * S - 5 * S - playH / 2;
+    const playW = cw - 2 * pad;
+    const start = () => {
       if (locked) return;
       unlockAudio();
       clearRun();
-      this.cameras.main.fadeOut(200, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { bagel: bagel.id, stage: stage.id, practice: !!save.practice && mode !== 'endless', quick: mode === 'quick', endless: mode === 'endless', crispy }));
-    }, { size: 32, color: locked ? COLORS.panelLight : COLORS.gold });
-    c.add(play);
-    if (!locked) this.tweens.add({ targets: play, scale: 1.04, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    // Bottom row: Bakery, Goals and Cookbook. A red dot on Goals means a challenge was just finished.
-    const rowW = Math.min(W - 40 * S, 300 * S);
-    const bw = (rowW - 16 * S) / 3;
-    const bottomRow: [string, () => void][] = [
-      ['BAKERY', () => this.openBakery()],
-      ['GOALS', () => this.openGoals(unseenGoals(save).length ? 1 : 0)],
-      ['COOKBOOK', () => this.openCookbook()],
+      wipeTo(this, 'game', { bagel: bagel.id, stage: stage.id, practice, quick: mode === 'quick', endless: mode === 'endless', crispy });
+    };
+    const saved = loadRun();
+    const playLabel = locked ? 'LOCKED' : practice ? 'PRACTICE' : 'PLAY';
+    const playColor = locked ? COLORS.panelLight : practice ? PRACTICE_COLOR : COLORS.gold;
+    if (saved) {
+      const name = BAGELS.find((b) => b.id === saved.bagel)?.name ?? 'run';
+      const rw = playW * 0.58;
+      const rb = button(this, tl + pad + rw / 2, playY, rw, playH, '', () => {
+        unlockAudio();
+        this.cameras.main.fadeOut(200, 18, 12, 8);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { resume: true }));
+      }, { color: COLORS.green });
+      const l1 = txt(this, 0, -9 * S, `RESUME ${fmtTime(saved.now)}`, compact ? 18 : 20, CSS.dark, { stroke: false });
+      const l2 = txt(this, 0, 13 * S, `${saved.endless ? 'Endless ' : saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}`, 11, '#2f4a1a', { stroke: false });
+      if (l2.width > rw - 16 * S) l2.setScale((rw - 16 * S) / l2.width);
+      rb.add([l1, l2]);
+      this.pressWith(rb, [l1, l2]);
+      c.add(rb);
+      const nw = playW - rw - 8 * S;
+      c.add(button(this, tl + cw - pad - nw / 2, playY, nw, playH, locked ? 'LOCKED' : practice ? 'PRACTICE' : 'NEW RUN', start, { size: locked || !practice ? 18 : 15, color: playColor }));
+    } else {
+      const play = button(this, W / 2, playY, playW, playH, playLabel, start, { size: compact ? 30 : 34, color: playColor });
+      c.add(play);
+      if (!locked) this.tweens.add({ targets: play, scale: 1.03, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    }
+
+    // Bottom bar: Bakery, Goals, Cookbook and Settings. A red dot on Goals means a challenge was just finished.
+    const bar = this.add.graphics();
+    bar.fillStyle(0x1d140d, 0.94).fillRect(0, barTop, W, H - barTop);
+    bar.fillStyle(INK, 1).fillRect(0, barTop - 1.5 * S, W, 3 * S);
+    bar.fillStyle(COLORS.panelLight, 0.7).fillRect(0, barTop + 1.5 * S, W, 1.5 * S);
+    c.add(bar);
+    // On a new save only Settings is open: the Bakery and Goals open after the first run, the Cookbook after the
+    // first evolution. A button that just opened wears a NEW tag until it's tapped.
+    const items: [string, string, () => void, MenuItem | null][] = [
+      ['Bakery', 'ic_bk_oven', () => this.openBakery(), 'bakery'],
+      ['Goals', 'ic_star', () => this.openGoals(unseenGoals(save).length ? 1 : 0), 'goals'],
+      ['Cookbook', 'ic_book', () => this.openCookbook(), 'cookbook'],
+      ['Settings', 'ic_gear', () => this.openSettings(), null],
     ];
-    bottomRow.forEach(([label, fn], i) => {
-      const b = button(this, W / 2 + (i - 1) * (bw + 8 * S), playY + 80 * S, bw, 54 * S, label, fn, {
-        color: COLORS.panelLight,
-        textColor: CSS.cream,
-        size: bw < 96 * S ? 15 : 17,
-      });
-      c.add(b);
-      if (label === 'GOALS' && unseenGoals(save).length) {
+    const barW = Math.min(W, 440 * S);
+    const iw = barW / items.length;
+    items.forEach(([label, icon, fn, id], i) => {
+      const x = W / 2 - barW / 2 + iw * (i + 0.5);
+      const iy = barTop + (compact ? 22 : 27) * S;
+      const isz = (compact ? 30 : 36) * S;
+      const im = this.add.image(x, iy, icon);
+      const sc = isz / im.height;
+      im.setScale(sc);
+      c.add(im);
+      const shut = !!id && !menuOpen(save, id);
+      const isNew = !!id && menuFresh(save, id);
+      c.add(txt(this, x, barTop + (compact ? 46 : 56) * S, label, compact ? 11 : 12, shut ? '#7d6f5c' : '#e9dcc3', { stroke: false }));
+      if (shut) {
+        im.setTint(0x3a3028).setAlpha(0.7);
+        c.add(this.add.image(x + isz * 0.34, iy + isz * 0.26, 'ic_lock').setScale(sc * 0.55));
+      }
+      if (isNew) {
+        const tag = this.add.container(x + isz * 0.5, iy - isz * 0.42);
+        const tg = this.add.graphics();
+        tg.fillStyle(INK, 1).fillRoundedRect(-17 * S, -9 * S, 34 * S, 18 * S, 9 * S);
+        tg.fillStyle(COLORS.red, 1).fillRoundedRect(-15 * S, -7 * S, 30 * S, 14 * S, 7 * S);
+        tag.add([tg, txt(this, 0, 0, 'NEW', 9, CSS.cream, { stroke: false })]);
+        tag.setAngle(8);
+        c.add(tag);
+        this.tweens.add({ targets: tag, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      } else if (label === 'Goals' && !shut && unseenGoals(save).length) {
         const dot = this.add.graphics();
-        dot.fillStyle(0x24160d, 1).fillCircle(bw / 2 - 6 * S, -27 * S + 4 * S, 9 * S);
-        dot.fillStyle(COLORS.red, 1).fillCircle(bw / 2 - 6 * S, -27 * S + 4 * S, 6.5 * S);
-        b.add(dot);
+        dot.fillStyle(INK, 1).fillCircle(x + isz * 0.46, iy - isz * 0.4, 7.5 * S);
+        dot.fillStyle(COLORS.red, 1).fillCircle(x + isz * 0.46, iy - isz * 0.4, 5.5 * S);
+        c.add(dot);
         this.tweens.add({ targets: dot, alpha: 0.55, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
       }
+      const z = this.add.zone(x, barTop + barH / 2, iw, barH).setInteractive();
+      let armed = false;
+      z.on('pointerdown', () => {
+        armed = true;
+        im.setScale(sc * 0.88);
+        sfx('click');
+      });
+      const reset = () => {
+        armed = false;
+        im.setScale(sc);
+      };
+      z.on('pointerout', reset);
+      z.on('pointerup', () => {
+        const fire = armed;
+        reset();
+        if (!fire) return;
+        if (shut) {
+          sfx('lock');
+          this.toast(MENU_LOCK[id!], barTop - 26 * S);
+          return;
+        }
+        if (isNew) clearFresh(save, id!);
+        fn();
+      });
+      c.add(z);
     });
-    const stats = [
-      pill(this, 0, bottom - 24 * S, 'ic_clock', `Best ${fmtTime(save.bestTime)}`, { size: 13, h: 26 }),
-      pill(this, 0, bottom - 24 * S, 'ic_crown', `${save.clears} clears`, { size: 13, h: 26 }),
-      pill(this, 0, bottom - 24 * S, 'ic_book', `${save.cookbook.length}/${Object.keys(WEAPONS).length}`, { size: 13, h: 26 }),
-    ];
-    const gap = 8 * S;
-    let x = W / 2 - (stats.reduce((a, p) => a + p.width, 0) + gap * (stats.length - 1)) / 2;
-    for (const p of stats) {
-      p.x = x + p.width / 2;
-      x += p.width + gap;
-      c.add(p);
-    }
+  }
+
+  /** The first time a mode is picked, a note says what it is. */
+  private firstTime(id: TipId, y: number): void {
+    if (!tipDue(id)) return;
+    markTip(id);
+    this.toast(TIPS[id], y);
+  }
+
+  /** Makes extra parts of a button (pictures, a second line) move with its press. */
+  private pressWith(b: Phaser.GameObjects.Container, parts: { y: number }[]): void {
+    const base = parts.map((o) => o.y);
+    b.on('pointerdown', () => parts.forEach((o, i) => (o.y = base[i] + 3.5 * S)));
+    const up = () => parts.forEach((o, i) => (o.y = base[i]));
+    b.on('pointerup', up);
+    b.on('pointerout', up);
   }
 
   /** Short note that floats up and fades, e.g. why a locked mode can't be picked. */
   private toast(text: string, y: number): void {
-    const t = txt(this, 0, 0, text, 14, CSS.cream, { stroke: false });
+    const t = txt(this, 0, 0, text, 14, CSS.cream, { stroke: false, wrap: Math.min(this.scale.width / S - 60, 320) });
     const g = this.add.graphics();
     const w = t.width + 28 * S;
-    const h = 32 * S;
-    g.fillStyle(0x24160d, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
-    const box = this.add.container(this.scale.width / 2, y, [g, t]);
+    const h = t.height + 14 * S;
+    g.fillStyle(0x24160d, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, 16 * S));
+    // Its bottom edge stays where a one-line note's would be, however many lines it has. Longer notes stay longer.
+    const cy = y + 16 * S - h / 2;
+    const box = this.add.container(this.scale.width / 2, cy, [g, t]);
     this.root.add(box);
-    this.tweens.add({ targets: box, y: y - 18 * S, alpha: 0, delay: 1300, duration: 500, onComplete: () => box.destroy() });
+    this.tweens.add({ targets: box, y: cy - 18 * S, alpha: 0, delay: 1000 + text.length * 35, duration: 500, onComplete: () => box.destroy() });
   }
 
   /** Square flame button: turns Extra Crispy on and off (locked until the stage is cleared). */
@@ -368,7 +581,10 @@ export class MenuScene extends Phaser.Scene {
       save.crispy = !save.crispy;
       persist();
       this.build();
-      if (save.crispy) this.toast('Extra Crispy: tougher enemies, 1.5x Dough', toastY);
+      if (save.crispy) {
+        markTip('crispy');
+        this.toast(TIPS.crispy, toastY);
+      }
     }, { color: on ? COLORS.red : COLORS.panelLight, radius: 12 });
     const fl = this.add.image(0, 0, 'ic_flame').setScale(0.62).setAlpha(open ? (on ? 1 : 0.55) : 0.3);
     b.add(fl);
@@ -376,24 +592,18 @@ export class MenuScene extends Phaser.Scene {
     return b;
   }
 
-  /** Chunky button with the stage's picture, its name and a chevron. Charred when Extra Crispy is on. */
-  private stageButton(stage: StageDef, x: number, y: number, w: number, compact: boolean, crispy = false): Phaser.GameObjects.Container {
-    const h = (compact ? 34 : 40) * S;
-    const b = button(this, x, y, w, h, '', () => this.openStages(), { color: crispy ? CRISPY_COLOR : COLORS.panelLight, radius: 12 });
-    const pic = this.add.image(-w / 2 + 12 * S, 0, `${stage.thumb}_sm`).setOrigin(0, 0.5);
-    pic.setScale((h - 10 * S) / pic.height);
+  /** The ticket's stage line: the stage's picture and name on a paper-colored button. Opens the stage picker. Charred when Extra Crispy is on. */
+  private stageRow(stage: StageDef, x: number, y: number, w: number, h: number, crispy: boolean): Phaser.GameObjects.Container {
+    const b = button(this, x, y - 2 * S, w, h, '', () => this.openStages(), { color: crispy ? CRISPY_COLOR : 0xf3dfb4, radius: 12 });
+    const pic = this.add.image(-w / 2 + 8 * S, 0, `${stage.thumb}_sm`).setOrigin(0, 0.5);
+    pic.setScale((h - 12 * S) / pic.height);
     if (crispy) pic.setTint(0xffb08a);
-    const name = w < 260 * S ? stage.name.replace(/^The /, '') : stage.name;
-    const label = txt(this, pic.x + pic.displayWidth + 9 * S, 0, `Stage ${stage.num}: ${name}`, 15, crispy ? '#ffd2b0' : CSS.cream, { stroke: false }).setOrigin(0, 0.5);
-    const more = txt(this, w / 2 - 16 * S, -1 * S, '›', 26, CSS.gold, { stroke: false });
+    const label = txt(this, pic.x + pic.displayWidth + 8 * S, -1 * S, stage.name, 17, crispy ? '#ffd2b0' : CSS.dark, { stroke: false }).setOrigin(0, 0.5);
+    const more = txt(this, w / 2 - 15 * S, -2 * S, '›', 26, crispy ? '#ffb08a' : '#9a6a2c', { stroke: false });
+    const room = more.x - 12 * S - label.x;
+    if (label.width > room) label.setScale(room / label.width);
     b.add([pic, label, more]);
-    // Move the extras with the button's press squish.
-    const moving = [pic, label, more];
-    const base = moving.map((o) => o.y);
-    b.on('pointerdown', () => moving.forEach((o, i) => (o.y = base[i] + 3.5 * S)));
-    const up = () => moving.forEach((o, i) => (o.y = base[i]));
-    b.on('pointerup', up);
-    b.on('pointerout', up);
+    this.pressWith(b, [pic, label, more]);
     return b;
   }
 
@@ -408,9 +618,9 @@ export class MenuScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
     const pw = Math.min(W - 24 * S, 400 * S);
-    const ph = Math.min(H - 24 * S, 540 * S);
-    const { c, top } = this.openPopup('PICK A STAGE', pw, ph, { titleY: 34, titleSize: 26 });
+    const ph = Math.min(H - 20 * S, 566 * S);
     const close = () => this.closePopup(true);
+    const { c, top } = this.openPopup('PICK A STAGE', pw, ph, close);
 
     const st = STAGES[this.stageIdx];
     const unlocked = stageUnlocked(save, st);
@@ -420,7 +630,7 @@ export class MenuScene extends Phaser.Scene {
     c.add(card);
 
     // Picture, darkened with a lock until it can be played.
-    const picY = top + 145 * S;
+    const picY = top + 150 * S;
     const pic = this.add.image(0, picY, st.thumb);
     pic.setScale(Math.min((pw - 120 * S) / pic.width, (120 * S) / pic.height));
     if (!playable) pic.setTint(0x55504a);
@@ -514,17 +724,33 @@ export class MenuScene extends Phaser.Scene {
     STAGES.forEach((s2, i) => {
       const x = W / 2 + (i - (STAGES.length - 1) / 2) * 14 * S;
       const on = i === this.stageIdx;
-      dots.fillStyle(on ? COLORS.gold : stagePlayable(save, s2) ? COLORS.panelLight : 0x1d140d).fillCircle(x, top + 64 * S, (on ? 4 : 3) * S);
+      dots.fillStyle(on ? COLORS.gold : stagePlayable(save, s2) ? COLORS.panelLight : 0x1d140d).fillCircle(x, top + (HEADER + 20) * S, (on ? 4 : 3) * S);
     });
     c.add(dots);
 
-    // Bottom: Back, and Play this stage (or why it can't be played yet).
+    // Bottom: the Practice switch, then Pick this stage (or why it can't be picked yet).
     const by = top + ph - 40 * S;
-    const bw = (pw - 50 * S) / 2;
-    c.add(button(this, W / 2 - bw / 2 - 5 * S, by, bw, 48 * S, 'Back', close, { color: COLORS.panelLight, textColor: CSS.cream, size: 19 }));
-    const pickLabel = playable ? (picked ? 'Picked' : 'Pick') : st.built ? 'Locked' : 'Soon';
+    if (playable) {
+      const py = by - 56 * S;
+      const lx = W / 2 - pw / 2 + 24 * S;
+      c.add(txt(this, lx, py - 8 * S, 'PRACTICE RUN', 13, save.practice ? '#8fc7f2' : CSS.cream, { stroke: false }).setOrigin(0, 0.5));
+      c.add(txt(this, lx, py + 9 * S, 'Starts at 2:30. Pays no Dough.', 11, CSS.muted, { bold: false, stroke: false }).setOrigin(0, 0.5));
+      const sw = 116 * S;
+      c.add(segmented(this, W / 2 + pw / 2 - 24 * S - sw / 2, py, sw, 32 * S, ['Off', 'On'], save.practice ? 1 : 0, (i) => {
+        save.practice = i === 1;
+        persist();
+        this.drawStages(save, 0);
+        if (save.practice && tipDue('practice')) {
+          markTip('practice');
+          const note = tipIn(this, tipBox(this, W / 2, py - 62 * S, TIPS.practice, 14), 0);
+          this.popup?.add(note);
+          this.tweens.add({ targets: note, alpha: 0, delay: 4200, duration: 400, onComplete: () => note.destroy() });
+        }
+      }, 14));
+    }
+    const pickLabel = playable ? (picked ? 'Picked' : 'Pick this stage') : st.built ? 'Locked' : 'Coming soon';
     c.add(
-      button(this, W / 2 + bw / 2 + 5 * S, by, bw, 48 * S, pickLabel, () => {
+      button(this, W / 2, by, Math.min(pw - 48 * S, 240 * S), 48 * S, pickLabel, () => {
         if (!playable) {
           sfx('lock');
           return;
@@ -532,26 +758,40 @@ export class MenuScene extends Phaser.Scene {
         save.stage = st.id;
         persist();
         close();
-      }, { size: 20, muted: !playable }),
+      }, { size: 19, muted: !playable }),
     );
   }
 
   /**
-   * Opens a pop-up, replacing any open one: a dark backdrop that swallows taps, a panel of the given size centred on
-   * screen, its title and an optional line under it. Returns the pop-up's container and the panel's top edge.
+   * Opens a pop-up, replacing any open one: a dark backdrop that swallows taps and the shared frame (header bar, title,
+   * back button) centred on screen, with an optional line under the header. Returns the pop-up's container and the
+   * panel's top edge.
    */
-  private openPopup(title: string, pw: number, ph: number, opts: { sub?: string; titleY?: number; titleSize?: number } = {}): { c: Phaser.GameObjects.Container; top: number } {
+  private openPopup(title: string, pw: number, ph: number, onBack: () => void, sub?: string): { c: Phaser.GameObjects.Container; top: number } {
     const W = this.scale.width;
     const H = this.scale.height;
     this.popup?.destroy();
     const c = this.add.container(0, 0);
     this.popup = c;
     c.add(this.add.rectangle(0, 0, W, H, 0x120c08, 0.75).setOrigin(0).setInteractive());
-    c.add(panel(this, W / 2, H / 2, pw, ph));
+    c.add(popupFrame(this, W / 2, H / 2, pw, ph, title, onBack));
     const top = H / 2 - ph / 2;
-    c.add(txt(this, W / 2, top + (opts.titleY ?? 36) * S, title, opts.titleSize ?? 28, CSS.gold));
-    if (opts.sub !== undefined) c.add(txt(this, W / 2, top + 64 * S, opts.sub, 14, CSS.cream, { bold: false }));
+    if (sub !== undefined) c.add(txt(this, W / 2, top + (HEADER + 21) * S, sub, 13, CSS.cream, { bold: false, stroke: false }));
     return { c, top };
+  }
+
+  /** The row of tabs under a pop-up's header: the same switch as the menu's mode picker. `dot` puts a red dot on one tab. */
+  private tabs(c: Phaser.GameObjects.Container, top: number, pw: number, labels: string[], sel: number, onPick: (i: number) => void, dot = -1): void {
+    const W = this.scale.width;
+    const w = pw - 36 * S;
+    c.add(segmented(this, W / 2, top + (HEADER + 54) * S, w, 34 * S, labels, sel, onPick, labels.length > 2 && w < 330 * S ? 13 : 15));
+    if (dot >= 0 && dot !== sel) {
+      const g = this.add.graphics();
+      const x = W / 2 - w / 2 + (w / labels.length) * (dot + 1) - 10 * S;
+      g.fillStyle(INK, 1).fillCircle(x, top + (HEADER + 54 - 13) * S, 7 * S);
+      g.fillStyle(COLORS.red, 1).fillCircle(x, top + (HEADER + 54 - 13) * S, 5 * S);
+      c.add(g);
+    }
   }
 
   /** Close the open pop-up. rebuild: redraw the menu behind it (after something it shows may have changed). */
@@ -559,11 +799,6 @@ export class MenuScene extends Phaser.Scene {
     this.popup?.destroy();
     this.popup = null;
     if (rebuild) this.build();
-  }
-
-  /** The Done button at the bottom of a pop-up. */
-  private doneButton(y: number, rebuild: boolean): Phaser.GameObjects.Container {
-    return button(this, this.scale.width / 2, y, 160 * S, 46 * S, 'Done', () => this.closePopup(rebuild), { size: 20 });
   }
 
   /** Scales an icon (any texture: bagel, weapon icon, stage picture) to fit a square box. */
@@ -633,24 +868,9 @@ export class MenuScene extends Phaser.Scene {
     const shown = rows.slice(page * PER, page * PER + PER);
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 68 * S;
-    const ph = 150 * S + PER * rowH + 52 * S + 66 * S;
-    const { c, top } = this.openPopup('GOALS', pw, ph, { sub });
-    const cw = pw - 28 * S;
-    const tw = (cw - 16 * S) / 3;
-    const unseen = unseenGoals(save).length > 0;
-    ['Unlocks', 'Challenges', 'Secrets'].forEach((label, i) => {
-      const on = i === tab;
-      const b = button(this, W / 2 + (i - 1) * (tw + 8 * S), top + 104 * S, tw, 38 * S, label, () => {
-        if (!on) this.openGoals(i);
-      }, { size: tw < 110 * S ? 14 : 16, muted: !on });
-      c.add(b);
-      if (i === 1 && unseen && !on) {
-        const dot = this.add.graphics();
-        dot.fillStyle(0x24160d, 1).fillCircle(tw / 2 - 5 * S, -16 * S, 7 * S);
-        dot.fillStyle(COLORS.red, 1).fillCircle(tw / 2 - 5 * S, -16 * S, 5 * S);
-        b.add(dot);
-      }
-    });
+    const ph = 150 * S + PER * rowH + 58 * S;
+    const { c, top } = this.openPopup('GOALS', pw, ph, () => this.closePopup(true), sub);
+    this.tabs(c, top, pw, ['Unlocks', 'Challenges', 'Secrets'], tab, (i) => this.openGoals(i), unseenGoals(save).length > 0 ? 1 : -1);
     const lx = W / 2 - pw / 2 + 20 * S;
     const textX = lx + 46 * S;
     const rightW = 58 * S;
@@ -682,30 +902,18 @@ export class MenuScene extends Phaser.Scene {
         this.tweens.add({ targets: tag, scale: 1.15, duration: 450, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
       }
     });
-    let by = top + 150 * S + PER * rowH + 22 * S;
+    const by = top + 150 * S + PER * rowH + 24 * S;
     if (pages > 1) {
       const go = (d: number) => this.openGoals(tab, (page + d + pages) % pages);
       c.add(button(this, W / 2 - 60 * S, by, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
       c.add(txt(this, W / 2, by, `${page + 1} / ${pages}`, 15, CSS.cream));
       c.add(button(this, W / 2 + 60 * S, by, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
     }
-    by += 46 * S;
-    c.add(this.doneButton(by + 20 * S, true));
   }
 
   /** The Cookbook's three tabs: Evolutions, Weapons and Enemies. */
   private cookbookTabs(c: Phaser.GameObjects.Container, tab: number, top: number, pw: number): void {
-    const W = this.scale.width;
-    const cw = pw - 28 * S;
-    const tw = (cw - 16 * S) / 3;
-    ['Evolutions', 'Weapons', 'Enemies'].forEach((label, i) => {
-      const on = i === tab;
-      c.add(
-        button(this, W / 2 + (i - 1) * (tw + 8 * S), top + 104 * S, tw, 38 * S, label, () => {
-          if (!on) this.openCookbook(i);
-        }, { size: tw < 110 * S ? 14 : 16, muted: !on }),
-      );
-    });
+    this.tabs(c, top, pw, ['Evolutions', 'Weapons', 'Enemies'], tab, (i) => this.openCookbook(i));
   }
 
   private openCookbook(tab = 0, page = 0): void {
@@ -724,10 +932,10 @@ export class MenuScene extends Phaser.Scene {
     const pages = tab === 0 ? Math.ceil(evoRows.length / PER) : 1;
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 60 * S;
-    const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S + 66 * S;
+    const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S;
     const opened = locked.filter((id) => weaponOpen(save, id)).length;
     const sub = tab === 0 ? `${save.cookbook.length} of ${all.length} evolutions found` : `${opened} of ${locked.length} weapons unlocked`;
-    const { c, top } = this.openPopup('THE COOKBOOK', pw, ph, { sub });
+    const { c, top } = this.openPopup('THE COOKBOOK', pw, ph, () => this.closePopup(false), sub);
     this.cookbookTabs(c, tab, top, pw);
     const lx = W / 2 - pw / 2 + 20 * S;
     const small = (x: number, y: number, s: string, wrap: number) =>
@@ -767,15 +975,13 @@ export class MenuScene extends Phaser.Scene {
         c.add(small(tx, y + 11 * S, open ? w.blurb : `${w.unlock!.text} (${st.progress})`, (pw - 70 * S) / S));
       }
     });
-    let by = top + 160 * S + PER * rowH - 10 * S;
+    const by = top + 160 * S + PER * rowH - 10 * S;
     if (pages > 1) {
       const go = (d: number) => this.openCookbook(0, (page + d + pages) % pages);
       c.add(button(this, W / 2 - 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
       c.add(txt(this, W / 2, by + 4 * S, `${page + 1} / ${pages}`, 15, CSS.cream));
       c.add(button(this, W / 2 + 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
-      by += 46 * S;
     }
-    c.add(this.doneButton(by + 28 * S, false));
   }
 
   /** Cookbook Enemies tab: one page per stage. Enemies not met yet are dark shapes; beaten bosses get a crown. Tap one to read about it. */
@@ -794,12 +1000,12 @@ export class MenuScene extends Phaser.Scene {
     const cellH = 70 * S;
     const gridRows = 3; // the biggest cast (the Freezer, 14) fits in 3 rows
     const infoH = 70 * S;
-    const ph = 150 * S + gridRows * cellH + infoH + 62 * S + 66 * S;
+    const ph = 150 * S + gridRows * cellH + infoH + 62 * S;
     const total = Object.values(ENEMY_BOOK).flat();
-    const { c, top } = this.openPopup('THE COOKBOOK', pw, ph, { sub: `${total.filter((e) => met.has(e.kind)).length} of ${total.length} enemies met` });
+    const { c, top } = this.openPopup('THE COOKBOOK', pw, ph, () => this.closePopup(false), `${total.filter((e) => met.has(e.kind)).length} of ${total.length} enemies met`);
     this.cookbookTabs(c, 2, top, pw);
     const gx = W / 2 - pw / 2 + 14 * S;
-    const gy = top + 140 * S;
+    const gy = top + 144 * S;
     const info = this.add.container(0, 0);
     c.add(info);
     const sel = this.add.graphics();
@@ -855,7 +1061,6 @@ export class MenuScene extends Phaser.Scene {
     c.add(button(this, W / 2 - pw / 2 + 44 * S, ny, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
     c.add(txt(this, W / 2, ny, `Stage ${st.num}: ${st.name}`, 15, CSS.cream));
     c.add(button(this, W / 2 + pw / 2 - 44 * S, ny, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
-    c.add(this.doneButton(ny + 66 * S, false));
   }
 
   private openBakery(tab = 0): void {
@@ -866,9 +1071,9 @@ export class MenuScene extends Phaser.Scene {
     const gap = 10 * S;
     const list = BAKERY.filter((u) => (u.tab ?? 0) === tab);
     const tabH = 50 * S;
-    const ph = 168 * S + tabH + list.length * (cardH + gap);
-    const { c, top } = this.openPopup('THE BAKERY', pw, ph);
-    const wallet = pill(this, W / 2, top + 70 * S, 'coin', `${save.dough} Dough to spend`, { size: 15, color: CSS.gold, h: 30 });
+    const ph = 122 * S + tabH + list.length * (cardH + gap);
+    const { c, top } = this.openPopup('THE BAKERY', pw, ph, () => this.closePopup(true));
+    const wallet = pill(this, W / 2, top + (HEADER + 26) * S, 'coin', `${save.dough} Dough to spend`, { size: 15, color: CSS.gold, h: 30 });
     c.add(wallet);
     const setWallet = (v: number) => {
       (wallet.getData('label') as Phaser.GameObjects.Text).setText(`${v} Dough to spend`);
@@ -876,25 +1081,19 @@ export class MenuScene extends Phaser.Scene {
     };
     const cw = pw - 28 * S;
     // Two tabs so all eight upgrades fit on a phone: Basics and Extras.
-    const tw = (cw - 10 * S) / 2;
-    ['Basics', 'Extras'].forEach((label, i) => {
-      const on = i === tab;
-      c.add(
-        button(this, W / 2 + (i ? 1 : -1) * (tw / 2 + 5 * S), top + 112 * S, tw, 38 * S, label, () => {
-          if (!on) this.openBakery(i);
-        }, { size: 16, muted: !on }),
-      );
-    });
+    const tabsTop = top + 16 * S;
+    this.tabs(c, tabsTop, pw, ['Basics', 'Extras'], tab, (i) => this.openBakery(i));
     const refreshers: (() => void)[] = [];
     list.forEach((u, i) => {
-      const y = top + 104 * S + tabH + cardH / 2 + i * (cardH + gap);
+      const y = top + 108 * S + tabH + cardH / 2 + i * (cardH + gap);
       const row = this.add.container(W / 2, y);
       c.add(row);
       const bg = this.add.graphics();
       const lx = -cw / 2;
       const pips = this.add.graphics();
-      const nameT = txt(this, lx + 74 * S, -18 * S, u.name, 17, CSS.cream).setOrigin(0, 0.5);
-      const blurb = txt(this, lx + 74 * S, 4 * S, u.blurb, 12, CSS.muted, { bold: false, stroke: false }).setOrigin(0, 0.5);
+      const textRoom = cw - 74 * S - 112 * S;
+      const nameT = fit(txt(this, lx + 74 * S, -18 * S, u.name, 17, CSS.cream).setOrigin(0, 0.5), textRoom);
+      const blurb = fit(txt(this, lx + 74 * S, 4 * S, u.blurb, 12, CSS.muted, { bold: false, stroke: false }).setOrigin(0, 0.5), textRoom);
       const icon = this.add.image(lx + 38 * S, 0, u.icon).setScale(1.25);
       row.add([bg, icon, nameT, blurb, pips]);
       let btn: Phaser.GameObjects.Container | null = null;
@@ -952,6 +1151,5 @@ export class MenuScene extends Phaser.Scene {
       draw();
       refreshers.push(draw);
     });
-    c.add(this.doneButton(top + ph - 38 * S, true));
   }
 }

@@ -24,3 +24,7 @@ export const ENDLESS_BOSS_HP = 1.5;
 export const ENDLESS_SPAWN_RAMP = 0.1;
 /** Dough per full minute survived after 5:00. */
 export const ENDLESS_DOUGH_MIN = 10;
+
+/** When a stage boss falls, the next SLOWMO_TIME seconds (real time) play at SLOWMO speed. */
+export const SLOWMO = 0.3;
+export const SLOWMO_TIME = 0.5;

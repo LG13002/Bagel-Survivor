@@ -16,7 +16,7 @@ const SPEED = Number(process.env.SPEED || 10);
     const p = await b.newPage({ viewport: { width: 390, height: 760 }, deviceScaleFactor: 1 });
     await p.goto(`http://localhost:${PORT}/?speed=${SPEED}`, { waitUntil: 'domcontentloaded' });
     await p.waitForTimeout(1500);
-    await p.evaluate(([bagel, stage, crispy]) => window.__game.scene.getScene('menu').scene.start('game', { bagel, practice: false, stage, crispy }), [bagel, STAGE, process.env.CRISPY === '1']);
+    await p.evaluate(([bagel, stage, crispy]) => window.__game.scene.getScene('title').scene.start('game', { bagel, practice: false, stage, crispy }), [bagel, STAGE, process.env.CRISPY === '1']);
     await p.waitForTimeout(600);
     await p.evaluate(() => {
       const g = window.__game.scene.getScene('game');

@@ -1,4 +1,5 @@
 import { CSS } from '../config';
+import { shake } from '../settings';
 import { RUN, type EnemyKind } from '../data';
 import type { Enemy } from '../entities';
 import { sfx } from '../sfx';
@@ -106,37 +107,36 @@ export class Director {
     }
     if (this.endlessCleared && !foes.mini && t >= this.nextMini) {
       this.nextMini = t + ENDLESS_MINI_EVERY;
-      this.spawnMini();
+      this.spawnMini(true);
       hud.banner(`${st.mini.name} is back!`, CSS.gold, 24);
     }
     if (this.endlessCleared && !foes.boss && t >= this.nextBoss) {
       this.nextBoss = t + ENDLESS_BOSS_EVERY;
-      this.spawnBoss(true);
+      this.spawnBoss(true, true);
       hud.banner(`${st.boss.name} returns, tougher!`, CSS.red, 26);
       sfx('roar');
       sfx('boss');
-      g.cameras.main.shake(400, 0.006);
+      shake(g, 400, 0.006);
     }
     if (!this.miniSpawned && t >= RUN.miniBossAt) {
       this.miniSpawned = true;
-      this.spawnMini();
-      hud.banner(st.mini.banner, CSS.gold, 26);
+      this.spawnMini(true);
+      hud.banner(st.mini.banner, CSS.gold, 26, `"${st.mini.line}"`);
     }
     if (!this.bossSpawned && t >= RUN.bossAt) {
       this.bossSpawned = true;
-      this.spawnBoss(false);
-      if (st.boss.card) {
-        hud.bossCard(st.boss.name, st.boss.card);
-        sfx('roar');
-      } else hud.banner(st.boss.banner, CSS.red, 30);
+      this.spawnBoss(false, true);
+      hud.bossCard(st.boss.name, st.boss.card);
+      sfx('roar');
       sfx('boss');
-      g.cameras.main.shake(400, 0.006);
+      shake(g, 400, 0.006);
     }
   }
 
   /** The mini-boss (it carries a chest and the Sticky Bun). */
-  spawnMini(): Enemy | null {
-    const e = this.g.foes.spawnNear(this.g.stage.mini.kind);
+  spawnMini(drop = false): Enemy | null {
+    const kind = this.g.stage.mini.kind;
+    const e = drop ? this.g.foes.dropIn(kind) : this.g.foes.spawnNear(kind);
     if (e) {
       e.dropsChest = true;
       e.dropsBun = true;
@@ -146,9 +146,10 @@ export class Director {
   }
 
   /** The stage boss. In Endless each return has more health than the last. */
-  spawnBoss(returning: boolean): Enemy | null {
+  spawnBoss(returning: boolean, drop = false): Enemy | null {
     const g = this.g;
-    const e = g.foes.spawnNear(g.stage.boss.kind);
+    const kind = g.stage.boss.kind;
+    const e = drop ? g.foes.dropIn(kind) : g.foes.spawnNear(kind);
     if (e) {
       if (returning) e.maxHp = e.hp = e.maxHp * Math.pow(ENDLESS_BOSS_HP, this.bossRound);
       e.boss = true;

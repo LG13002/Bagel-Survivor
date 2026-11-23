@@ -14,6 +14,11 @@ This is the history and the decisions behind the current game. The working rules
 | Step 5 change list (audio) | https://claude.ai/artifact/GCeSxYpSwhJvmNpfSPyG7i |
 | Step 6 change list (Quick Run) | https://claude.ai/artifact/RB5gLpu9s5Pzkd6yzgyvUk |
 | Step 7 change list (balance) | https://claude.ai/artifact/FwmMBhw9qqkBBukQ8mYQdT |
+| Phase 3 design doc | https://claude.ai/artifact/XTFovTRnht4Ro4soMW44jt |
+| Phase 3 style board | https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D |
+| M12 change list (Foundations) | https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA |
+| M13 change list (Onboarding and story) | https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44 |
+| M14 change list (Animation and feel) | https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL |
 
 ## The owner's standing decisions
 
@@ -24,6 +29,7 @@ This is the history and the decisions behind the current game. The working rules
 - **Chests:** a bread basket (normal) and a gold toaster (rare: always from the Croissant, 25% from elites; gives 3 upgrades and +15 Dough).
 - **Music:** made in code. No downloaded audio files.
 - **Process:** change list, then approval, then a PR with a preview. The owner merges after each step.
+- **Phase 3 (set 11-22):** see the M12 entry in the changelog for the owner's Phase 3 decisions.
 
 ## Changelog
 
@@ -233,6 +239,68 @@ How it was checked: 16 recorded runs (every stage, Quick, Endless, Extra Crispy,
 
 Bug found and fixed while checking: if an enemy shot or a Broiler flame line knocked you out while Second Bake was ready, the revive cleared the shots in the middle of the loop that was moving them, and that frame crashed (`Cannot read properties of undefined`). The shot and flame loops now stop when the revive has cleared them.
 
+### Phase 3, M12: Foundations (version 0.12)
+
+Phase 3 takes the game to a 1.0 that doesn't look like a prototype. The plan is the [Phase 3 design doc](https://claude.ai/artifact/XTFovTRnht4Ro4soMW44jt) (milestones M12 to M19); the owner picked the look on the [Phase 3 style board](https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D). Built from the approved [M12 change list](https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA). No gameplay numbers changed.
+
+- **The owner's Phase 3 decisions:** web only, free with no ads or purchases, shared by link rather than listed publicly (noindex stays), two more stages (the Pantry, the Bread Bin) with a light story, one bundled font file allowed, cosmetics yes, a local-only Daily Run, playtesters are people the owner invites who are new to the game, no fixed date. Style: Chunky Cartoon kept with upgraded lighting (not a redraw), "big hero" title, bakery shelf menu, Titan One.
+- **One font:** Titan One everywhere, bundled with the code (works offline and in the single-file preview).
+- **Title screen** on every launch, with the version number.
+- **Bakery shelf menu:** bagels on a shelf, a name plate, the "Today's order" ticket (stage, Extra Crispy, mode, PLAY), and a bottom bar with Bakery, Goals, Cookbook and Settings. Practice moved to a switch on the stage picker; Music and Sound moved to Settings.
+- **One pop-up look:** header bar, back button and the same tab switch on the stage picker, Bakery, Goals, Cookbook and Settings. The Done buttons are gone.
+- **Bagel-ring wipe** between screens.
+- **Settings:** music and sound volume, screen shake (On, Reduced, Off), flashing effects (Normal, Reduced), battery saver, left-handed buttons. Also reachable from the pause screen.
+- **Saves:** a version number with upgrade steps, a spare copy that loads if the main save is unreadable, backup codes (copy and paste), reset (two taps), and a backup reminder after the first stage clear and every 30 days.
+- **About and What's new:** version, a "What's new" card once after each update, and "No data leaves your phone."
+- **New home-screen icon** drawn from the title art (`tools/icons.cjs`).
+- **Upgraded lighting** (`relight`) on the title, menu and results bagels only for now; the in-run art gets it in M14.
+
+How it was checked: `savetest.cjs` (39 checks: saves from the prototype, mid Phase 2 and the end of Phase 2 all load with their progress; broken saves fall back to the spare; backup codes round-trip; reset keeps settings). Quick Run clear and Sticky Bun bots pass. Weapon bench against `main`, side by side: Sesame Shot level 3 at 91 damage a second (main 93), Rolling Pin at 197 (main 190), inside the usual 10% run-to-run spread. Every screen was checked at 390×760 and 390×640.
+
+Bugs found and fixed while checking: the first lighting pass greyed the ink outlines (it now leaves dark colors alone); the title screen's background was 27 full-screen circles a frame (now one small stretched picture); long card and upgrade descriptions overflowed in the wider font (they shrink to fit).
+
+### Phase 3, M13: Onboarding and story (version 0.13)
+
+Built from the approved [M13 change list](https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44). It sits on the same branch and PR as M12: the owner asked for fewer merges, so M12 to M14 merge together. No gameplay numbers changed.
+
+- **First-run tips:** "Drag anywhere to move" (with a ghost thumb, until you move), "Your bagel fires on its own" (first crumb down), "Grab seeds to level up" (an arrow over the nearest seed), a line over the first level-up's cards, a line over the first chest, and the first results screen points at the Bakery with a button straight there. Tips are small boxes under the bagel that never pause the run, one at a time, each once per save.
+- **Later tips,** the first time each thing comes up: a maxed weapon (how to evolve), the Sticky Bun, the Freezer (ice and frost, then the first Warm Mug), the Toaster Oven (coils, then grease and knobs), Blueberry's dash, and a line on the menu the first time Quick, Endless, Extra Crispy or Practice is picked.
+- **Evolution recipes are always on show:** every weapon card names the topping it evolves with, every topping card the weapon it evolves, and the pause screen puts the needed topping on each weapon's corner (gold-ringed once owned).
+- **Settings:** a Tips row (On, Off, "Replay tutorial"), a Help tab ("how to play" in seven lines) and "Watch the intro" on the About tab. With Tips off nothing in this list shows except the recipes.
+- **Rotating hints** (22 of them) along the bottom of the pause and results screens.
+- **A menu that opens as you go:** a new save's bottom bar has only Settings open. The Bakery and Goals open when the first run ends, the Cookbook at the first evolution. A closed button is dim with a lock and says how it opens; one that just opened wears a NEW tag until tapped. Saves with any progress keep everything open.
+- **Intro comic:** four panels after the title screen, once (the bakery at dawn, the Stale creeping over the counter, the Stale King's crown in the bread bin, the bagels rolling out), with a little motion in each. Tap to turn the page, Skip to leave.
+- **Boss lines:** every boss arrives with the announcement card (the Toaster Tyrant: "You're toast!"), and each mini-boss's banner has a line under it.
+- **Story beats:** the first clear of each stage adds one line to the results screen.
+- **Save version 3:** tips seen, opened menu buttons, NEW tags, the comic flag, and the Tips setting.
+
+Decisions made while building: the comic plays once for existing saves too (it is new to them, and Skip is one tap). Existing saves skip the tips for anything they have clearly done already (the tutorial, the bun, evolutions if the Cookbook has an entry, mode notes once Stage 1 is cleared, a stage's hazards once that stage has been played). The first results screen swaps its buttons to BAKERY and Again, and only when there are at least 20 Dough to spend (the cheapest useful upgrade); otherwise it waits for a later run.
+
+How it was checked: `tutortest.cjs` (a brand-new save from the title screen through the comic, the locked menu, a first run with each tip once and in order, the Bakery button, NEW tags, a second run with no tips, Tips off, Replay tutorial) at 390x760 and 390x640. `savetest.cjs` grew to 72 checks with an M12-era save: old saves get no tutorial and every button open. Quick Run clear and Sticky Bun bots pass. Weapon bench against the M12 build, run side by side: Rolling Pin level 3 at 251 to 279 damage a second on M13 and 251 to 304 on M12 (the same spread run to run), Sesame Shot level 3 at 95 (M12: 91).
+
+### Phase 3, M14: Animation and feel (version 0.14)
+
+Built from the approved [M14 change list](https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL) (27 items plus the three suggestions), on the same branch and PR as M12 and M13. No gameplay numbers changed.
+
+- **Bagels:** living eyes (`src/face.ts`: blink, look where you move, squint when hit), a flattening wince on a hit, a smear of after-images behind Blueberry's dash, a hop and spin on a win, a droop on defeat. The title and menu bagels blink and glance about, and the menu bagel hops when tapped.
+- **Enemies:** a squash on every hit, three ways to go (pop, crumble, splat, picked by the enemy's kill sound), seeds that hop out, chests, buns and mugs that land with a bounce.
+- **Bosses:** mini-bosses and bosses drop in with a ring of dust, rear up before a timed attack, roar at half health (Freezer Burn, Broiler), and go out with a bigger burst and half a second of slow motion.
+- **HUD and pop-ups:** build slots pop when they change, the boss bar has a name plate and a half-health notch, the screen's edges glow red under 25% health, level-up cards flip over, the golden toaster rattles and pops and its rewards come out one at a time, evolutions show both halves of the recipe sliding together. A tap skips any of these.
+- **Results:** numbers count up, the run's Dough flies to a purse on the panel, a new best stamps down, and the nearest bagel unlock has a progress bar. A tap skips.
+- **Stages:** the upgraded lighting on the in-run bagel, enemies, bosses and pickups; a tinted edge per stage (warm Bakery, cold Freezer, red-hot oven); specks in the air (flour dust, frost, sparks and heat haze); three new floor props per stage (whisk, eggshells, recipe card; frozen berries, freezer pop, frost crystal; oven mitt, fork, thermometer dial).
+- **Sound:** songs crossfade. The mix was measured (`tools/bots/mixtest.cjs`): the boss themes were 4 to 6 dB quieter than the run theme they cut in on (Bakery boss -20.7 dB against -14.3 dB), and the bass layer made the run themes jump by up to 10 dB at 2:00. Now every run theme at full strength and every boss theme sits between -15.6 and -13.5 dB. Repeated sounds vary slightly in pitch. New sounds: a thud, a card flip, a tip's two notes, a counting tick.
+
+Deviations from the list, told to the owner:
+- **Bosses and mini-bosses appear closer.** To be seen dropping in, they land just inside the screen edge instead of walking in from about 40 units outside it: roughly 80 to 90 units closer than before. For the 0.7 seconds of the drop they stand still and can't hurt by touch. `bosstime.cjs` on both builds: every boss arrives at 4:30 and first attacks about 1.45s later, same as M13.
+- **The win holds for 0.6 seconds** before the fade (so the hop is seen), after the half second of slow motion.
+- **Battery saver also turns off the edge tint,** not only the specks (see the frame-rate note).
+- **Item 26's fallback was built in from the start:** regular enemies only ever get the cheap squash (a scale change when the hit flash turns on or off). Only big enemies are posed every frame.
+
+How it was checked:
+- Frame rate (`fpsbench.cjs`, 12 seconds from about 4:10, M14 and M13 served side by side): Bakery 15.8 against 18.4 frames a second, Freezer 16.1 against 19.0, oven 14.7 against 16.7; a second Bakery pair read 17.6 against 18.5. So 5 to 15% lower in the bot. The bot draws without a graphics chip, where filling the screen is the slow part, and the stage's edge tint is one more screen-sized layer: with the tint hidden the Bakery read 18.3, level with M13. A phone's graphics chip handles one such layer easily, but if the owner's phone feels slower, the tint is the first thing to cut (Battery saver already does).
+- Weapon bench against M13, alternating: Rolling Pin level 3 at 217 and 272 damage a second (M13: 300 and 264), Sesame Shot level 3 at 99 and 104 (M13: 109 and 103). The usual run-to-run spread.
+- `savetest.cjs` (72 checks), `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Screens and slowed-down frames of each animation were looked at by hand.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
@@ -260,5 +328,11 @@ Sesame Shot stays weak at level 3 on purpose (it's the starter). Evolved numbers
 - **Level-up card positions** change with the layout, so bots should resolve overlays through `window.__game`, not by clicking.
 - **Quick Run code** must use `stageT` for anything on the schedule or anything that scales with time.
 - **Phaser keeps animating destroyed sprites.** A `repeat: -1` tween must be stopped by hand when its target goes.
+- **Slow title screen in headless runs** was real, not a headless quirk: big overlapping shapes cost phones too. Stretch one small picture instead.
+- **Overlay colors on finished art** (`source-atop`) wash out the ink outlines. `relight` uses the "overlay" blend through a spare canvas so dark stays dark.
 - **A missing texture doesn't throw:** it draws a placeholder box. After adding art, check with a bot that no sprite's texture key is `__MISSING`.
+- **The weapon bench drifts with the machine's frame rate:** the same build can read 250 or 300 on the same weapon. To compare two builds, build the old commit into a second folder, serve it on another port (`PORT=`) and alternate runs.
+- **A scene's clock runs slow in headless runs** (few frames, and each frame's time is capped), so a 600 ms delay can take seconds. Bots should wait for a state (`scene.isActive('results')`, `results.playing`) instead of a fixed time.
+- **To photograph an animation,** slow it down: `scene.tweens.timeScale = 0.08`, then take screenshots a second apart.
+- **Full-screen layers are what the bot's frame rate feels.** It draws without a graphics chip, so one screen-sized see-through picture costs it about 5%. Phones barely notice, but keep such layers few.
 - **Old version on the owner's phone after a deploy:** fully close and reopen the home-screen app.

@@ -2,11 +2,15 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { MAX_LEVEL, MAX_SLOTS, TOPPINGS, WEAPONS, type ToppingId, type WeaponId } from '../data';
 import { load, persist } from '../save';
-import { musicOn, setMusic, setSound, sfx, soundOn } from '../sfx';
+import { weaponOpen } from '../progress';
+import { sfx } from '../sfx';
+import { buildSettings } from '../settingsPanel';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { COMBO } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
 import type { Choice } from './state';
+import { TIPS, markTip, nextHint, openMenu, tipDue } from '../tips';
+import { tipBox, tipIn } from './tutor';
 
 /**
  * The pop-ups that pause a run: level-up cards, chests and the pause menu. Only one is open at a time. Made fresh
@@ -77,6 +81,23 @@ export class Panels {
     return false;
   }
 
+  /** The other half of a card's evolution recipe: the topping a weapon needs, or the weapon a topping evolves. */
+  private partner(c: Choice): { icon: string; owned: boolean } | null {
+    const g = this.g;
+    if (c.kind === 'wnew' || c.kind === 'wup') {
+      const def = WEAPONS[c.id as WeaponId];
+      return { icon: TOPPINGS[def.evolveWith].icon, owned: g.toppings.has(def.evolveWith) };
+    }
+    if (c.kind === 'tnew' || c.kind === 'tup') {
+      const def = Object.values(WEAPONS).find((w) => w.evolveWith === c.id);
+      if (!def || !weaponOpen(load(), def.id)) return null;
+      const own = g.weaponOf(def.id);
+      if (own?.evolved) return null;
+      return { icon: def.icon, owned: !!own };
+    }
+    return null;
+  }
+
   openLevelUp(): void {
     const g = this.g;
     const run = g.run;
@@ -97,6 +118,11 @@ export class Panels {
     const title = txt(g, W / 2, startY - ch / 2 - 56 * S, 'LEVEL UP!', 34, CSS.gold);
     const sub = txt(g, W / 2, startY - ch / 2 - 24 * S, `Level ${run.level - run.pendingLevels + 1}: pick one`, 15, CSS.muted);
     c.add([title, sub]);
+    // The first level-up explains the cards.
+    if (!g.practice && tipDue('cards')) {
+      markTip('cards');
+      c.add(tipIn(g, tipBox(g, W / 2, Math.max(ins.top * S + 40 * S, title.y - 62 * S), TIPS.cards, 14)));
+    }
     g.tweens.resumeAll();
     title.setScale(0.5);
     g.tweens.add({ targets: title, scale: 1, duration: 260, ease: 'Back.Out' });
@@ -135,16 +161,29 @@ export class Panels {
       const name = txt(g, tx, -18 * S, info.name, 18, CSS.cream).setOrigin(0, 0.5);
       const maxName = cw - 100 * S;
       if (name.width > maxName) name.setScale(maxName / name.width);
-      const desc = txt(g, tx, 6 * S, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0.5);
+      const desc = txt(g, tx, 0, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0).setLineSpacing(-2 * S);
       card.add([gr, icon, name, desc, rib, tag]);
       // Level pips: current level filled, the level you'd get glowing.
       const lvl = kind === 'wup' ? g.weaponOf(choice.id!)!.level : kind === 'tup' ? (g.toppings.get(choice.id as ToppingId) ?? 0) : kind === 'wnew' || kind === 'tnew' ? 0 : -1;
       if (lvl >= 0) {
         const pg = g.add.graphics();
-        drawPips(pg, tx + 5 * S, 27 * S, MAX_LEVEL, lvl, true, col, 3.6 * S, 12 * S);
+        drawPips(pg, tx + 5 * S, 30 * S, MAX_LEVEL, lvl, true, col, 3.6 * S, 12 * S);
         card.add(pg);
-        desc.setY(4 * S);
       }
+      // What it evolves with, in the bottom corner: a weapon's card shows its topping, a topping's card its weapon.
+      // Bright once you own the other half.
+      const partner = this.partner(choice);
+      if (partner) {
+        const pi = g.add.image(cw / 2 - 20 * S, 29 * S, partner.icon).setScale(0.6).setAlpha(partner.owned ? 1 : 0.8);
+        const pl = txt(g, pi.x - 14 * S, 30 * S, kind === 'wnew' || kind === 'wup' ? 'EVOLVES WITH' : 'EVOLVES', 9, partner.owned ? CSS.gold : CSS.muted, { stroke: false }).setOrigin(1, 0.5);
+        card.add([pl, pi]);
+      }
+      // The note sits between the name and the level pips (or the card's bottom edge when there are none),
+      // centred in that gap. A note too tall for it, such as two lines above the pips, shrinks to fit.
+      const noteTop = -6 * S;
+      const noteRoom = (lvl >= 0 ? 29 : 38) * S;
+      if (desc.height > noteRoom) desc.setScale(noteRoom / desc.height);
+      desc.setY(noteTop + (noteRoom - desc.displayHeight) / 2);
       if (combo) {
         const sp = g.add.image(-cw / 2 + 66 * S, -24 * S, 'ic_star').setScale(0.55);
         card.add(sp);
@@ -172,10 +211,21 @@ export class Panels {
         if (run.pendingLevels > 0) this.openLevelUp();
         else g.setPaused('');
       });
-      card.setAlpha(0);
-      card.y = y + 60 * S;
-      g.tweens.add({ targets: card, alpha: 1, y, delay: 70 * i, duration: 240, ease: 'Back.Out' });
-      c.add(card);
+      // The cards are dealt face down and flip over one after another.
+      const back = g.add.graphics();
+      back.fillStyle(0x1d140d).fillRoundedRect(-cw / 2, -ch / 2 + 5 * S, cw, ch, 16 * S);
+      back.fillStyle(tile, 1).fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 16 * S);
+      back.lineStyle(3.5 * S, col).strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 16 * S);
+      back.fillStyle(0xffffff, 0.1).fillRoundedRect(-cw / 2 + 10 * S, -ch / 2 + 10 * S, cw - 20 * S, ch - 20 * S, 10 * S);
+      back.setPosition(W / 2, y + 40 * S).setAlpha(0);
+      card.scaleY = 0;
+      g.tweens.add({ targets: back, alpha: 1, y, delay: 60 * i, duration: 130, ease: 'Cubic.Out' });
+      g.tweens.add({ targets: back, scaleY: 0, delay: 60 * i + 130, duration: 80, ease: 'Sine.In', onComplete: () => {
+        back.destroy();
+        sfx('flip');
+      } });
+      g.tweens.add({ targets: card, scaleY: 1, delay: 60 * i + 210, duration: 150, ease: 'Back.Out' });
+      c.add([back, card]);
     });
 
     if (run.rerolls > 0) {
@@ -243,6 +293,8 @@ export class Panels {
       run.evolutionsThisRun.push(evo.def.id);
       const save = load();
       if (!save.cookbook.includes(evo.def.id)) save.cookbook.push(evo.def.id);
+      // The first evolution opens the Cookbook on the menu.
+      if (!g.practice) openMenu(save, 'cookbook');
       persist();
     } else {
       title = gold ? 'GOLDEN TOASTER!' : 'BREAD BASKET';
@@ -270,20 +322,119 @@ export class Panels {
     const W = g.scale.width;
     const H = g.scale.height;
     const { c, dim } = this.open(0.7);
-    const extra = Math.max(0, line.split('\n').length - 2) * 20 * S;
+    // One text per reward, so they can come out one at a time. The panel grows to hold them.
+    const wrap = Math.min(W / S - 70, 300);
+    const rewards = line.split('\n').map((l) => txt(g, W / 2, 0, l, 16, '#e8d8c0', { wrap, bold: false }));
+    const blockH = rewards.reduce((a, r) => a + r.height, 0);
+    const extra = Math.max(0, blockH - 44 * S);
     c.add(panel(g, W / 2, H / 2 + extra / 2, Math.min(W - 40 * S, 340 * S), 250 * S + extra));
-    const im = g.add.image(W / 2, H / 2 - 60 * S, icon).setScale(2.2);
+    const cy = H / 2 - 60 * S;
+    const im = g.add.image(W / 2, cy, icon).setScale(2.2);
     const t1 = txt(g, W / 2, H / 2 + 6 * S, title, evo || gold ? 28 : 24, evo || gold ? CSS.gold : CSS.cream);
-    const t2 = txt(g, W / 2, H / 2 + 56 * S + extra / 2, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
+    let ry = H / 2 + 56 * S + extra / 2 - blockH / 2;
+    for (const r of rewards) {
+      r.setY(ry + r.height / 2);
+      ry += r.height;
+    }
     const t3 = txt(g, W / 2, H / 2 + 100 * S + extra, 'Tap to continue', 13, CSS.muted).setAlpha(0);
-    c.add([im, t1, t2, t3]);
+    c.add([im, t1, ...rewards, t3]);
+    // The first chest explains what chests do.
+    if (!g.practice && tipDue('chest')) {
+      markTip('chest');
+      c.add(tipIn(g, tipBox(g, W / 2, H / 2 - 125 * S - 44 * S, TIPS.chest, 14)));
+    }
     g.tweens.resumeAll();
-    im.setScale(0.5);
-    g.tweens.add({ targets: im, scale: 2.2, angle: evo ? 360 : 0, duration: 500, ease: 'Back.Out' });
-    g.tweens.add({ targets: t3, alpha: 1, delay: 600, duration: 200 });
+
+    // The reveal: every step is a tween that can be jumped to its end, so a tap skips straight to the rewards.
+    const ends: (() => void)[] = [];
+    type Target = Phaser.GameObjects.Image | Phaser.GameObjects.Text;
+    const play = (target: Target, to: Partial<Record<'x' | 'y' | 'scale' | 'alpha' | 'angle', number>>, cfg: Phaser.Types.Tweens.TweenBuilderConfig | object, onEnd?: () => void): void => {
+      let ended = false;
+      const end = () => {
+        if (ended) return;
+        ended = true;
+        onEnd?.();
+      };
+      const tw = g.tweens.add({ targets: target, ...to, ...cfg, onComplete: end });
+      ends.push(() => {
+        tw.stop();
+        if (!target.scene) return;
+        for (const [k, v] of Object.entries(to)) {
+          if (k === 'scale') target.setScale(v);
+          else (target as unknown as Record<string, number>)[k] = v;
+        }
+        end();
+      });
+    };
+    /** A flash of ring and stars around the icon. */
+    const pop = () => {
+      if (!c.scene) return;
+      const ring = g.add.image(W / 2, cy, 'hitring').setTint(0xffe2a0).setScale(1);
+      c.add(ring);
+      g.tweens.add({ targets: ring, scale: 5.5, alpha: 0, duration: 380, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+      for (let i = 0; i < 8; i++) {
+        const st = g.add.image(W / 2, cy, 'star4').setTint(i % 2 ? 0xffffff : 0xffd34d).setScale(2.2);
+        c.add(st);
+        const a = (i / 8) * Math.PI * 2 + 0.3;
+        g.tweens.add({ targets: st, x: W / 2 + Math.cos(a) * 92 * S, y: cy + Math.sin(a) * 70 * S, angle: 200, scale: 0.4, alpha: 0, duration: 520, ease: 'Cubic.Out', onComplete: () => st.destroy() });
+      }
+    };
+    /** Title, then the rewards one after another, then the tap line. */
+    const payOut = (at: number) => {
+      t1.setScale(0.4).setAlpha(0);
+      play(t1, { scale: 1, alpha: 1 }, { delay: at, duration: 220, ease: 'Back.Out' });
+      rewards.forEach((r, i) => {
+        const y = r.y;
+        r.setAlpha(0).setY(y - 22 * S);
+        play(r, { y, alpha: 1 }, { delay: at + 140 + i * 130, duration: 220, ease: 'Back.Out', onStart: () => sfx('tick') });
+      });
+      play(t3, { alpha: 1 }, { delay: at + 240 + rewards.length * 130, duration: 200 });
+    };
+    if (evo || merge) {
+      // Old and new side by side: the two halves of the recipe slide together and become the new weapon.
+      const parts = merge ? [WEAPONS.lox.icon, WEAPONS.puddle.icon] : [evo!.def.icon, TOPPINGS[evo!.def.evolveWith].icon];
+      im.setScale(0).setAlpha(0);
+      const halves = parts.map((ic, i) => g.add.image(W / 2 + (i ? 52 : -52) * S, cy, ic).setScale(1.5));
+      const plus = txt(g, W / 2, cy, '+', 26, CSS.cream);
+      const star = g.add.image(W / 2 + 34 * S, cy - 30 * S, 'ic_star').setScale(0).setVisible(!merge);
+      c.add([...halves, plus, star]);
+      let merged = false;
+      const join = () => {
+        if (merged) return;
+        merged = true;
+        halves.forEach((h) => h.destroy());
+        plus.destroy();
+        pop();
+      };
+      halves.forEach((h, i) => play(h, { x: W / 2 }, { delay: 380, duration: 300, ease: 'Back.In' }, i ? join : undefined));
+      play(plus, { alpha: 0 }, { delay: 380, duration: 200 });
+      play(im, { scale: 2.2, alpha: 1 }, { delay: 680, duration: 320, ease: 'Back.Out' });
+      play(star, { scale: 0.8, angle: 360 }, { delay: 760, duration: 420, ease: 'Back.Out' });
+      payOut(760);
+    } else if (gold) {
+      // The golden toaster rattles, pops, and the rewards come out.
+      im.setScale(1.9);
+      play(im, { angle: 0 }, { duration: 420, ease: 'Linear', onUpdate: (tw: Phaser.Tweens.Tween) => im.setAngle(Math.sin(tw.progress * 26) * 9 * (1 - tw.progress * 0.3)) }, pop);
+      play(im, { scale: 2.2 }, { delay: 420, duration: 260, ease: 'Back.Out', onStart: () => im.setScale(2.9) });
+      payOut(480);
+    } else {
+      im.setScale(0.5);
+      play(im, { scale: 2.2 }, { duration: 380, ease: 'Back.Out' });
+      payOut(160);
+    }
     const openedAt = performance.now();
+    let skipped = false;
     dim.on('pointerup', () => {
-      if (performance.now() - openedAt < 600) return;
+      const dt = performance.now() - openedAt;
+      // The first moments ignore taps (a thumb lifting off the joystick). After that a tap skips the reveal,
+      // and a tap once it's all shown carries on.
+      if (dt < 250) return;
+      if (!skipped && t3.alpha < 1) {
+        skipped = true;
+        ends.splice(0).forEach((end) => end());
+        return;
+      }
+      if (dt < 600) return;
       this.close();
       g.setPaused('');
     });
@@ -293,17 +444,30 @@ export class Panels {
 
   openPause(): void {
     const g = this.g;
-    const run = g.run;
     if (g.paused) return;
     g.setPaused('pause');
     g.writeSnapshot();
+    this.drawPause();
+  }
+
+  /** Draws the pause screen (the run is already paused). */
+  private drawPause(): void {
+    const g = this.g;
+    const run = g.run;
     const W = g.scale.width;
     const H = g.scale.height;
     const { c } = this.open(0.7);
     const pw = Math.min(W - 32 * S, 340 * S);
-    const ph = 470 * S;
+    // A hint takes turns along the bottom (not with Tips off).
+    const hint = nextHint();
+    const ph = (hint ? 512 : 470) * S;
     const top = H / 2 - ph / 2;
     c.add(panel(g, W / 2, H / 2, pw, ph));
+    if (hint) {
+      const ht = txt(g, W / 2, top + 479 * S, `TIP: ${hint}`, 12, CSS.muted, { bold: false, stroke: false, wrap: (pw - 36 * S) / S });
+      if (ht.height > 34 * S) ht.setScale((34 * S) / ht.height);
+      c.add(ht);
+    }
     c.add(txt(g, W / 2, top + 36 * S, g.practice ? 'PAUSED (PRACTICE)' : g.quick ? 'PAUSED (QUICK)' : g.endless ? 'PAUSED (ENDLESS)' : 'PAUSED', 26, CSS.gold));
 
     // Run so far
@@ -323,7 +487,7 @@ export class Panels {
     // Your build: weapons on top, toppings below, each with level pips.
     const cell = Math.min(70 * S, (pw - 30 * S) / MAX_SLOTS);
     const gx = W / 2 - (cell * MAX_SLOTS) / 2;
-    const row = (y: number, label: string, items: { icon: string; lv: number; evolved: boolean }[], col: number) => {
+    const row = (y: number, label: string, items: { icon: string; lv: number; evolved: boolean; needs?: string; has?: boolean }[], col: number) => {
       c.add(txt(g, gx + 4 * S, y - 12 * S, label, 12, CSS.muted, { bold: true, stroke: false }).setOrigin(0, 0.5));
       for (let i = 0; i < MAX_SLOTS; i++) {
         const it = items[i];
@@ -341,9 +505,20 @@ export class Panels {
           drawPips(pg, cx - 2 * 8 * S, y + t + 9 * S, MAX_LEVEL, it.lv, false, col, 2.8 * S, 8 * S);
           c.add(pg);
         }
+        if (it.needs) {
+          // The topping this weapon evolves with, on its corner: gold-ringed once you own it.
+          const bx = cx + t / 2 - 3 * S;
+          const by = y + 3 * S;
+          const bg = g.add.graphics();
+          bg.fillStyle(0x24160d, 1).fillCircle(bx, by, 11 * S);
+          bg.fillStyle(it.has ? 0x3f5f86 : 0x4a3a2c, 1).fillCircle(bx, by, 9 * S);
+          if (it.has) bg.lineStyle(1.5 * S, COLORS.gold, 1).strokeCircle(bx, by, 9 * S);
+          c.add(bg);
+          c.add(g.add.image(bx, by, it.needs).setScale(0.42).setAlpha(it.has ? 1 : 0.8));
+        }
       }
     };
-    row(top + 116 * S, 'WEAPONS', g.weapons.map((w) => ({ icon: w.icon, lv: w.level, evolved: w.evolved })), 0xf08a3c);
+    row(top + 116 * S, 'WEAPONS', g.weapons.map((w) => ({ icon: w.icon, lv: w.level, evolved: w.evolved, needs: w.evolved ? undefined : TOPPINGS[w.def.evolveWith].icon, has: g.toppings.has(w.def.evolveWith) })), 0xf08a3c);
     row(top + 196 * S, 'TOPPINGS', [...g.toppings].map(([id, lv]) => ({ icon: TOPPINGS[id].icon, lv, evolved: false })), 0x5aa9e6);
 
     c.add(
@@ -365,15 +540,22 @@ export class Panels {
       g.endRun(false, true);
     }, { color: COLORS.panelLight, textColor: CSS.cream, size: 17 });
     c.add(quit);
-    const half = 96 * S;
-    const mus = button(g, W / 2 - half / 2 - 4 * S, top + 420 * S, half, 44 * S, `Music: ${musicOn() ? 'On' : 'Off'}`, () => {
-      setMusic(!musicOn());
-      (mus.getData('label') as Phaser.GameObjects.Text).setText(`Music: ${musicOn() ? 'On' : 'Off'}`);
-    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 14 });
-    const snd = button(g, W / 2 + half / 2 + 4 * S, top + 420 * S, half, 44 * S, `Sound: ${soundOn() ? 'On' : 'Off'}`, () => {
-      setSound(!soundOn());
-      (snd.getData('label') as Phaser.GameObjects.Text).setText(`Sound: ${soundOn() ? 'On' : 'Off'}`);
-    }, { color: COLORS.panelLight, textColor: CSS.cream, size: 14 });
-    c.add([mus, snd]);
+    // Volume, shake and the rest can be changed mid-run.
+    c.add(button(g, W / 2, top + 420 * S, 200 * S, 44 * S, 'Settings', () => this.openSettings(), { color: COLORS.panelLight, textColor: CSS.cream, size: 17 }));
+  }
+
+  /** Settings, from the pause screen. The back button returns to the pause screen. */
+  private openSettings(): void {
+    const g = this.g;
+    this.close();
+    const { c } = this.open(0.7);
+    buildSettings(g, c, {
+      inRun: true,
+      onClose: () => {
+        this.close();
+        g.hud.layout(); // the left-handed setting moves the HUD
+        this.drawPause();
+      },
+    });
   }
 }

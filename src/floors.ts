@@ -242,6 +242,9 @@ export const COUNTER_PROPS: PropDef[] = [
   { key: 'prop_flour', w: 150, h: 100, weight: 1.2, spin: false, draw: flourPile },
   { key: 'prop_sprinkles', w: 110, h: 90, weight: 1.2, spin: true, draw: sprinkleSpill },
   { key: 'prop_streak', w: 300, h: 70, weight: 0.8, spin: true, draw: flourStreak },
+  { key: 'prop_whisk', w: 190, h: 70, weight: 0.7, spin: true, draw: whisk },
+  { key: 'prop_eggshell', w: 110, h: 80, weight: 0.8, spin: true, draw: eggShells },
+  { key: 'prop_recipe', w: 120, h: 90, weight: 0.6, spin: true, draw: recipeCard },
 ];
 
 /** Picture for a stage card and the menu's stage button, w × h with rounded corners and an ink edge. */
@@ -522,6 +525,9 @@ export const FREEZER_PROPS: PropDef[] = [
   { key: 'prop_stick', w: 120, h: 30, weight: 0.9, spin: true, draw: popsicleStick },
   { key: 'prop_bag', w: 130, h: 100, weight: 0.8, spin: true, draw: freezerBag },
   { key: 'prop_frost', w: 120, h: 70, weight: 1.3, spin: false, draw: frostPile },
+  { key: 'prop_berries', w: 110, h: 80, weight: 0.9, spin: true, draw: frozenBerries },
+  { key: 'prop_icepop', w: 170, h: 46, weight: 0.7, spin: true, draw: icePop },
+  { key: 'prop_snowflake', w: 120, h: 120, weight: 0.8, spin: true, draw: snowflake },
 ];
 
 // ---------- Stage 3: the Toaster Oven ----------
@@ -733,4 +739,262 @@ export const OVEN_PROPS: PropDef[] = [
   { key: 'prop_foil', w: 100, h: 70, weight: 0.7, spin: true, draw: foilScrap },
   { key: 'prop_burnt', w: 100, h: 60, weight: 1.2, spin: true, draw: burntCrumbs },
   { key: 'prop_ash', w: 110, h: 60, weight: 1, spin: false, draw: ashPile },
+  { key: 'prop_mitt', w: 130, h: 110, weight: 0.6, spin: true, draw: ovenMitt },
+  { key: 'prop_fork', w: 180, h: 50, weight: 0.7, spin: true, draw: fork },
+  { key: 'prop_dial', w: 90, h: 90, weight: 0.6, spin: true, draw: ovenDial },
 ];
+
+// ---------- More scenery (M14): three extra props per stage, drawn as soft as the rest ----------
+
+function whisk(c: Ctx, w: number, h: number): void {
+  c.save();
+  c.translate(w / 2, h / 2);
+  softShadow(c, 6, 9, 84, 18, 0.2);
+  // Wire loops.
+  c.lineWidth = 2.2;
+  for (let i = 0; i < 4; i++) {
+    const ry = 22 - i * 5.5;
+    c.beginPath();
+    c.ellipse(-36, 0, 46, ry, 0, 0, TAU);
+    c.strokeStyle = i % 2 ? 'rgba(150,162,172,0.85)' : 'rgba(226,232,238,0.9)';
+    c.stroke();
+  }
+  // Handle.
+  rrect(c, 8, -7, 78, 14, 7);
+  c.fillStyle = linear(c, 0, -7, 0, 7, [
+    [0, '#f1f4f7'],
+    [0.5, '#b4bfc8'],
+    [1, '#86939e'],
+  ]);
+  c.fill();
+  c.restore();
+}
+
+function eggShells(c: Ctx, w: number, h: number): void {
+  softShadow(c, w / 2 + 3, h / 2 + 8, 46, 18, 0.2);
+  const half = (x: number, y: number, r: number, rot: number) => {
+    c.save();
+    c.translate(x, y);
+    c.rotate(rot);
+    // A half shell seen from the open side: jagged rim, pale inside.
+    c.beginPath();
+    c.moveTo(-r, 0);
+    for (let i = 0; i <= 6; i++) c.lineTo(-r + (i / 6) * 2 * r, i % 2 ? -r * 0.22 : 0);
+    c.arc(0, 0, r, 0, Math.PI);
+    c.closePath();
+    c.fillStyle = linear(c, 0, -r * 0.2, 0, r, [
+      [0, '#fff6e6'],
+      [1, '#e6cfa8'],
+    ]);
+    c.fill();
+    c.strokeStyle = 'rgba(160,125,80,0.45)';
+    c.lineWidth = 1.5;
+    c.stroke();
+    c.restore();
+  };
+  half(w / 2 - 20, h / 2 - 2, 22, -0.3);
+  half(w / 2 + 24, h / 2 + 6, 17, 0.9);
+  // A drop of yolk between them.
+  c.beginPath();
+  c.ellipse(w / 2 + 2, h / 2 + 20, 9, 5, 0, 0, TAU);
+  c.fillStyle = 'rgba(245,190,60,0.7)';
+  c.fill();
+}
+
+function recipeCard(c: Ctx, w: number, h: number): void {
+  softShadow(c, w / 2 + 4, h / 2 + 7, 56, 30, 0.2);
+  rrect(c, w / 2 - 52, h / 2 - 34, 104, 68, 5);
+  c.fillStyle = '#fbf2dc';
+  c.fill();
+  c.strokeStyle = 'rgba(150,115,70,0.4)';
+  c.lineWidth = 1.5;
+  c.stroke();
+  // A red header line and faint ruled lines, with a bagel doodle in the corner.
+  c.fillStyle = 'rgba(214,90,70,0.6)';
+  c.fillRect(w / 2 - 44, h / 2 - 22, 88, 2.5);
+  c.fillStyle = 'rgba(120,150,190,0.4)';
+  for (let i = 0; i < 4; i++) c.fillRect(w / 2 - 44, h / 2 - 10 + i * 10, i === 3 ? 44 : 60, 1.6);
+  c.beginPath();
+  c.arc(w / 2 + 32, h / 2 + 12, 10, 0, TAU);
+  c.moveTo(w / 2 + 36, h / 2 + 12);
+  c.arc(w / 2 + 32, h / 2 + 12, 4, 0, TAU, true);
+  c.fillStyle = 'rgba(214,160,90,0.7)';
+  c.fill('evenodd');
+}
+
+function frozenBerries(c: Ctx, w: number, h: number): void {
+  const rand = rng(88);
+  softShadow(c, w / 2 + 3, h / 2 + 8, 46, 20, 0.15);
+  for (let i = 0; i < 9; i++) {
+    const x = w / 2 - 34 + rand() * 68;
+    const y = h / 2 - 18 + rand() * 36;
+    const r = 6.5 + rand() * 3.5;
+    c.beginPath();
+    c.arc(x, y, r, 0, TAU);
+    const g = c.createRadialGradient(x - r * 0.3, y - r * 0.35, 0, x, y, r);
+    g.addColorStop(0, 'rgba(214,224,255,0.9)');
+    g.addColorStop(0.55, i % 3 ? 'rgba(92,104,190,0.8)' : 'rgba(150,84,150,0.8)');
+    g.addColorStop(1, i % 3 ? 'rgba(60,70,150,0.8)' : 'rgba(110,56,116,0.8)');
+    c.fillStyle = g;
+    c.fill();
+    // Frost dusting.
+    c.beginPath();
+    c.arc(x - r * 0.25, y - r * 0.3, r * 0.42, 0, TAU);
+    c.fillStyle = 'rgba(255,255,255,0.4)';
+    c.fill();
+  }
+}
+
+function icePop(c: Ctx, w: number, h: number): void {
+  softShadow(c, w / 2 + 3, h / 2 + 6, 76, 13, 0.15);
+  // A long freezer pop: clear plastic sleeve, frozen juice inside, a crimped end.
+  rrect(c, w / 2 - 74, h / 2 - 11, 148, 22, 7);
+  c.fillStyle = 'rgba(236,246,252,0.7)';
+  c.fill();
+  rrect(c, w / 2 - 70, h / 2 - 8, 112, 16, 6);
+  c.fillStyle = linear(c, 0, h / 2 - 8, 0, h / 2 + 8, [
+    [0, 'rgba(255,150,170,0.85)'],
+    [1, 'rgba(226,86,120,0.85)'],
+  ]);
+  c.fill();
+  c.fillStyle = 'rgba(255,255,255,0.45)';
+  c.fillRect(w / 2 - 62, h / 2 - 5.5, 90, 2.6);
+  c.strokeStyle = 'rgba(120,160,185,0.5)';
+  c.lineWidth = 1.4;
+  for (let i = 0; i < 4; i++) {
+    c.beginPath();
+    c.moveTo(w / 2 + 50 + i * 6, h / 2 - 10);
+    c.lineTo(w / 2 + 50 + i * 6, h / 2 + 10);
+    c.stroke();
+  }
+}
+
+function snowflake(c: Ctx, w: number, h: number): void {
+  // A big frost crystal etched on the floor: flat and pale, so it reads as part of the ice.
+  c.save();
+  c.translate(w / 2, h / 2);
+  c.lineCap = 'round';
+  for (const [lw, col] of [[7, 'rgba(120,170,205,0.22)'], [3, 'rgba(240,250,255,0.7)']] as [number, string][]) {
+    c.lineWidth = lw;
+    c.strokeStyle = col;
+    for (let i = 0; i < 6; i++) {
+      c.save();
+      c.rotate((i / 6) * TAU);
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.lineTo(0, -50);
+      for (const d of [-20, -34]) {
+        c.moveTo(0, d);
+        c.lineTo(-11, d - 11);
+        c.moveTo(0, d);
+        c.lineTo(11, d - 11);
+      }
+      c.stroke();
+      c.restore();
+    }
+  }
+  c.restore();
+}
+
+function ovenMitt(c: Ctx, w: number, h: number): void {
+  softShadow(c, w / 2 + 4, h / 2 + 9, 56, 34, 0.26);
+  c.save();
+  c.translate(w / 2, h / 2);
+  // Hand, thumb and cuff.
+  c.beginPath();
+  c.moveTo(-30, 34);
+  c.lineTo(-32, -8);
+  c.bezierCurveTo(-34, -46, 22, -48, 22, -10);
+  c.lineTo(22, 34);
+  c.closePath();
+  c.fillStyle = linear(c, -30, -40, 22, 34, [
+    [0, '#8a4a3e'],
+    [1, '#5c2a22'],
+  ]);
+  c.fill();
+  c.beginPath();
+  c.ellipse(32, 2, 13, 22, 0.5, 0, TAU);
+  c.fill();
+  // Quilting.
+  c.save();
+  c.beginPath();
+  c.moveTo(-30, 30);
+  c.lineTo(-32, -8);
+  c.bezierCurveTo(-34, -46, 22, -48, 22, -10);
+  c.lineTo(22, 30);
+  c.closePath();
+  c.clip();
+  c.strokeStyle = 'rgba(255,214,190,0.28)';
+  c.lineWidth = 1.5;
+  for (let i = -6; i < 8; i++) {
+    c.beginPath();
+    c.moveTo(i * 14 - 40, 40);
+    c.lineTo(i * 14 + 40, -50);
+    c.moveTo(i * 14 - 40, -50);
+    c.lineTo(i * 14 + 40, 40);
+    c.stroke();
+  }
+  c.restore();
+  rrect(c, -34, 28, 60, 14, 5);
+  c.fillStyle = '#b9a688';
+  c.fill();
+  c.restore();
+}
+
+function fork(c: Ctx, w: number, h: number): void {
+  c.save();
+  c.translate(w / 2, h / 2);
+  softShadow(c, 5, 8, 80, 14, 0.26);
+  const metal = linear(c, 0, -9, 0, 9, [
+    [0, '#eef1f4'],
+    [0.5, '#b3bcc5'],
+    [1, '#828d98'],
+  ]);
+  rrect(c, -18, -5, 100, 10, 5);
+  c.fillStyle = metal;
+  c.fill();
+  rrect(c, -46, -13, 34, 26, 7);
+  c.fill();
+  for (let i = 0; i < 4; i++) {
+    rrect(c, -82, -12.5 + i * 7.2, 42, 3.6, 1.8);
+    c.fill();
+  }
+  c.restore();
+}
+
+function ovenDial(c: Ctx, w: number, h: number): void {
+  // A fallen oven thermometer: a flat round face with a needle in the red.
+  softShadow(c, w / 2 + 3, h / 2 + 7, 40, 30, 0.28);
+  c.beginPath();
+  c.arc(w / 2, h / 2, 34, 0, TAU);
+  c.fillStyle = linear(c, 0, h / 2 - 34, 0, h / 2 + 34, [
+    [0, '#c9ced4'],
+    [1, '#7d858f'],
+  ]);
+  c.fill();
+  c.beginPath();
+  c.arc(w / 2, h / 2, 27, 0, TAU);
+  c.fillStyle = '#f3ead6';
+  c.fill();
+  // The hot end of the scale.
+  c.beginPath();
+  c.arc(w / 2, h / 2, 21, -0.5, 0.75);
+  c.strokeStyle = 'rgba(214,80,50,0.75)';
+  c.lineWidth = 5;
+  c.stroke();
+  c.beginPath();
+  c.arc(w / 2, h / 2, 21, Math.PI * 0.75, Math.PI * 1.6);
+  c.strokeStyle = 'rgba(90,90,90,0.3)';
+  c.stroke();
+  c.beginPath();
+  c.moveTo(w / 2, h / 2);
+  c.lineTo(w / 2 + 19, h / 2 + 5);
+  c.strokeStyle = 'rgba(60,40,30,0.85)';
+  c.lineWidth = 2.5;
+  c.lineCap = 'round';
+  c.stroke();
+  c.beginPath();
+  c.arc(w / 2, h / 2, 3.5, 0, TAU);
+  c.fillStyle = 'rgba(60,40,30,0.85)';
+  c.fill();
+}

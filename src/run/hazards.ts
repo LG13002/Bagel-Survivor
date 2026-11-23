@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { blink as blinkAt } from '../settings';
 import { S } from '../config';
 import { RUN } from '../data';
 import type { EnemyShot, Hazard } from '../entities';
@@ -281,7 +282,7 @@ export class Hazards {
         const len = 760;
         const ex = w.x + Math.cos(w.a) * len;
         const ey = w.y + Math.sin(w.a) * len;
-        const blink = Math.floor(g.now * 12) % 2 ? 0.55 : 0.3;
+        const blink = blinkAt(g.now, 12, 0.55, 0.3);
         gfx.lineStyle(16, 0x6cc7f0, blink).lineBetween(w.x, w.y, ex, ey);
         gfx.lineStyle(3, 0xffffff, 0.9).lineBetween(w.x, w.y, ex, ey);
         continue;
@@ -357,7 +358,7 @@ export class Hazards {
         if (b.t > 1.2) continue; // queued in the sweep, not shown yet
         // Warning: an orange glow along the line, blinking faster as it gets close.
         const k = 1 - Math.min(1, b.t / 0.9);
-        const blink = Math.floor(g.now * (8 + k * 12)) % 2 ? 0.55 : 0.3;
+        const blink = blinkAt(g.now, 8 + k * 12, 0.55, 0.3);
         gfx.lineStyle(BEAM_W, 0xff7a1f, blink * (0.5 + 0.5 * k)).lineBetween(b.x, b.y, ex, ey);
         gfx.lineStyle(3, 0xffffff, 0.9).lineBetween(b.x, b.y, ex, ey);
         if (b.t <= 0) {
@@ -455,7 +456,7 @@ export class Hazards {
         c.t -= dt;
         // Warning: an orange glow that brightens and blinks faster as it gets close.
         const k = 1 - Math.max(0, c.t) / COIL_WARN;
-        const blink = Math.floor(g.now * (6 + k * 14)) % 2 ? 1 : 0.7;
+        const blink = blinkAt(g.now, 6 + k * 14, 1, 0.7);
         gfx.fillStyle(0xff7a1f, (0.18 + 0.32 * k) * blink).fillRoundedRect(x0, y0, w, h, 10);
         gfx.lineStyle(3, 0xffffff, 0.85).strokeRoundedRect(x0, y0, w, h, 10);
         gfx.lineStyle(4, 0xffc04a, 0.5 + 0.5 * k);

@@ -5,7 +5,11 @@ export const S = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
 /** Extra world-camera zoom so characters read bigger on a phone (the owner asked for +20%). */
 export const ZOOM = 1.2;
 
-export const FONT = '"Trebuchet MS", "Arial Rounded MT Bold", system-ui, sans-serif';
+/** Titan One (open license, bundled in src/assets) for every word in the game; the rest are fallbacks for symbols it lacks. */
+export const FONT = '"Titan One", "Trebuchet MS", "Arial Rounded MT Bold", system-ui, sans-serif';
+
+/** The game's version, from package.json. */
+export const VERSION: string = __APP_VERSION__;
 
 export const COLORS = {
   bg: 0x2b2118,

@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 4191;
   for (const wid of (process.argv[3]||'sesame,storm,puddle,lox,coffee,pin').split(',')) {
     const p = await b.newPage({ viewport: { width: 390, height: 760 }, deviceScaleFactor: 1 });
     await p.goto(`http://localhost:${PORT}/?god&speed=6&t=${T0}`, { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(1500);
-    await p.evaluate(([stage, crispy]) => window.__game.scene.getScene('menu').scene.start('game', { bagel: 'plain', practice: false, stage, crispy }), [STAGE, process.env.CRISPY === '1']);
+    await p.evaluate(([stage, crispy]) => window.__game.scene.getScene('title').scene.start('game', { bagel: 'plain', practice: false, stage, crispy }), [STAGE, process.env.CRISPY === '1']);
     await p.waitForTimeout(500);
     await p.evaluate(([wid, LV]) => { const g = window.__game.scene.getScene('game');
       g.weapons.forEach(w => w.destroy()); g.weapons = []; if (wid === 'combo' || wid === 'pair') { /* Schmear Flood + Lox Cyclone, merged ('combo') or side by side ('pair') */ g.addWeapon('puddle'); g.addWeapon('lox'); for (const w of g.weapons) { w.level = 5; w.evolved = true; } if (wid === 'combo') { g.weapons[0].destroy(); g.weapons.shift(); g.weapons[0].combo = true; } } else { g.addWeapon(wid); g.weapons[0].level = Math.min(LV,5); if (LV > 5) g.weapons[0].evolved = true; } g.panels.openChest = () => {}; g.panels.openLevelUp = () => { g.run.pendingLevels = 0; };
@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 4191;
     }, [wid, LV]);
     await p.keyboard.down('d');
     for (let i = 0; i < 16; i++) { await p.waitForTimeout(800); if (i % 4 === 1) { await p.keyboard.up('d'); await p.keyboard.down('s'); } if (i % 4 === 3) { await p.keyboard.up('s'); await p.keyboard.down('d'); } }
-    const st = await p.evaluate(() => { const g = window.__game.scene.getScene('game'); const dt = g.now - g.__t0; return { secs: Math.round(dt), dps: Math.round(g.__dmg / dt), kpm: Math.round((g.run.kills - g.__k0) / dt * 60), hurtPerMin: Math.round(g.__hurt / dt * 60), paused: g.paused }; });
+    const st = await p.evaluate(() => { const g = window.__game.scene.getScene('game'); const dt = g.now - g.__t0; return { secs: Math.round(dt), dps: Math.round(g.__dmg / dt), kpm: Math.round((g.run.kills - g.__k0) / dt * 60), hurtPerMin: Math.round(g.__hurt / dt * 60), paused: g.paused, fps: Math.round(g.game.loop.actualFps) }; });
     console.log(wid, 'L' + LV, JSON.stringify(st));
     await p.close();
   }

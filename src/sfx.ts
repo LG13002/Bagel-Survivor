@@ -9,7 +9,8 @@ export type Sfx =
   | 'heart' | 'ding' | 'flakes' | 'swoosh' | 'lock' | 'coin'
   | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge'
   | 'knife' | 'jar' | 'toastpop' | 'stamp'
-  | 'hiss' | 'flare' | 'bubble' | 'grease' | 'sauce' | 'popcorn' | 'ignite' | 'clang';
+  | 'hiss' | 'flare' | 'bubble' | 'grease' | 'sauce' | 'popcorn' | 'ignite' | 'clang'
+  | 'thud' | 'flip' | 'tip' | 'tick';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -25,32 +26,47 @@ const minGap: Record<Sfx, number> = {
   ice: 0.25, frost: 0.6, sip: 0.3, pea: 0.15, shatter: 0.06, icicle: 0.2, roar: 1.5, melt: 0.5, charge: 0.4,
   knife: 0.12, jar: 0.15, toastpop: 0.2, stamp: 0.25,
   hiss: 0.4, flare: 0.25, bubble: 0.6, grease: 0.2, sauce: 0.2, popcorn: 0.06, ignite: 0.15, clang: 0.12,
+  thud: 0.2, flip: 0.05, tip: 0.3, tick: 0.04,
 };
 /** Sounds that may be dropped when too many play at once. */
 const LOW: Partial<Record<Sfx, true>> = { hit: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
 const recent: number[] = [];
+/**
+ * Sounds heard over and over get a slightly different pitch each time, so a swarm doesn't sound like one sample
+ * on repeat. (Seeds have their own rising scale, and menu clicks and jingles stay exactly in tune.)
+ */
+const VARY: Partial<Record<Sfx, true>> = {
+  hit: true, crunch: true, splat: true, clatter: true, shatter: true, pop: true, hurt: true, coin: true, pea: true, melt: true,
+  popcorn: true, grease: true, sauce: true, flakes: true, swoosh: true, knife: true, jar: true, toastpop: true, stamp: true,
+  clang: true, pin: true, splash: true, shoot: true, lox: true, thud: true, ignite: true, charge: true, icicle: true, flare: true,
+};
+/** The pitch multiplier for the sound being built right now. */
+let vary = 1;
 let xpPitch = 0;
 let xpPitchAt = 0;
 
 const SFX_VOL = 0.35;
 const MUSIC_VOL = 0.16; // music sits under effects (and under voice chat)
 
+/** Volume sliders run 0 to 100; loudness follows the square, so the middle of the slider sounds like half. */
+const gainOf = (v: number) => (Math.max(0, Math.min(100, v)) / 100) ** 2;
+
 export function soundOn(): boolean {
-  return load().sound !== false;
+  return load().settings!.sound > 0;
 }
 export function musicOn(): boolean {
-  return load().music !== false;
+  return load().settings!.music > 0;
 }
 
-export function setSound(on: boolean): void {
-  load().sound = on;
+export function setSoundVolume(v: number): void {
+  load().settings!.sound = v;
   persist();
-  if (sfxBus) sfxBus.gain.value = on ? SFX_VOL : 0;
+  if (sfxBus) sfxBus.gain.value = SFX_VOL * gainOf(v);
 }
-export function setMusic(on: boolean): void {
-  load().music = on;
+export function setMusicVolume(v: number): void {
+  load().settings!.music = v;
   persist();
-  if (musicBus) musicBus.gain.value = on ? MUSIC_VOL : 0;
+  if (musicBus) musicBus.gain.value = MUSIC_VOL * gainOf(v);
 }
 
 export function audioCtx(): AudioContext | null {
@@ -85,10 +101,10 @@ export function unlockAudio(): void {
       if (!AC) return;
       ctx = new AC();
       sfxBus = ctx.createGain();
-      sfxBus.gain.value = soundOn() ? SFX_VOL : 0;
+      sfxBus.gain.value = SFX_VOL * gainOf(load().settings!.sound);
       sfxBus.connect(ctx.destination);
       musicBus = ctx.createGain();
-      musicBus.gain.value = musicOn() ? MUSIC_VOL : 0;
+      musicBus.gain.value = MUSIC_VOL * gainOf(load().settings!.music);
       musicBus.connect(ctx.destination);
       musicFilter = ctx.createBiquadFilter();
       musicFilter.type = 'lowpass';
@@ -123,8 +139,8 @@ export function tone(type: OscillatorType, f0: number, f1: number, dur: number, 
   const o = ctx.createOscillator();
   const g = ctx.createGain();
   o.type = type;
-  o.frequency.setValueAtTime(f0, t);
-  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  o.frequency.setValueAtTime(f0 * vary, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1 * vary), t + dur);
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(out);
@@ -141,8 +157,8 @@ export function noise(dur: number, vol: number, freq: number, opts: { type?: Biq
   src.buffer = noiseBuf;
   const f = ctx.createBiquadFilter();
   f.type = opts.type ?? 'lowpass';
-  f.frequency.setValueAtTime(freq, t);
-  if (opts.freq1) f.frequency.exponentialRampToValueAtTime(opts.freq1, t + dur);
+  f.frequency.setValueAtTime(freq * vary, t);
+  if (opts.freq1) f.frequency.exponentialRampToValueAtTime(opts.freq1 * vary, t + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -213,6 +229,12 @@ export function sfx(name: Sfx): void {
   if (LOW[name] && recent.length >= 8) return;
   recent.push(now);
   last[name] = now;
+  vary = VARY[name] ? 1 + (Math.random() - 0.5) * 0.14 : 1;
+  play(name, now);
+  vary = 1;
+}
+
+function play(name: Sfx, now: number): void {
   switch (name) {
     case 'hit':
       tone('square', 220 + Math.random() * 60, 90, 0.05, 0.12);
@@ -393,6 +415,20 @@ export function sfx(name: Sfx): void {
     case 'clang': // an enemy shot hits a rack post
       tone('triangle', 1250, 1180, 0.12, 0.06);
       tone('sine', 2500, 2400, 0.08, 0.03);
+      break;
+    case 'thud': // something heavy lands
+      tone('sine', 95, 38, 0.3, 0.4);
+      noise(0.2, 0.26, 260);
+      break;
+    case 'flip': // a card turning over
+      noise(0.07, 0.09, 1800, { type: 'bandpass', freq1: 4200 });
+      break;
+    case 'tip': // a tip sliding in: two soft notes
+      tone('sine', 660, 660, 0.12, 0.09);
+      tone('sine', 990, 990, 0.16, 0.07, 0.07);
+      break;
+    case 'tick': // the results screen counting up
+      tone('triangle', 1250, 1100, 0.025, 0.07);
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);

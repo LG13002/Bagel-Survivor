@@ -1,11 +1,17 @@
 // How each enemy moves and attacks. Regular enemies share the `ai` patterns on their def (line, charge, shoot);
 // elites, mini-bosses and bosses have their own case, keyed by kind.
 import { ENEMIES } from '../data';
+import { reducedFlash, shake } from '../settings';
 import type { Enemy } from '../entities';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 
 /** One enemy's step: where the player is, and the move it will make (a behavior can change mvx and mvy). */
+/** A charger's wind-up flashes white 8 times a second. With Flashing effects Reduced it only shakes (and a knife keeps its red tint). */
+function windupFlash(t: number): boolean {
+  return !reducedFlash() && Math.floor(t * 16) % 2 === 1;
+}
+
 export interface Move {
   dx: number;
   dy: number;
@@ -50,7 +56,7 @@ export function behave(g: GameScene, e: Enemy, m: Move, dt: number): void {
         if (knife) e.sprite.setRotation(Math.atan2(e.vy, e.vx) + Math.sin(t * 60) * 0.12);
         else e.sprite.setRotation(Math.sin(t * 60) * 0.14);
         e.sprite.setTint(knife ? 0xff8a7a : 0xffffff);
-        if (!knife && Math.floor(t * 16) % 2) e.sprite.setTintFill(0xffffff);
+        if (!knife && windupFlash(t)) e.sprite.setTintFill(0xffffff);
         if (e.stateT <= 0) {
           e.state = 2;
           e.stateT = 0.5;
@@ -213,7 +219,7 @@ function waffle(e: Enemy, m: Move, dt: number, t: number): void {
   } else if (e.state === 1) {
     m.mvx = m.mvy = 0;
     e.sprite.setRotation(Math.sin(t * 60) * 0.12);
-    if (Math.floor(t * 16) % 2) e.sprite.setTintFill(0xffffff);
+    if (windupFlash(t)) e.sprite.setTintFill(0xffffff);
     else e.sprite.clearTint();
     if (e.stateT <= 0) {
       e.state = 2;
@@ -262,8 +268,9 @@ function freezerBurn(g: GameScene, e: Enemy, m: Move, dt: number, t: number): vo
     e.attack2T = 1.5;
     e.stateT = 4;
     g.hud.banner('The Freezer Burn is thawing out... and furious!', '#bfe6fb', 20);
+    e.roarT = 0.8;
     sfx('roar');
-    g.cameras.main.shake(400, 0.007);
+    shake(g, 400, 0.007);
   }
   e.sprite.setRotation(Math.sin(t * 2) * 0.08 + (e.enraged ? Math.sin(t * 30) * 0.025 : 0));
   e.attackT -= dt;
@@ -318,7 +325,7 @@ function flapjack(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void 
   }
   if (lost) {
     sfx('flakes');
-    g.cameras.main.shake(160, 0.004);
+    shake(g, 160, 0.004);
     g.hz.ring('pancake', e.x, e.y, 10, 135, 10, 8);
   }
   e.attackT -= dt;
@@ -347,8 +354,9 @@ function broiler(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
     e.attack2T = 1.5;
     e.stateT = 5;
     g.hud.banner('The Broiler cranks the heat to max!', '#ffb36b', 20);
+    e.roarT = 0.8;
     sfx('roar');
-    g.cameras.main.shake(400, 0.007);
+    shake(g, 400, 0.007);
   }
   if (Math.abs(m.mvx) > 1) e.sprite.setFlipX(m.mvx < 0);
   e.sprite.setRotation(Math.sin(t * 2) * 0.05 + (e.enraged ? Math.sin(t * 30) * 0.025 : 0));
