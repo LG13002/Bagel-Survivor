@@ -2,7 +2,7 @@
 // Usage: node tools/bots/mixtest.cjs [seconds per song]   (needs `npx vite preview --port 4191` running)
 const { chromium } = require('playwright');
 const SECS = Number(process.argv[2] ?? 8);
-const SONGS = [['menu', 0], ['run', 0], ['run', 1], ['run', 2], ['boss', 0], ['frun', 0], ['frun', 2], ['fboss', 0], ['orun', 0], ['orun', 2], ['oboss', 0], ['win', 0], ['stale', 0]];
+const SONGS = [['menu', 0], ['run', 0], ['run', 1], ['run', 2], ['boss', 0], ['frun', 0], ['frun', 2], ['fboss', 0], ['orun', 0], ['orun', 2], ['oboss', 0], ['prun', 0], ['prun', 2], ['pboss', 0], ['win', 0], ['stale', 0]];
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const p = await (await b.newContext({ viewport: { width: 390, height: 760 } })).newPage();

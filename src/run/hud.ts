@@ -318,7 +318,7 @@ export class Hud {
     const gr = g.add.graphics();
     gr.fillStyle(0x24160d, 1).fillRoundedRect(-w / 2 - 4 * S, -h / 2 - 4 * S, w + 8 * S, h + 8 * S, 20 * S);
     // Themed per stage: icy blue in the Freezer, glowing red-hot in the oven, toasted brown on the countertop.
-    const th = g.stage.coils ? CARD_HOT : g.stage.frost ? CARD_ICY : CARD_TOAST;
+    const th = g.stage.coils ? CARD_HOT : g.stage.frost ? CARD_ICY : g.stage.shelves ? CARD_DOUGH : CARD_TOAST;
     gr.fillStyle(th.fill, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
     gr.lineStyle(2 * S, th.edge, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
     const t1 = fit(txt(g, 0, -17 * S, name.toUpperCase(), 26, th.name), w - 24 * S);
@@ -332,6 +332,7 @@ export class Hud {
 
 const CARD_HOT = { fill: 0x4a170c, edge: 0xffb36b, name: CSS.gold, line: '#ffe2c4' };
 const CARD_ICY = { fill: 0x1d3a57, edge: 0xbfe6fb, name: CSS.red, line: '#dff4ff' };
+const CARD_DOUGH = { fill: 0x3d3324, edge: 0xf3e3c0, name: '#fff3dc', line: '#f2d9a6' };
 const CARD_TOAST = { fill: 0x5a3416, edge: 0xf2b84b, name: CSS.gold, line: '#fff3dc' };
 
 /** Change a pill's text only when it differs (setText re-renders the text texture). */

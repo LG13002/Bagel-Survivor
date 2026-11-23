@@ -13,7 +13,8 @@ export interface ChallengeDef {
   status(save: SaveData): GoalStatus;
 }
 
-const BUILT = STAGES.filter((st) => st.built);
+/** The first three stages: the challenges written before the Pantry keep meaning what they said. */
+const BUILT = STAGES.slice(0, 3);
 /** The original six bagels (Plain to Onion), marked `starter` in BAGELS. */
 const STARTERS = BAGELS.filter((b) => b.starter).map((b) => b.id);
 
@@ -85,6 +86,10 @@ export const CHALLENGES: ChallengeDef[] = [
     icon: 'bagel_plain',
     status: (s) => count(STARTERS.filter((id) => clearedBest(s, (_, b) => b === id)).length, STARTERS.length),
   },
+  // The Pantry (M15)
+  { id: 'pantry', name: 'Clear the Pantry', reward: 60, icon: 'ic_crown', status: (s) => flag((s.stageClears?.stage4 ?? 0) > 0) },
+  { id: 'pantryx', name: 'Clear the Pantry on Extra Crispy', reward: 100, icon: 'ic_flame', status: (s) => flag((s.crispyClears?.stage4 ?? 0) > 0) },
+  { id: 'strike', name: 'Strike! Flatten 12 enemies with one rolling can', reward: 50, icon: 'ic_bolt', status: (s) => count(s.records?.strike ?? 0, 12, true) },
 ];
 
 /** Pays every challenge that is done but not paid yet. Returns the ones it paid. */

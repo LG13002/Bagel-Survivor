@@ -82,6 +82,8 @@ export interface SaveData {
 
 /** Best single-run numbers (practice runs never count). */
 export interface RunRecords {
+  /** Most enemies flattened by one rolling can. */
+  strike?: number;
   kills?: number;
   level?: number;
   /** Evolutions in one run. */

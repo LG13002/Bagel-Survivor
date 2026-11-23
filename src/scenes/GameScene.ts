@@ -3,6 +3,7 @@ import { flash, shake } from '../settings';
 import { COLORS, CSS, DEBUG, S, ZOOM } from '../config';
 import {
   BAGELS,
+  ENEMIES,
   MAX_LEVEL,
   MAX_SLOTS,
   TOPPINGS,
@@ -59,6 +60,8 @@ const DASH_CD = 5;
 /** Asiago ages: +1% damage every AGE_STEP seconds of the stage clock, up to AGE_MAX%. */
 const AGE_STEP = 10;
 const AGE_MAX = 30;
+/** Garlic's Warding: damage multiplier against elites, mini-bosses and bosses. */
+const WARD = 1.25;
 
 /**
  * A run. This file holds the core: starting and ending a run, the main loop, the player (movement, frost, quirks,
@@ -283,6 +286,8 @@ export class GameScene extends Phaser.Scene implements World {
       if (last !== undefined && this.now - last < cd) return false;
       e.hitCd.set(key, this.now);
     }
+    // Garlic's Warding: elites, mini-bosses and bosses take more from everything this bagel does.
+    if (this.bagel.quirkId === 'ward' && ENEMIES[e.kind].flat) dmg *= WARD;
     e.hp -= dmg;
     if (key === 'burn') {
       // Burn ticks are quiet: no flash, no sound, so the orange glow stays visible.
@@ -478,7 +483,8 @@ export class GameScene extends Phaser.Scene implements World {
   step(dt: number): void {
     this.now += dt;
     this.updatePlayer(dt);
-    if (this.floor.posts.length) this.floor.pushOut(this.player, this.player.radius);
+    this.floor.tick(dt);
+    if (this.floor.posts.length || this.floor.walls.length) this.floor.pushOut(this.player, this.player.radius);
     this.director.update(dt);
     this.foes.rebuildGrid();
     this.foes.update(dt);
@@ -493,6 +499,13 @@ export class GameScene extends Phaser.Scene implements World {
       this.writeSnapshot();
     }
     if (this.run.pendingLevels > 0 && !this.paused) this.panels.openLevelUp();
+  }
+
+  /** One rolling can flattened a crowd. */
+  strike(n: number): void {
+    this.run.canBest = Math.max(this.run.canBest, n);
+    this.hud.banner(`Strike! ${n} flattened`, CSS.gold, 22);
+    sfx('gold');
   }
 
   writeSnapshot(): void {
@@ -764,6 +777,10 @@ export class GameScene extends Phaser.Scene implements World {
       g.fillEllipse(e.x, e.y + r * 0.85, r * 2, r * 0.6);
     }
     for (const po of this.floor.posts) g.fillEllipse(po.x + 4, po.y + 13, 34, 10);
+    for (const w of this.floor.walls) {
+      if (w.life || Math.abs(w.x - p.x) > hw + w.hw || Math.abs(w.y - p.y) > hh + w.hh) continue;
+      g.fillRect(w.x - w.hw + 3, w.y + w.hh - 2, w.hw * 2 + 2, 11);
+    }
     for (const it of this.loot.list) {
       if (it.kind !== 'chest' && it.kind !== 'goldchest' && it.kind !== 'bun') continue;
       g.fillEllipse(it.x, it.y + 12, 24, 6);
@@ -985,6 +1002,7 @@ export class GameScene extends Phaser.Scene implements World {
       rec.kills = Math.max(rec.kills ?? 0, r.kills);
       rec.level = Math.max(rec.level ?? 1, r.level);
       rec.evos = Math.max(rec.evos ?? 0, r.evolutionsThisRun.length);
+      if (r.canBest) rec.strike = Math.max(rec.strike ?? 0, r.canBest);
       if (this.endless) {
         rec.endless = Math.max(rec.endless ?? 0, Math.floor(this.now));
         rec.endlessBosses = Math.max(rec.endlessBosses ?? 0, this.director.bossRound);

@@ -2,6 +2,7 @@
 // textures that GameScene scatters around the world so nothing visibly repeats.
 // Scenery is drawn soft, with no heavy ink outlines, so it never competes with enemies or pickups.
 import { type Ctx, linear, rng, rrect } from './art';
+import { drawPantryThumb } from './pantry';
 
 const TAU = Math.PI * 2;
 
@@ -310,6 +311,8 @@ export function drawStageThumb(c: Ctx, id: string, w: number, h: number): void {
       c.stroke();
     }
     c.restore();
+  } else if (id === 'stage4' || id === 'stage5') {
+    drawPantryThumb(c, id, w, h);
   } else {
     // The oven floor, with one coil flaring up so it reads as the Toaster Oven.
     c.save();

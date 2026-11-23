@@ -22,12 +22,14 @@ const KILL_SFX: Record<EnemyKind, Sfx> = {
   scoop: 'pop', fcroissant: 'pop', tyrantjr: 'pop', waffle: 'pop', wafflesq: 'crunch', fburn: 'pop',
   ember: 'crunch', btoast: 'crunch', hotsauce: 'splat', popcorn: 'popcorn', popbit: 'crunch', tot: 'clatter', wafflebit: 'crunch', mscoop: 'splat',
   muffin: 'pop', fburnt: 'shatter', flapjack: 'pop', broiler: 'pop',
+  dustbunny: 'pop', peacan: 'clatter', pepper: 'shatter', sugarcube: 'shatter', crystal: 'crunch', pmuffin: 'crunch', spore: 'splat',
+  loaf: 'pop', broilerjr: 'pop', tangle: 'pop', mdough: 'pop', doughball: 'splat',
 };
 
 /** How an enemy comes apart: a pop (soft things, elites), a crumble (dry and hard things) or a splat (wet things). */
 const DEATH: Partial<Record<Sfx, DeathStyle>> = { crunch: 'crumble', clatter: 'crumble', shatter: 'crumble', splat: 'splat' };
 /** Big enemies that rear up just before a timed attack (the attack's own timing is untouched). */
-const WINDUP = new Set<EnemyKind>(['croissant', 'toaster', 'fcroissant', 'tyrantjr', 'fburn', 'fburnt', 'flapjack', 'broiler']);
+const WINDUP = new Set<EnemyKind>(['croissant', 'toaster', 'fcroissant', 'tyrantjr', 'fburn', 'fburnt', 'flapjack', 'broiler', 'loaf', 'broilerjr', 'tangle', 'mdough']);
 const WIND = 0.4;
 /** A boss's drop onto the field. */
 export const DROP_TIME = 0.7;
@@ -49,6 +51,7 @@ export class Enemies {
   private grid = new Map<number, Enemy>();
   /** Reused for each enemy's step so the update makes no garbage. */
   private move: Move = { dx: 0, dy: 0, dist: 1, mvx: 0, mvy: 0, slow: 1 };
+  private steerOut = { x: 0, y: 0 };
 
   constructor(private g: GameScene) {}
 
@@ -146,6 +149,7 @@ export class Enemies {
     e.burnShown = false;
     e.flashOn = false;
     e.big = isBig;
+    e.faint = false;
     e.sq = e.dropT = e.roarT = 0;
     e.prevAtk = e.attackT;
     e.hitCd.clear();
@@ -222,7 +226,11 @@ export class Enemies {
     const decay = Math.exp(-8 * dt);
     const farX = g.viewW() / 2 + 170;
     const farY = g.viewH() / 2 + 170;
-    const posts = g.floor.posts;
+    const floor = g.floor;
+    const solid = floor.posts.length > 0 || floor.walls.length > 0;
+    const shelves = !!g.stage.shelves;
+    const steer = this.steerOut;
+    const clouds = g.hz.clouds;
     for (const e of this.list) {
       if (!e.alive) continue;
       const dx = p.x - e.x;
@@ -235,6 +243,13 @@ export class Enemies {
       m.slow = slow;
       m.mvx = (dx / dist) * e.speed * slow;
       m.mvy = (dy / dist) * e.speed * slow;
+      // The Pantry: walk around shelves instead of into them. The biggest (mini-bosses and bosses) climb over.
+      const def = ENEMIES[e.kind];
+      const walled = solid && !e.boss && def.radius < 30 && def.ai !== 'line';
+      if (shelves && walled && floor.steer(e.x, e.y, e.radius, steer)) {
+        m.mvx = steer.x * e.speed * slow;
+        m.mvy = steer.y * e.speed * slow;
+      }
 
       if (ENEMIES[e.kind].drip) {
         // Melting Scoop: small melt puddles behind it as it walks.
@@ -279,7 +294,23 @@ export class Enemies {
         }
       }
 
-      if (posts.length && !e.boss) g.floor.pushOut(e, e.radius);
+      if (walled && (!shelves || floor.nearWall(e.x, e.y))) {
+        const bx = e.x;
+        const by = e.y;
+        floor.pushOut(e, e.radius);
+        // A Rolling Pea Can bounces off what it hits in the middle of its charge.
+        if (def.bounce && e.state === 2 && (e.x !== bx || e.y !== by)) {
+          const nx = e.x - bx;
+          const ny = e.y - by;
+          const nl = Math.hypot(nx, ny) || 1;
+          const dot = (e.vx * nx + e.vy * ny) / nl;
+          if (dot < 0) {
+            e.vx -= (2 * dot * nx) / nl;
+            e.vy -= (2 * dot * ny) / nl;
+            sfx('clang');
+          }
+        }
+      }
 
       // Recycle stragglers to the front (keeps pressure on without huge counts).
       if (!e.boss && !ENEMIES[e.kind].flat) {
@@ -311,6 +342,14 @@ export class Enemies {
       }
 
       e.sprite.setPosition(e.x, e.y);
+      // Flour clouds: small enemies inside one fade to faint shapes.
+      if (clouds.length || e.faint) {
+        const faint = !e.big && g.hz.inCloud(e.x, e.y);
+        if (faint !== e.faint) {
+          e.faint = faint;
+          e.sprite.setAlpha(faint ? 0.3 : 1);
+        }
+      }
       const flashing = e.flashUntil > t;
       if (flashing !== e.flashOn) {
         e.flashOn = flashing;

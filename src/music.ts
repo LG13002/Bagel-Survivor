@@ -2,7 +2,7 @@
 // the music bus in sfx.ts. No audio files. The run theme adds layers as the run goes on.
 import { audioCtx, musicOn, musicOut, noiseBuffer, onAudioReady } from './sfx';
 
-type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'sizzle' | 'bell' | 'wah' | 'pad';
+type Inst = 'lead' | 'soft' | 'bass' | 'grit' | 'chord' | 'kick' | 'snare' | 'hat' | 'sizzle' | 'bell' | 'wah' | 'pad' | 'wood' | 'pluck';
 
 interface Track {
   inst: Inst;
@@ -27,7 +27,7 @@ interface Song {
   tracks: Track[];
 }
 
-export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss';
+export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss' | 'prun' | 'pboss';
 
 /** Bars written as space-separated tokens, joined with "|". */
 function seq(s: string): string[] {
@@ -268,6 +268,71 @@ const SONGS: Record<SongId, Song> = {
     ],
   },
 
+  // The Pantry: a sneaky, bouncy tiptoe in D minor, with woodblocks and a plucked bass. Drums join at 1:00, bass at 2:00.
+  prun: {
+    level: 1.35,
+    bpm: 126,
+    res: 2,
+    swing: 0.16,
+    loop: true,
+    layered: true,
+    tracks: [
+      {
+        inst: 'lead',
+        steps: seq(`D5 - F5 - A5 - G5 F5 | E5 - C5 - E5 - G5 - | F5 - A5 - D6 - C6 A5 | Bb5 - A5 - G5 - E5 -
+                    D5 - F5 A5 D6 - C6 A5 | Bb5 - G5 - E5 - G5 Bb5 | A5 - G5 F5 E5 - C#5 E5 | D5 - - - . . A4 .`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.8,
+        steps: seq(`. D4+F4+A4 . . D4+F4+A4 . . D4+F4+A4 | . C4+E4+G4 . . C4+E4+G4 . . C4+E4+G4 | . D4+F4+A4 . . D4+F4+A4 . . D4+F4+A4 | . G3+Bb3+D4 . . A3+C#4+E4 . . A3+C#4+E4
+                    . D4+F4+A4 . . D4+F4+A4 . . D4+F4+A4 | . G3+Bb3+D4 . . G3+Bb3+D4 . . G3+Bb3+D4 | . A3+C#4+E4 . . A3+C#4+E4 . . A3+C#4+E4 | . D4+F4+A4 . . D4+F4+A4 . . D4+F4+A4`),
+      },
+      { inst: 'wood', vol: 0.7, steps: seq(rep('A5 . . E5 . . A5 .', 8)) },
+      { inst: 'kick', layer: 1, steps: seq(rep('x . . . x . . .', 8)) },
+      { inst: 'wood', layer: 1, vol: 0.9, steps: seq(rep('. . A5 . . E5 A5 E5', 7) + ' | . . A5 . A5 E5 A5 E5') },
+      { inst: 'hat', layer: 1, vol: 0.6, steps: seq(rep('. x . x . x . x', 8)) },
+      {
+        inst: 'pluck',
+        layer: 2,
+        vol: 0.6,
+        steps: seq(`D2 . A2 . D3 . A2 D2 | C2 . G2 . C3 . G2 C2 | D2 . A2 . D3 . A2 D2 | G2 . D3 . A2 . E2 A2
+                    D2 . A2 . D3 . A2 D2 | G2 . D3 . G2 . Bb2 G2 | A2 . E3 . A2 . C#3 A2 | D2 . A2 . D3 . A2 D2`),
+      },
+    ],
+  },
+
+  // Mother Dough: a heavy, swelling waltz of a march in D minor. Slow to rise, impossible to stop.
+  pboss: {
+    level: 1.5,
+    bpm: 152,
+    res: 2,
+    loop: true,
+    tracks: [
+      {
+        inst: 'lead',
+        vol: 0.9,
+        steps: seq(`D5 - - F5 E5 - D5 - | A4 - - - C5 - D5 - | Bb4 - - D5 C5 - Bb4 - | A4 - - - C#5 - E5 -
+                    D6 - A5 - F5 - A5 D6 | Bb5 - G5 - D5 - G5 Bb5 | A5 - E5 - C#5 - E5 A5 | D6 - - - A5 - - -`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.9,
+        steps: seq(`D3+F3+A3 - . D3+F3+A3 - . D3+F3+A3 . | F3+A3+C4 - . F3+A3+C4 - . F3+A3+C4 . | Bb2+D3+F3 - . Bb2+D3+F3 - . Bb2+D3+F3 . | A2+C#3+E3 - . A2+C#3+E3 - . A2+C#3+E3 .
+                    D3+F3+A3 - . D3+F3+A3 - . D3+F3+A3 . | G3+Bb3+D4 - . G3+Bb3+D4 - . G3+Bb3+D4 . | A2+C#3+E3 - . A2+C#3+E3 - . A2+C#3+E3 . | D3+F3+A3 - . D3+F3+A3 - . D3+F3+A3 .`),
+      },
+      {
+        inst: 'grit',
+        vol: 1.1,
+        steps: seq(`D2 D2 D3 D2 D2 D2 Eb2 D2 | F2 F2 F3 F2 F2 F2 E2 F2 | Bb1 Bb1 Bb2 Bb1 Bb1 Bb1 B1 Bb1 | A1 A1 A2 A1 A1 A1 Bb1 A1
+                    D2 D2 D3 D2 D2 D2 Eb2 D2 | G2 G2 G3 G2 G2 G2 F#2 G2 | A1 A1 A2 A1 A1 A1 Bb1 A1 | D2 D2 D3 D2 D2 D2 C#2 D2`),
+      },
+      { inst: 'kick', steps: seq(rep('x . . x x . x .', 8)) },
+      { inst: 'snare', steps: seq(rep('. . x . . . x .', 7) + ' | . . x . x x x x') },
+      { inst: 'wood', vol: 0.9, steps: seq(rep('A5 E5 . E5 A5 E5 . E5', 8)) },
+    ],
+  },
+
   // Short fanfare for clearing the stage.
   win: {
     bpm: 150,
@@ -334,6 +399,21 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
     src.stop(t + len + 0.02);
     return;
   }
+  if (inst === 'wood') {
+    // A woodblock: a short, dry knock. A note name picks high or low (default high).
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const f = notes.length ? hz(notes[0]) : 880;
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f * 1.5, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.012);
+    g.gain.setValueAtTime(0.34 * vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    o.connect(g).connect(out);
+    o.start(t);
+    o.stop(t + 0.09);
+    return;
+  }
   if (inst === 'snare' || inst === 'hat') {
     // Drums play a slice of the shared noise sample instead of making fresh noise for every hit.
     const src = ctx.createBufferSource();
@@ -384,6 +464,12 @@ function voice(inst: Inst, notes: number[], t: number, dur: number, vol: number,
         node = lp;
         break;
       }
+      case 'pluck':
+        // A plucked string bass: a quick, round thump that dies away fast.
+        o.type = 'triangle';
+        peak = 0.5;
+        tail = Math.min(0.22, Math.max(0.08, dur * 0.8));
+        break;
       case 'chord':
         o.type = 'triangle';
         peak = 0.07;

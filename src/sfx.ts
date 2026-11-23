@@ -10,7 +10,8 @@ export type Sfx =
   | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge'
   | 'knife' | 'jar' | 'toastpop' | 'stamp'
   | 'hiss' | 'flare' | 'bubble' | 'grease' | 'sauce' | 'popcorn' | 'ignite' | 'clang'
-  | 'thud' | 'flip' | 'tip' | 'tick';
+  | 'thud' | 'flip' | 'tip' | 'tick'
+  | 'rattle' | 'roll' | 'poof' | 'whip';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -27,6 +28,7 @@ const minGap: Record<Sfx, number> = {
   knife: 0.12, jar: 0.15, toastpop: 0.2, stamp: 0.25,
   hiss: 0.4, flare: 0.25, bubble: 0.6, grease: 0.2, sauce: 0.2, popcorn: 0.06, ignite: 0.15, clang: 0.12,
   thud: 0.2, flip: 0.05, tip: 0.3, tick: 0.04,
+  rattle: 0.4, roll: 0.3, poof: 0.2, whip: 0.2,
 };
 /** Sounds that may be dropped when too many play at once. */
 const LOW: Partial<Record<Sfx, true>> = { hit: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
@@ -429,6 +431,20 @@ function play(name: Sfx, now: number): void {
       break;
     case 'tick': // the results screen counting up
       tone('triangle', 1250, 1100, 0.025, 0.07);
+      break;
+    case 'rattle': // a can about to roll: a tinny rattle over a second
+      for (let i = 0; i < 9; i++) tone('triangle', 900 + (i % 3) * 180, 700, 0.05, 0.07, i * 0.12);
+      break;
+    case 'roll': // the can rolls: a low rumble that fades
+      noise(1.6, 0.22, 240, { freq1: 120 });
+      tone('triangle', 140, 90, 1.2, 0.08);
+      break;
+    case 'poof': // a flour sack bursts
+      noise(0.5, 0.22, 900, { type: 'lowpass', freq1: 200 });
+      break;
+    case 'whip': // a noodle lashes out
+      noise(0.16, 0.2, 800, { type: 'bandpass', freq1: 5200 });
+      tone('sine', 300, 120, 0.12, 0.1, 0.1);
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);

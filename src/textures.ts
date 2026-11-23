@@ -3,6 +3,7 @@ import type { StageDef } from './data';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, drawButcherBlock, drawFreezerFloor, drawOvenFloor, drawStageThumb } from './floors';
 import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, relight, type BagelLook } from './art';
+import { PANTRY_PROPS, drawBroilerJr, drawBubble, drawDoughBall, drawDoughShot, drawDoughWall, drawDustBunny, drawFlourCloud, drawFlourSack, drawKnot, drawMoldyLoaf, drawMotherDough, drawPantryFloor, drawPeaCan, drawPepperShaker, drawPepperShot, drawRollingCan, drawShelf, drawSmallMuffin, drawSpore, drawSugarCube, drawTangle } from './pantry';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -27,6 +28,7 @@ const BAGEL_LOOKS: Record<string, BagelLook> = {
   bagel_blueberry: { base: '#9d8fcf', crust: '#4f3f86', hi: '#d3c9f2', seeds: ['#2b2766', '#3d3a92', '#252050'], seedCount: 16, seedSize: 1.7 },
   bagel_asiago: { ...golden, seeds: ['#ffdc73', '#f2c048', '#c9862a'], seedCount: 12, seedSize: 2.2 },
   bagel_jalapeno: { base: '#e8a94a', crust: '#a9622a', hi: '#f9d585', seeds: ['#3f8f2a', '#ffb52e', '#2c6b1c', '#ffcf4a'], seedCount: 16, seedSize: 2.1 },
+  bagel_garlic: { base: '#f0dfbd', crust: '#c2a070', hi: '#fff8e6', seeds: ['#fffbea', '#e3cb8e', '#b48cc2', '#d9c7e6'], seedCount: 18, seedSize: 2 },
   bagel_rainbow: { ...golden, icing: '#f9c6dc', seeds: ['#e0533d', '#f2b84b', '#ffe45c', '#7fbf4d', '#5aa9e6', '#a77ee0'], seedCount: 34, seedSize: 1.3, sprinkles: true },
   bagel_onion: { ...golden, seeds: ['#f6e6b6', '#8a5a2a', '#dcbb72'], seedCount: 26, seedSize: 1.45 },
 };
@@ -107,7 +109,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   // The Bakery's floor (256 × 256, seamless) is also the background of the menus.
   ctex(scene, 'floor_stage1', 256, 256, (c) => drawButcherBlock(c, 256));
   // Stage pictures for the stage cards (big) and the menu's stage button (small).
-  for (const id of ['stage1', 'stage2', 'stage3']) {
+  for (const id of ['stage1', 'stage2', 'stage3', 'stage4', 'stage5']) {
     ctex(scene, `thumb_${id}`, 120, 76, (c) => drawStageThumb(c, id, 120, 76));
     ctex(scene, `thumb_${id}_sm`, 40, 30, (c) => drawStageThumb(c, id, 40, 30));
   }
@@ -187,6 +189,20 @@ export function makeEnemyTextures(scene: Phaser.Scene): void {
   // Flapjack Stack: one texture per number of pancakes left (5 down to 1).
   for (let n = 1; n <= 5; n++) lit(scene, `en_flap${n}`, 72, 80, (c) => drawFlapjack(c, 72, 80, n));
   lit(scene, 'en_broiler', 112, 96, (c) => drawBroiler(c, 112, 96));
+  // Pantry enemies
+  lit(scene, 'en_dustbunny', 26, 26, (c) => drawDustBunny(c, 26));
+  lit(scene, 'en_peacan', 30, 34, (c) => drawPeaCan(c, 30, 34));
+  lit(scene, 'en_pepper', 26, 34, (c) => drawPepperShaker(c, 26, 34));
+  lit(scene, 'en_sugarcube', 30, 30, (c) => drawSugarCube(c, 30));
+  lit(scene, 'en_crystal', 18, 18, (c) => drawSugarCube(c, 18, true));
+  lit(scene, 'en_pmuffin', 36, 36, (c) => drawSmallMuffin(c, 36));
+  lit(scene, 'en_spore', 22, 22, (c) => drawSpore(c, 22));
+  lit(scene, 'en_loaf', 64, 58, (c) => drawMoldyLoaf(c, 64, 58));
+  lit(scene, 'en_broilerjr', 66, 57, (c) => drawBroilerJr(c, 66, 57));
+  lit(scene, 'en_tangle', 78, 74, (c) => drawTangle(c, 78, 74));
+  lit(scene, 'en_mdough', 112, 112, (c) => drawMotherDough(c, 112, 112, false));
+  lit(scene, 'en_mdough2', 132, 132, (c) => drawMotherDough(c, 132, 132, true));
+  lit(scene, 'en_doughball', 26, 26, (c) => drawDoughBall(c, 26));
 
 }
 
@@ -195,8 +211,23 @@ export function makeRunTextures(scene: Phaser.Scene, stage: StageDef): void {
   makeTextures(scene);
   if (stage.floor === 'floor_stage2') ctex(scene, 'floor_stage2', 256, 256, (c) => drawFreezerFloor(c, 256));
   if (stage.floor === 'floor_stage3') ctex(scene, 'floor_stage3', 256, 256, (c) => drawOvenFloor(c, 256));
+  if (stage.floor === 'floor_stage4') ctex(scene, 'floor_stage4', 256, 256, (c) => drawPantryFloor(c, 256));
+  if (stage.shelves) {
+    for (let v = 0; v < 3; v++) {
+      ctex(scene, `shelf_h${v}`, 184, 56, (c) => drawShelf(c, 176, 40, true, v + 1));
+      ctex(scene, `shelf_v${v}`, 48, 190, (c) => drawShelf(c, 176, 40, false, v + 4));
+    }
+    ctex(scene, 'can', 44, 44, (c) => drawRollingCan(c, 44));
+    ctex(scene, 'floursack', 36, 40, (c) => drawFlourSack(c, 36, 40));
+    ctex(scene, 'flourcloud', 128, 128, (c) => drawFlourCloud(c, 128));
+    ctex(scene, 'knot_h', 132, 44, (c) => drawKnot(c, 132, 44));
+    ctex(scene, 'knot_v', 44, 132, (c) => drawKnot(c, 44, 132));
+    ctex(scene, 'dough_h', 148, 44, (c) => drawDoughWall(c, 148, 44));
+    ctex(scene, 'dough_v', 44, 148, (c) => drawDoughWall(c, 44, 148));
+    ctex(scene, 'bubble', 40, 40, (c) => drawBubble(c, 40));
+  }
   // Props, scattered over the floor by GameScene.
-  const props = stage.props === 'freezer' ? FREEZER_PROPS : stage.props === 'oven' ? OVEN_PROPS : COUNTER_PROPS;
+  const props = stage.props === 'freezer' ? FREEZER_PROPS : stage.props === 'oven' ? OVEN_PROPS : stage.props === 'pantry' ? PANTRY_PROPS : COUNTER_PROPS;
   for (const p of props) ctex(scene, p.key, p.w, p.h, (c) => p.draw(c, p.w, p.h));
   if (stage.ice) {
     ctex(scene, 'ice_patch', 200, 120, (c) => drawIcePatch(c, 200, 120));
@@ -252,5 +283,7 @@ export function makeRunTextures(scene: Phaser.Scene, stage: StageDef): void {
   ctex(scene, 'sauce', 16, 16, (c) => drawSauceShot(c, 16));
   ctex(scene, 'pancake', 20, 20, (c) => drawPancakeShot(c, 20));
   ctex(scene, 'fireball', 16, 16, (c) => drawFireball(c, 16));
+  ctex(scene, 'peppershot', 10, 10, (c) => drawPepperShot(c, 10));
+  ctex(scene, 'doughshot', 18, 18, (c) => drawDoughShot(c, 18));
 
 }

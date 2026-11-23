@@ -70,6 +70,8 @@ export class Tutor {
       { id: 'mug', when: () => !!g.stage.mug && g.loot.has('mug') },
       { id: 'oven', when: () => !!g.stage.coils && g.now > 3 },
       { id: 'grease', when: () => !!g.stage.grease && g.now > 14 },
+      { id: 'shelves', when: () => !!g.stage.shelves && g.now > 3 },
+      { id: 'cans', when: () => g.hz.canSeen },
       { id: 'evolve', when: () => g.weapons.some((w) => w.level >= MAX_LEVEL && !w.evolved) },
       { id: 'bun', when: () => g.loot.has('bun') },
     ];

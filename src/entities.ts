@@ -43,6 +43,8 @@ export class Enemy {
   flame: Phaser.GameObjects.Image | null = null;
   /** Elites, mini-bosses and bosses (radius over 20): they get the full pose animation. */
   big = false;
+  /** Inside a flour cloud: drawn faint. */
+  faint = false;
   /** Seconds of hit squash left (big enemies). */
   sq = 0;
   /** Seconds left of a boss's drop onto the field: it can't move or hurt you until it lands. */
@@ -97,6 +99,8 @@ export interface Hazard {
   r: number;
   dmg: number;
   t: number; // time until it fires
+  /** What lands there: a slice of toast (default) or one of Mother Dough's bubbles. */
+  drop?: string;
 }
 
 export interface Stats {

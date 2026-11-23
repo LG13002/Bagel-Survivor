@@ -19,6 +19,7 @@ This is the history and the decisions behind the current game. The working rules
 | M12 change list (Foundations) | https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA |
 | M13 change list (Onboarding and story) | https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44 |
 | M14 change list (Animation and feel) | https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL |
+| M15 change list (the Pantry) | https://claude.ai/artifact/Ue8289z2E3gN9o1oY9ppJs |
 
 ## The owner's standing decisions
 
@@ -300,6 +301,35 @@ How it was checked:
 - Frame rate (`fpsbench.cjs`, 12 seconds from about 4:10, M14 and M13 served side by side): Bakery 15.8 against 18.4 frames a second, Freezer 16.1 against 19.0, oven 14.7 against 16.7; a second Bakery pair read 17.6 against 18.5. So 5 to 15% lower in the bot. The bot draws without a graphics chip, where filling the screen is the slow part, and the stage's edge tint is one more screen-sized layer: with the tint hidden the Bakery read 18.3, level with M13. A phone's graphics chip handles one such layer easily, but if the owner's phone feels slower, the tint is the first thing to cut (Battery saver already does).
 - Weapon bench against M13, alternating: Rolling Pin level 3 at 217 and 272 damage a second (M13: 300 and 264), Sesame Shot level 3 at 99 and 104 (M13: 109 and 103). The usual run-to-run spread.
 - `savetest.cjs` (72 checks), `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Screens and slowed-down frames of each animation were looked at by hand.
+
+### Phase 3, M15: the Pantry (version 0.15)
+
+Built from the approved [M15 change list](https://claude.ai/artifact/Ue8289z2E3gN9o1oY9ppJs) (30 items plus the four suggestions). Stages 1 to 3 play as before. M15 and M16 share one branch and PR; the owner merges after M16.
+
+- **Stage 4, the Pantry:** unlocked by beating the Broiler. Wooden shelves stand on the floor and line up into aisles. They block you, enemies and enemy shots, never your shots. The borders between shelf cells are always open corridors, so nothing can box the bagel in.
+- **Path-finding (new system):** enemies walk around shelves by following a flow field toward the bagel, rebuilt five times a second (`Floor.steer`). Bosses, mini-bosses and the Waffle Bit lines ignore shelves.
+- **Hazards:** rolling cans (a rattle, a red strip with arrows for 1.2s, then the can rolls down the nearest corridor: 8 damage to you, 45 to every enemy it flattens; 12 or more is a "Strike!") and flour puffs (a sack wobbles, then a 3 second cloud that makes small enemies inside it faint; the bagel, shots and pickups are never hidden).
+- **Cast:** Dust Bunny, Sugar Cube (splits into 3 crystals), Rolling Pea Can (charges and bounces off shelves), Pepper Shaker (a short cone of 5 pepper shots), Molten Muffin as a regular from 2:00, Mold Spores, Waffle Bit lines. Elite: Moldy Loaf (breathes spores). Surprise at 4:00: Broiler Jr. Mini-boss: Spaghetti Tangle (noodle lines, and a knot that blocks part of an aisle for a few seconds). Boss: Mother Dough (bubbles that pop in warned circles, dough blob fans; at half health she rises, grows and pushes dough walls into the aisles).
+- **Short-lived walls** (`floor.addTemp`): a warning outline, then solid, then they melt. Used by the knot and the dough walls.
+- **Music:** `prun` (woodblocks and a plucked bass) and `pboss`. New sounds: rattle, roll, poof, whip.
+- **Garlic bagel** (clear the Pantry): "Warding", everything it does deals 25% more to elites, mini-bosses and bosses. Starts with the Rolling Pin. The design doc's first idea was a short-range aura; the owner found that too close to Onion Olly and picked Warding from three options.
+- **Menus:** the stage picker shows five stages and five difficulty flames; Stage 5 (the Bread Bin) is "Coming soon". Cookbook Enemies has a Pantry page. Three new challenges (clear the Pantry 60 Dough, clear it on Extra Crispy 100, a Strike 50). Two new tips (shelves, cans) and two hints.
+- **Older goals keep their meaning:** "clear every stage" style challenges and the Rainbow goal are pinned to the first three stages.
+
+Deviations from the list, told to the owner:
+- **Suggestion 3 (warnings near shelves)** was done by drawing warning rings and outlines above the shelves instead of dimming the shelves.
+- **The flour cloud sits on the floor** and fades the small enemies inside it, instead of being drawn over them. It reads the same and can never cover a shot or a pickup.
+- **Waffle Bit lines hop over shelves** (they would bunch up at a shelf otherwise).
+- **Contact damage dial is 0.94,** below the oven's. Shelves funnel enemies into the bagel, so the first dial (1.12) measured 27% more damage a minute than the oven. See the numbers below.
+
+How it was checked:
+- Difficulty (`wbench.cjs 6 sesame,storm`, damage taken a minute, oven against Pantry, alternating, two runs of each): from 2:00, oven 350 and Pantry 421 (20% more); from 3:30, oven 488 and Pantry 492 (level); together 419 against 457, about 9% more. The target was about 10% (9.0 against the oven's 8.2). The Pantry's extra bite is in the middle of the run, when the Spaghetti Tangle and the Muffins arrive; by the end the two stages hurt the same. Earlier dial settings, same method: 1.12 gave 27% more, 1.0 gave 16%, 0.97 gave 13%.
+- Frame rate (`fpsbench.cjs`, alternating): oven 20.0 and 19.6 frames a second, Pantry 19.8 and 20.4. The first build read about 15% lower than the oven; the cause was the shelves' shadows, drawn as rounded shapes every frame. They are plain rectangles now and only the ones on screen are drawn.
+- Boss timing (`bosstime.cjs`): Mother Dough arrives at 4:30 and first attacks 1.48s later, like every other boss.
+- Music (`mixtest.cjs`): `prun` at full strength -14.6 dB and `pboss` -13.8 dB, inside the band the other stages sit in.
+- Garlic (`bagelbench.cjs`, Stage 1 to 4:25): 428 damage a second, against Plain Jane 469 and Onion Olly 452 with the same card policy. Warding only touches elites and bosses, so it does not speed up ordinary waves.
+- Stages 1 to 3 against the live game, alternating: Rolling Pin level 3 at 279, 415 and 452 damage a second on Stages 1, 2 and 3 (live game: 280, 342, 414), Sesame Shot level 3 at 104, 128 and 185 (live: 109, 129, 175): the usual run-to-run spread. `bosstime.cjs`: every boss arrives at 4:30 and first attacks 1.45 to 1.51s later on both builds.
+- A Pantry win was played by bot in Full, Quick, Endless, Extra Crispy and Practice; the clear, the Garlic unlock, the bests and the challenge pay all landed, and a run resumed in the Pantry with its shelves and boss. `savetest.cjs`, `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Every new screen was looked at by hand at both sizes.
 
 ## Weapon benchmark (bot, M11 part 3)
 
