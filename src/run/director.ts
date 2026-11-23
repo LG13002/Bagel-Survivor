@@ -121,15 +121,13 @@ export class Director {
     if (!this.miniSpawned && t >= RUN.miniBossAt) {
       this.miniSpawned = true;
       this.spawnMini();
-      hud.banner(st.mini.banner, CSS.gold, 26);
+      hud.banner(st.mini.banner, CSS.gold, 26, `"${st.mini.line}"`);
     }
     if (!this.bossSpawned && t >= RUN.bossAt) {
       this.bossSpawned = true;
       this.spawnBoss(false);
-      if (st.boss.card) {
-        hud.bossCard(st.boss.name, st.boss.card);
-        sfx('roar');
-      } else hud.banner(st.boss.banner, CSS.red, 30);
+      hud.bossCard(st.boss.name, st.boss.card);
+      sfx('roar');
       sfx('boss');
       shake(g, 400, 0.006);
     }

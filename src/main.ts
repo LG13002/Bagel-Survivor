@@ -3,6 +3,7 @@ import { COLORS, S } from './config';
 import { GameScene } from './scenes/GameScene';
 import { MenuScene } from './scenes/MenuScene';
 import { ResultsScene } from './scenes/ResultsScene';
+import { IntroScene } from './scenes/IntroScene';
 import { TitleScene } from './scenes/TitleScene';
 import { backupCode, load, persist, resetSave, restoreCode, takeRecovered } from './save';
 import fontUrl from './assets/titan-one.woff2?inline';
@@ -18,7 +19,7 @@ function start(): void {
     scale: { mode: Phaser.Scale.NONE, width: w, height: h, zoom: 1 / S },
     render: { antialias: true, roundPixels: false, powerPreference: 'high-performance' },
     input: { activePointers: 3 },
-    scene: [TitleScene, MenuScene, GameScene, ResultsScene],
+    scene: [TitleScene, IntroScene, MenuScene, GameScene, ResultsScene],
   });
 
   // Exposed for debugging and automated playtests (tools/bots).

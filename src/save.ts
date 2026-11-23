@@ -11,6 +11,8 @@ export interface Settings {
   saver: boolean;
   /** Left-handed HUD: the pause button and build row swap sides. */
   lefty: boolean;
+  /** Tips: the first-run tutorial, the one-time notes and the rotating hints. */
+  tips: boolean;
 }
 
 export interface SaveData {
@@ -68,6 +70,14 @@ export interface SaveData {
   secrets?: string[];
   /** Paid challenges already seen on the Goals page (the rest give the Goals button a red dot). */
   goalsSeen?: string[];
+  /** One-time tips already shown (ids in `tips.ts`). "Replay tutorial" empties it. */
+  tips?: string[];
+  /** Menu buttons that have opened: 'bakery', 'goals', 'cookbook'. */
+  open?: string[];
+  /** Opened menu buttons not tapped yet (they wear a NEW tag). */
+  fresh?: string[];
+  /** The intro comic has been watched or skipped. */
+  intro?: boolean;
 }
 
 /** Best single-run numbers (practice runs never count). */
@@ -116,7 +126,22 @@ const STEPS: ((d: SaveData) => void)[] = [
   },
   // 1 to 2: the Settings screen. The old Music and Sound switches become volumes.
   (d) => {
-    d.settings = { music: d.music === false ? 0 : 100, sound: d.sound === false ? 0 : 100, shake: 'on', flash: 'normal', saver: false, lefty: false, ...(d.settings ?? {}) };
+    d.settings = { music: d.music === false ? 0 : 100, sound: d.sound === false ? 0 : 100, shake: 'on', flash: 'normal', saver: false, lefty: false, ...(d.settings ?? {}) } as Settings;
+  },
+  // 2 to 3: tips and the menu that opens as you go. A save that has been played keeps every menu button open and
+  // skips the tips for things it has already done; a brand-new save starts with both.
+  (d) => {
+    d.settings = { ...d.settings!, tips: d.settings?.tips ?? true };
+    const played = d.totalKills > 0 || d.bestTime > 0 || d.dough > 0 || d.clears > 0;
+    if (!played) return;
+    d.open = ['bakery', 'goals', 'cookbook'];
+    const seen = new Set([...(d.tips ?? []), 'move', 'fire', 'seeds', 'cards', 'chest', 'bakery', 'bun']);
+    if (d.cookbook.length) seen.add('evolve');
+    if ((d.stageClears?.stage1 ?? 0) > 0) for (const id of ['quick', 'endless', 'crispy', 'practice']) seen.add(id);
+    if (d.stageTime?.stage2) for (const id of ['freezer', 'mug']) seen.add(id);
+    if (d.stageTime?.stage3) for (const id of ['oven', 'grease']) seen.add(id);
+    if ((d.best && Object.keys(d.best).some((k) => k.endsWith(':blueberry')))) seen.add('dash');
+    d.tips = [...seen];
   },
 ];
 export const SAVE_VERSION = STEPS.length;

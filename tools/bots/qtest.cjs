@@ -4,7 +4,7 @@ const SP = process.argv[2];
   const b = await chromium.launch();
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage();
   p.on('pageerror', e => console.log('ERR', e.message));
-  await p.addInitScript(() => localStorage.setItem('everything-bagel-save-v1', JSON.stringify({dough:100,upgrades:{},unlocked:['plain','everything'],selected:'everything',cookbook:[],bestTime:100,totalKills:900,clears:0,quick:true,best:{'stage1:everything':{time:300,kills:812,cleared:true}}})));
+  await p.addInitScript(() => localStorage.setItem('everything-bagel-save-v1', JSON.stringify({dough:100,upgrades:{},unlocked:['plain','everything'],selected:'everything',cookbook:[],bestTime:100,totalKills:900,clears:0,quick:true,best:{'stage1:everything':{time:300,kills:812,cleared:true}},intro:true})));
   await p.goto('http://localhost:4191/?god&speed=8&t=255', { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(2500);
   await p.screenshot({ path: `${SP}/q_title.png` });
   // tap through the title screen, then PLAY on the order ticket

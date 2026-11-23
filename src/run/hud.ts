@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { settings } from '../settings';
 import { COLORS, CSS, S, ZOOM, fmtTime, safeInsets } from '../config';
 import { MAX_SLOTS, TOPPINGS } from '../data';
-import { button, pill, txt } from '../ui';
+import { button, fit, pill, txt } from '../ui';
 import type { GameScene } from '../scenes/GameScene';
 
 /**
@@ -213,18 +213,22 @@ export class Hud {
     }
   }
 
-  /** A line of text that pops in near the top, then floats up and fades. */
-  banner(text: string, color: string, size: number): void {
+  /** A line of text that pops in near the top, then floats up and fades. `line`: a smaller second line (what a mini-boss says). */
+  banner(text: string, color: string, size: number, line?: string): void {
     const g = this.g;
     const W = g.scale.width;
     const top = safeInsets().top * S;
-    const slot = this.banners++;
-    const t = g.ui(txt(g, W / 2, top + (190 + slot * 40) * S, text, size, color, { wrap: W / S - 40 }));
+    const slot = this.banners;
+    this.banners += line ? 2 : 1;
+    const y = top + (190 + slot * 40) * S;
+    const parts = [txt(g, 0, 0, text, size, color, { wrap: W / S - 40 })];
+    if (line) parts.push(txt(g, 0, (size * 0.5 + 16) * S, line, 17, CSS.cream, { wrap: W / S - 40 }));
+    const t = g.ui(g.add.container(W / 2, y, parts));
     t.setAlpha(0).setScale(0.6);
     g.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 220, ease: 'Back.Out' });
-    g.tweens.add({ targets: t, alpha: 0, y: t.y - 30 * S, delay: 1600, duration: 500, onComplete: () => {
+    g.tweens.add({ targets: t, alpha: 0, y: y - 30 * S, delay: line ? 2400 : 1600, duration: 500, onComplete: () => {
       t.destroy();
-      this.banners--;
+      this.banners -= line ? 2 : 1;
     } });
   }
 
@@ -237,18 +241,22 @@ export class Hud {
     const h = 100 * S;
     const gr = g.add.graphics();
     gr.fillStyle(0x24160d, 1).fillRoundedRect(-w / 2 - 4 * S, -h / 2 - 4 * S, w + 8 * S, h + 8 * S, 20 * S);
-    // Themed per stage: icy blue in the Freezer, glowing red-hot in the oven.
-    const hot = !!g.stage.coils;
-    gr.fillStyle(hot ? 0x4a170c : 0x1d3a57, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
-    gr.lineStyle(2 * S, hot ? 0xffb36b : 0xbfe6fb, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
-    const t1 = txt(g, 0, -17 * S, name.toUpperCase(), 26, hot ? CSS.gold : CSS.red);
-    const t2 = txt(g, 0, 22 * S, line, 19, hot ? '#ffe2c4' : '#dff4ff');
+    // Themed per stage: icy blue in the Freezer, glowing red-hot in the oven, toasted brown on the countertop.
+    const th = g.stage.coils ? CARD_HOT : g.stage.frost ? CARD_ICY : CARD_TOAST;
+    gr.fillStyle(th.fill, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
+    gr.lineStyle(2 * S, th.edge, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
+    const t1 = fit(txt(g, 0, -17 * S, name.toUpperCase(), 26, th.name), w - 24 * S);
+    const t2 = fit(txt(g, 0, 22 * S, line, 19, th.line), w - 24 * S);
     const card = g.ui(g.add.container(W / 2, top + 220 * S, [gr, t1, t2]));
     card.setScale(0.5).setAlpha(0);
     g.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 320, ease: 'Back.Out' });
     g.tweens.add({ targets: card, alpha: 0, y: card.y - 30 * S, delay: 2600, duration: 500, onComplete: () => card.destroy() });
   }
 }
+
+const CARD_HOT = { fill: 0x4a170c, edge: 0xffb36b, name: CSS.gold, line: '#ffe2c4' };
+const CARD_ICY = { fill: 0x1d3a57, edge: 0xbfe6fb, name: CSS.red, line: '#dff4ff' };
+const CARD_TOAST = { fill: 0x5a3416, edge: 0xf2b84b, name: CSS.gold, line: '#fff3dc' };
 
 /** Change a pill's text only when it differs (setText re-renders the text texture). */
 function setLabel(pillC: Phaser.GameObjects.Container, s: string): void {

@@ -17,6 +17,7 @@ This is the history and the decisions behind the current game. The working rules
 | Phase 3 design doc | https://claude.ai/artifact/XTFovTRnht4Ro4soMW44jt |
 | Phase 3 style board | https://claude.ai/artifact/CUVqPHqxixzqyR5LPk1p2D |
 | M12 change list (Foundations) | https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA |
+| M13 change list (Onboarding and story) | https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44 |
 
 ## The owner's standing decisions
 
@@ -257,6 +258,25 @@ How it was checked: `savetest.cjs` (39 checks: saves from the prototype, mid Pha
 
 Bugs found and fixed while checking: the first lighting pass greyed the ink outlines (it now leaves dark colors alone); the title screen's background was 27 full-screen circles a frame (now one small stretched picture); long card and upgrade descriptions overflowed in the wider font (they shrink to fit).
 
+### Phase 3, M13: Onboarding and story (version 0.13)
+
+Built from the approved [M13 change list](https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44). It sits on the same branch and PR as M12: the owner asked for fewer merges, so M12 to M14 merge together. No gameplay numbers changed.
+
+- **First-run tips:** "Drag anywhere to move" (with a ghost thumb, until you move), "Your bagel fires on its own" (first crumb down), "Grab seeds to level up" (an arrow over the nearest seed), a line over the first level-up's cards, a line over the first chest, and the first results screen points at the Bakery with a button straight there. Tips are small boxes under the bagel that never pause the run, one at a time, each once per save.
+- **Later tips,** the first time each thing comes up: a maxed weapon (how to evolve), the Sticky Bun, the Freezer (ice and frost, then the first Warm Mug), the Toaster Oven (coils, then grease and knobs), Blueberry's dash, and a line on the menu the first time Quick, Endless, Extra Crispy or Practice is picked.
+- **Evolution recipes are always on show:** every weapon card names the topping it evolves with, every topping card the weapon it evolves, and the pause screen puts the needed topping on each weapon's corner (gold-ringed once owned).
+- **Settings:** a Tips row (On, Off, "Replay tutorial"), a Help tab ("how to play" in seven lines) and "Watch the intro" on the About tab. With Tips off nothing in this list shows except the recipes.
+- **Rotating hints** (22 of them) along the bottom of the pause and results screens.
+- **A menu that opens as you go:** a new save's bottom bar has only Settings open. The Bakery and Goals open when the first run ends, the Cookbook at the first evolution. A closed button is dim with a lock and says how it opens; one that just opened wears a NEW tag until tapped. Saves with any progress keep everything open.
+- **Intro comic:** four panels after the title screen, once (the bakery at dawn, the Stale creeping over the counter, the Stale King's crown in the bread bin, the bagels rolling out), with a little motion in each. Tap to turn the page, Skip to leave.
+- **Boss lines:** every boss arrives with the announcement card (the Toaster Tyrant: "You're toast!"), and each mini-boss's banner has a line under it.
+- **Story beats:** the first clear of each stage adds one line to the results screen.
+- **Save version 3:** tips seen, opened menu buttons, NEW tags, the comic flag, and the Tips setting.
+
+Decisions made while building: the comic plays once for existing saves too (it is new to them, and Skip is one tap). Existing saves skip the tips for anything they have clearly done already (the tutorial, the bun, evolutions if the Cookbook has an entry, mode notes once Stage 1 is cleared, a stage's hazards once that stage has been played). The first results screen swaps its buttons to BAKERY and Again, and only when there are at least 20 Dough to spend (the cheapest useful upgrade); otherwise it waits for a later run.
+
+How it was checked: `tutortest.cjs` (a brand-new save from the title screen through the comic, the locked menu, a first run with each tip once and in order, the Bakery button, NEW tags, a second run with no tips, Tips off, Replay tutorial) at 390x760 and 390x640. `savetest.cjs` grew to 72 checks with an M12-era save: old saves get no tutorial and every button open. Quick Run clear and Sticky Bun bots pass. Weapon bench against the M12 build, run side by side: Rolling Pin level 3 at 251 to 279 damage a second on M13 and 251 to 304 on M12 (the same spread run to run), Sesame Shot level 3 at 95 (M12: 91).
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
@@ -287,4 +307,5 @@ Sesame Shot stays weak at level 3 on purpose (it's the starter). Evolved numbers
 - **Slow title screen in headless runs** was real, not a headless quirk: big overlapping shapes cost phones too. Stretch one small picture instead.
 - **Overlay colors on finished art** (`source-atop`) wash out the ink outlines. `relight` uses the "overlay" blend through a spare canvas so dark stays dark.
 - **A missing texture doesn't throw:** it draws a placeholder box. After adding art, check with a bot that no sprite's texture key is `__MISSING`.
+- **The weapon bench drifts with the machine's frame rate:** the same build can read 250 or 300 on the same weapon. To compare two builds, build the old commit into a second folder, serve it on another port (`PORT=`) and alternate runs.
 - **Old version on the owner's phone after a deploy:** fully close and reopen the home-screen app.

@@ -7,9 +7,13 @@ import type { RunResult } from './GameScene';
 import { BAGELS, WEAPONS, stageById } from '../data';
 import { nearestGoals } from '../progress';
 import { wipeOpen, wipeTo } from '../wipe';
+import { TIPS, markTip, menuOpen, nextHint, tipDue } from '../tips';
 
 export class ResultsScene extends Phaser.Scene {
   private result!: RunResult;
+  /** This is the screen that points a new player at the Bakery (decided once, so a resize keeps it). */
+  private toBakery = false;
+  private hint = '';
   constructor() {
     super('results');
   }
@@ -19,6 +23,11 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   create(): void {
+    const save = load();
+    // The first run's results point at the Bakery, as long as there's something to buy.
+    this.toBakery = !this.result.practice && tipDue('bakery') && menuOpen(save, 'bakery') && save.dough >= 20;
+    if (this.toBakery) markTip('bakery');
+    this.hint = nextHint();
     this.build();
     const onResize = () => {
       this.tweens.killAll();
@@ -72,6 +81,8 @@ export class ResultsScene extends Phaser.Scene {
 
     // What to chase next
     const notes: string[] = [];
+    // The first clear of a stage moves the story on.
+    if (r.firstClear) notes.push(st.outro);
     // Finished challenges: first, as one line, or a total when several land at once.
     if (r.goals.length === 1) notes.push(`GOAL DONE: ${r.goals[0].name}, +${r.goals[0].reward} Dough`);
     else if (r.goals.length > 1) notes.push(`${r.goals.length} GOALS DONE! +${r.goals.reduce((a, g) => a + g.reward, 0)} Dough. See the Goals page.`);
@@ -84,15 +95,31 @@ export class ResultsScene extends Phaser.Scene {
     if (r.evolutions.length) notes.push(`Evolved: ${r.evolutions.join(', ')}`);
     for (const g of nearestGoals(save, 2)) notes.push(`Unlock ${g.bagel.name}: ${g.bagel.goal!.text} (${g.status.progress})`);
     if (save.cookbook.length < 6) notes.push(`Cookbook ${save.cookbook.length}/${Object.keys(WEAPONS).length}: max a weapon, own its topping, open a chest`);
-    txt(this, W / 2, top + (compact ? 335 : 375) * S, notes.slice(0, compact ? 2 : 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
-
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
-    button(this, W / 2, by, Math.min(W - 60 * S, 260 * S), 62 * S, 'AGAIN', () => this.go('game', { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: r.quick, endless: r.endless, crispy: r.crispy }), { size: 28 });
-    button(this, W / 2, by + 74 * S, Math.min(W - 60 * S, 260 * S), 50 * S, 'Menu', () => this.go('menu', {}), {
-      color: COLORS.panelLight,
-      textColor: CSS.cream,
-      size: 20,
-    });
+    const bw = Math.min(W - 60 * S, 260 * S);
+    const again = () => this.go('game', { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: r.quick, endless: r.endless, crispy: r.crispy });
+    const quiet = { color: COLORS.panelLight, textColor: CSS.cream, size: 20 };
+    const noteY = top + (compact ? 335 : 375) * S;
+    if (this.toBakery) {
+      // The first run: one note, and the big button goes straight to the Bakery.
+      const t = txt(this, W / 2, noteY - 8 * S, TIPS.bakery, 16, CSS.gold, { wrap: (pw - 40 * S) / S });
+      const arrow = txt(this, W / 2, t.y + t.height / 2 + 16 * S, '▼', 18, CSS.gold);
+      this.tweens.add({ targets: arrow, y: arrow.y + 7 * S, duration: 420, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      const b = button(this, W / 2, by, bw, 62 * S, 'BAKERY', () => this.go('menu', { open: 'bakery' }), { size: 28, icon: 'ic_bk_oven' });
+      this.tweens.add({ targets: b, scale: 1.04, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      button(this, W / 2, by + 74 * S, bw, 50 * S, 'Again', again, quiet);
+    } else {
+      txt(this, W / 2, noteY, notes.slice(0, compact ? 2 : 3).join('\n\n'), 13, '#e8d8c0', { wrap: (pw - 40 * S) / S, bold: false });
+      button(this, W / 2, by, bw, 62 * S, 'AGAIN', again, { size: 28 });
+      button(this, W / 2, by + 74 * S, bw, 50 * S, 'Menu', () => this.go('menu', {}), quiet);
+    }
+    // A hint takes turns along the bottom, when there's room under the buttons.
+    const under = by + 104 * S;
+    const room = H - ins.bottom * S - under;
+    if (this.hint && room > 34 * S) {
+      const ht = txt(this, W / 2, under + room / 2, `TIP: ${this.hint}`, 12, '#cdbfa6', { bold: false, wrap: Math.min(W / S - 36, 340) });
+      if (ht.height > room - 6 * S) ht.setScale((room - 6 * S) / ht.height);
+    }
   }
 
   private go(scene: string, data: object): void {

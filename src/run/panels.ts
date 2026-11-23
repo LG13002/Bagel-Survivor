@@ -2,12 +2,15 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { MAX_LEVEL, MAX_SLOTS, TOPPINGS, WEAPONS, type ToppingId, type WeaponId } from '../data';
 import { load, persist } from '../save';
+import { weaponOpen } from '../progress';
 import { sfx } from '../sfx';
 import { buildSettings } from '../settingsPanel';
 import { button, drawPips, panel, pill, txt } from '../ui';
 import { COMBO } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
 import type { Choice } from './state';
+import { TIPS, markTip, nextHint, openMenu, tipDue } from '../tips';
+import { tipBox } from './tutor';
 
 /**
  * The pop-ups that pause a run: level-up cards, chests and the pause menu. Only one is open at a time. Made fresh
@@ -78,6 +81,23 @@ export class Panels {
     return false;
   }
 
+  /** The other half of a card's evolution recipe: the topping a weapon needs, or the weapon a topping evolves. */
+  private partner(c: Choice): { icon: string; owned: boolean } | null {
+    const g = this.g;
+    if (c.kind === 'wnew' || c.kind === 'wup') {
+      const def = WEAPONS[c.id as WeaponId];
+      return { icon: TOPPINGS[def.evolveWith].icon, owned: g.toppings.has(def.evolveWith) };
+    }
+    if (c.kind === 'tnew' || c.kind === 'tup') {
+      const def = Object.values(WEAPONS).find((w) => w.evolveWith === c.id);
+      if (!def || !weaponOpen(load(), def.id)) return null;
+      const own = g.weaponOf(def.id);
+      if (own?.evolved) return null;
+      return { icon: def.icon, owned: !!own };
+    }
+    return null;
+  }
+
   openLevelUp(): void {
     const g = this.g;
     const run = g.run;
@@ -98,6 +118,11 @@ export class Panels {
     const title = txt(g, W / 2, startY - ch / 2 - 56 * S, 'LEVEL UP!', 34, CSS.gold);
     const sub = txt(g, W / 2, startY - ch / 2 - 24 * S, `Level ${run.level - run.pendingLevels + 1}: pick one`, 15, CSS.muted);
     c.add([title, sub]);
+    // The first level-up explains the cards.
+    if (!g.practice && tipDue('cards')) {
+      markTip('cards');
+      c.add(tipBox(g, W / 2, Math.max(ins.top * S + 40 * S, title.y - 62 * S), TIPS.cards, 14));
+    }
     g.tweens.resumeAll();
     title.setScale(0.5);
     g.tweens.add({ targets: title, scale: 1, duration: 260, ease: 'Back.Out' });
@@ -144,6 +169,14 @@ export class Panels {
         const pg = g.add.graphics();
         drawPips(pg, tx + 5 * S, 30 * S, MAX_LEVEL, lvl, true, col, 3.6 * S, 12 * S);
         card.add(pg);
+      }
+      // What it evolves with, in the bottom corner: a weapon's card shows its topping, a topping's card its weapon.
+      // Bright once you own the other half.
+      const partner = this.partner(choice);
+      if (partner) {
+        const pi = g.add.image(cw / 2 - 20 * S, 29 * S, partner.icon).setScale(0.6).setAlpha(partner.owned ? 1 : 0.8);
+        const pl = txt(g, pi.x - 14 * S, 30 * S, kind === 'wnew' || kind === 'wup' ? 'EVOLVES WITH' : 'EVOLVES', 9, partner.owned ? CSS.gold : CSS.muted, { stroke: false }).setOrigin(1, 0.5);
+        card.add([pl, pi]);
       }
       // The note sits between the name and the level pips (or the card's bottom edge when there are none),
       // centred in that gap. A note too tall for it, such as two lines above the pips, shrinks to fit.
@@ -249,6 +282,8 @@ export class Panels {
       run.evolutionsThisRun.push(evo.def.id);
       const save = load();
       if (!save.cookbook.includes(evo.def.id)) save.cookbook.push(evo.def.id);
+      // The first evolution opens the Cookbook on the menu.
+      if (!g.practice) openMenu(save, 'cookbook');
       persist();
     } else {
       title = gold ? 'GOLDEN TOASTER!' : 'BREAD BASKET';
@@ -283,6 +318,11 @@ export class Panels {
     const t2 = txt(g, W / 2, H / 2 + 56 * S + extra / 2, line, 16, '#e8d8c0', { wrap: Math.min(W / S - 70, 300), bold: false });
     const t3 = txt(g, W / 2, H / 2 + 100 * S + extra, 'Tap to continue', 13, CSS.muted).setAlpha(0);
     c.add([im, t1, t2, t3]);
+    // The first chest explains what chests do.
+    if (!g.practice && tipDue('chest')) {
+      markTip('chest');
+      c.add(tipBox(g, W / 2, H / 2 - 125 * S - 44 * S, TIPS.chest, 14));
+    }
     g.tweens.resumeAll();
     im.setScale(0.5);
     g.tweens.add({ targets: im, scale: 2.2, angle: evo ? 360 : 0, duration: 500, ease: 'Back.Out' });
@@ -313,9 +353,16 @@ export class Panels {
     const H = g.scale.height;
     const { c } = this.open(0.7);
     const pw = Math.min(W - 32 * S, 340 * S);
-    const ph = 470 * S;
+    // A hint takes turns along the bottom (not with Tips off).
+    const hint = nextHint();
+    const ph = (hint ? 512 : 470) * S;
     const top = H / 2 - ph / 2;
     c.add(panel(g, W / 2, H / 2, pw, ph));
+    if (hint) {
+      const ht = txt(g, W / 2, top + 479 * S, `TIP: ${hint}`, 12, CSS.muted, { bold: false, stroke: false, wrap: (pw - 36 * S) / S });
+      if (ht.height > 34 * S) ht.setScale((34 * S) / ht.height);
+      c.add(ht);
+    }
     c.add(txt(g, W / 2, top + 36 * S, g.practice ? 'PAUSED (PRACTICE)' : g.quick ? 'PAUSED (QUICK)' : g.endless ? 'PAUSED (ENDLESS)' : 'PAUSED', 26, CSS.gold));
 
     // Run so far
@@ -335,7 +382,7 @@ export class Panels {
     // Your build: weapons on top, toppings below, each with level pips.
     const cell = Math.min(70 * S, (pw - 30 * S) / MAX_SLOTS);
     const gx = W / 2 - (cell * MAX_SLOTS) / 2;
-    const row = (y: number, label: string, items: { icon: string; lv: number; evolved: boolean }[], col: number) => {
+    const row = (y: number, label: string, items: { icon: string; lv: number; evolved: boolean; needs?: string; has?: boolean }[], col: number) => {
       c.add(txt(g, gx + 4 * S, y - 12 * S, label, 12, CSS.muted, { bold: true, stroke: false }).setOrigin(0, 0.5));
       for (let i = 0; i < MAX_SLOTS; i++) {
         const it = items[i];
@@ -353,9 +400,20 @@ export class Panels {
           drawPips(pg, cx - 2 * 8 * S, y + t + 9 * S, MAX_LEVEL, it.lv, false, col, 2.8 * S, 8 * S);
           c.add(pg);
         }
+        if (it.needs) {
+          // The topping this weapon evolves with, on its corner: gold-ringed once you own it.
+          const bx = cx + t / 2 - 3 * S;
+          const by = y + 3 * S;
+          const bg = g.add.graphics();
+          bg.fillStyle(0x24160d, 1).fillCircle(bx, by, 11 * S);
+          bg.fillStyle(it.has ? 0x3f5f86 : 0x4a3a2c, 1).fillCircle(bx, by, 9 * S);
+          if (it.has) bg.lineStyle(1.5 * S, COLORS.gold, 1).strokeCircle(bx, by, 9 * S);
+          c.add(bg);
+          c.add(g.add.image(bx, by, it.needs).setScale(0.42).setAlpha(it.has ? 1 : 0.8));
+        }
       }
     };
-    row(top + 116 * S, 'WEAPONS', g.weapons.map((w) => ({ icon: w.icon, lv: w.level, evolved: w.evolved })), 0xf08a3c);
+    row(top + 116 * S, 'WEAPONS', g.weapons.map((w) => ({ icon: w.icon, lv: w.level, evolved: w.evolved, needs: w.evolved ? undefined : TOPPINGS[w.def.evolveWith].icon, has: g.toppings.has(w.def.evolveWith) })), 0xf08a3c);
     row(top + 196 * S, 'TOPPINGS', [...g.toppings].map(([id, lv]) => ({ icon: TOPPINGS[id].icon, lv, evolved: false })), 0x5aa9e6);
 
     c.add(

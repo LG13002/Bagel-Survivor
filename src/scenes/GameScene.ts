@@ -32,6 +32,8 @@ import { Hud } from '../run/hud';
 import { CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
+import { Tutor } from '../run/tutor';
+import { openMenu } from '../tips';
 import { applySnapshot, writeSnapshot } from '../run/resume';
 import { RunState, type Choice, type PauseReason, type RunResult } from '../run/state';
 import { wipeOpen } from '../wipe';
@@ -97,6 +99,7 @@ export class GameScene extends Phaser.Scene implements World {
   loot!: Pickups;
   hud!: Hud;
   panels!: Panels;
+  tutor!: Tutor;
 
   // Layers, cameras and the bagel's own drawings, made in create().
   worldLayer!: Phaser.GameObjects.Layer;
@@ -192,6 +195,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.uiLayer.add(this.joyGfx);
     this.hud = new Hud(this);
     this.panels = new Panels(this);
+    this.tutor = new Tutor(this);
 
     this.recomputeStats();
     this.player.hp = this.stats.maxHp;
@@ -422,6 +426,7 @@ export class GameScene extends Phaser.Scene implements World {
     const dt = this.lastFrame ? Math.min((nowMs - this.lastFrame) / 1000, 0.05) : 1 / 60;
     this.lastFrame = nowMs;
     this.updateJoystickGfx();
+    this.tutor.update(dt);
     if (this.paused) return;
     if (this.hitstop > 0) {
       // Freeze-frame on heavy hits sells the impact.
@@ -950,6 +955,9 @@ export class GameScene extends Phaser.Scene implements World {
       );
     // Challenges pay their Dough as soon as they're done.
     const goals = this.practice ? [] : claimGoals(save).map((g) => ({ name: g.name, reward: g.reward }));
+    // A new save's menu opens as you go: the Bakery and Goals once the first real run is over.
+    if (!this.practice) openMenu(save, 'bakery', 'goals');
+    const firstClear = cleared && !this.practice && save.stageClears?.[this.stage.id] === 1;
     const opened = playableStages(save).filter((id) => !openBefore.includes(id));
     if (opened.length) save.stage = opened[0];
     persist();
@@ -973,6 +981,7 @@ export class GameScene extends Phaser.Scene implements World {
       evolutions: r.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),
       goals,
       combo: r.foundCombo,
+      firstClear,
     };
     const p = this.player.sprite;
     if (!victory && !quit) {

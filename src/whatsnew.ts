@@ -1,10 +1,10 @@
 // The "What's new" card: shown once on the menu after an update, and any time from Settings.
 // Keep it to two or three short lines about what a player will notice.
 export const WHATS_NEW: { title: string; lines: string[] } = {
-  title: 'A fresh coat of paint',
+  title: 'The story begins',
   lines: [
-    'A new title screen, a bakery shelf menu and one chunky font everywhere.',
-    'Settings: volume sliders, screen shake, flashing effects and more.',
-    'Back up your save as a code, so a new phone never means starting over.',
+    'An intro comic: meet the Stale and the king behind it. Watch it any time from Settings, About.',
+    'Every boss now arrives with a card and a line. The Toaster Tyrant has something to say.',
+    'Tips for new players, a How to play page in Settings, and cards that show what evolves with what.',
   ],
 };

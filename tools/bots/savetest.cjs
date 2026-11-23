@@ -15,6 +15,8 @@ const ERAS = {
   phase2: { dough: 610, upgrades: { crust: 5, oven: 3, luck: 1 }, unlocked: ['plain', 'everything', 'cinnamon', 'blueberry'], selected: 'blueberry', cookbook: ['sesame', 'pin', 'lox'], bestTime: 300, totalKills: 9000, clears: 6, sound: true, music: false, quick: true, stage: 'stage2', stageClears: { stage1: 5, stage2: 1 }, stageTime: { stage1: 300, stage2: 300 }, best: { 'stage1:plain': { time: 300, kills: 700, cleared: true }, 'stage2q:blueberry': { time: 180, kills: 400, cleared: true } }, weapons: ['knife'], mugs: 9 },
   // The end of Phase 2 (M10, M11 and the code review): modes, challenges, secrets, enemies met.
   phase2end: { dough: 1500, upgrades: { crust: 5, oven: 5, rise: 5, sticky: 5, luck: 3, reroll: 2, revive: 1, armor: 2 }, unlocked: ['plain', 'everything', 'cinnamon', 'blueberry', 'asiago', 'rainbow'], selected: 'rainbow', cookbook: ['sesame', 'pin', 'lox', 'puddle'], bestTime: 300, totalKills: 40000, clears: 20, sound: true, music: true, endless: true, crispy: true, stage: 'stage3', stageClears: { stage1: 10, stage2: 6, stage3: 4 }, crispyClears: { stage1: 1 }, best: { 'stage3e:rainbow': { time: 612, kills: 2200, cleared: true }, 'stage1x:plain': { time: 300, kills: 900, cleared: true } }, weapons: ['knife', 'jar', 'toastpop', 'iron'], beaten: ['croissant', 'tyrant', 'waffle', 'fburn', 'flapjack', 'broiler'], mugs: 31, met: ['crumb', 'mold'], records: { kills: 2200, level: 31, evos: 4, endless: 612, endlessBosses: 2 }, noHitBoss: true, goalsPaid: ['kills1000', 'evo4'], goalsSeen: ['kills1000'], secrets: ['combo'] },
+  // M12 (Foundations): save version 2, with the Settings screen's options.
+  foundations: { v: 2, dough: 320, upgrades: { crust: 1 }, unlocked: ['plain', 'everything'], selected: 'plain', cookbook: [], bestTime: 300, totalKills: 3100, clears: 1, stage: 'stage1', stageClears: { stage1: 1 }, stageTime: { stage1: 300 }, best: { 'stage1:plain': { time: 300, kills: 400, cleared: true } }, met: ['crumb', 'ant', 'mold', 'elite', 'croissant', 'toaster'], beaten: ['croissant', 'toaster'], settings: { music: 40, sound: 80, shake: 'reduced', flash: 'reduced', saver: true, lefty: true }, seenVersion: '0.12.0' },
 };
 
 let failed = 0;
@@ -47,18 +49,31 @@ const check = (name, ok, detail = '') => {
     const s = await loaded(p);
     const kept = ['dough', 'upgrades', 'unlocked', 'selected', 'cookbook', 'totalKills', 'clears', 'best', 'weapons', 'records', 'goalsPaid', 'secrets', 'mugs', 'crispyClears'].filter((k) => old[k] !== undefined && JSON.stringify(s[k]) !== JSON.stringify(old[k]));
     check(`${era}: progress kept`, kept.length === 0, `changed: ${kept.join(', ')}`);
-    check(`${era}: save version set`, s.v === 2, `v=${s.v}`);
-    check(`${era}: volumes follow the old switches`, s.settings && s.settings.music === (old.music === false ? 0 : 100) && s.settings.sound === (old.sound === false ? 0 : 100), JSON.stringify(s.settings));
-    check(`${era}: new settings start at their defaults`, s.settings.shake === 'on' && s.settings.flash === 'normal' && s.settings.saver === false && s.settings.lefty === false);
+    check(`${era}: save version set`, s.v === 3, `v=${s.v}`);
+    if (era === 'foundations') check('foundations: settings left alone', s.settings.music === 40 && s.settings.sound === 80 && s.settings.shake === 'reduced' && s.settings.flash === 'reduced' && s.settings.saver && s.settings.lefty, JSON.stringify(s.settings));
+    else {
+      check(`${era}: volumes follow the old switches`, s.settings && s.settings.music === (old.music === false ? 0 : 100) && s.settings.sound === (old.sound === false ? 0 : 100), JSON.stringify(s.settings));
+      check(`${era}: new settings start at their defaults`, s.settings.shake === 'on' && s.settings.flash === 'normal' && s.settings.saver === false && s.settings.lefty === false);
+    }
+    // M13: a save with progress keeps every menu button open (no NEW tags) and skips the first-run tutorial.
+    check(`${era}: tips are on`, s.settings.tips === true);
+    check(`${era}: every menu button is open`, ['bakery', 'goals', 'cookbook'].every((id) => s.open.includes(id)) && !(s.fresh ?? []).length, JSON.stringify(s.open));
+    check(`${era}: the tutorial is skipped`, ['move', 'fire', 'seeds', 'cards', 'chest', 'bakery'].every((id) => s.tips.includes(id)), s.tips.join());
+    check(`${era}: stage tips only skipped for stages it has played`, s.tips.includes('freezer') === !!(old.stageTime && old.stageTime.stage2) && s.tips.includes('oven') === !!(old.stageTime && old.stageTime.stage3), s.tips.join());
     check(`${era}: clears per stage`, (s.stageClears.stage1 ?? 0) > 0, JSON.stringify(s.stageClears));
     if (era === 'phase2') check('phase2: Freezer bosses count as beaten', s.beaten.includes('waffle') && s.beaten.includes('fburn'), JSON.stringify(s.beaten));
     if (era !== 'phase2end') check(`${era}: enemies of cleared stages count as met`, s.met.length > 3, `${s.met.length} met`);
     else check('phase2end: met list left alone', JSON.stringify(s.met) === JSON.stringify(old.met));
     check(`${era}: spare copy written`, (await p.evaluate((k) => localStorage.getItem(k), SPARE)) === JSON.stringify(old));
-    // Go through the title to the menu: it must build without errors from this save.
+    // Go through the title: the intro comic plays once for everyone, and Skip lands on the menu, which must build
+    // without errors from this save.
     await p.mouse.click(195, 300);
     await p.waitForTimeout(1500);
+    check(`${era}: the intro comic plays once`, await p.evaluate(() => window.__game.scene.isActive('intro')));
+    await p.mouse.click(340, 30);
+    await p.waitForTimeout(1500);
     check(`${era}: menu opens`, await p.evaluate(() => window.__game.scene.isActive('menu')));
+    check(`${era}: the comic is marked as watched`, (await loaded(p)).intro === true);
     await p.context().close();
   }
 
@@ -66,7 +81,8 @@ const check = (name, ok, detail = '') => {
   {
     const p = await open({});
     const s = await loaded(p);
-    check('new player: fresh save', s.dough === 0 && s.unlocked.join() === 'plain' && s.v === 2 && s.settings.music === 100);
+    check('new player: fresh save', s.dough === 0 && s.unlocked.join() === 'plain' && s.v === 3 && s.settings.music === 100);
+    check('new player: tips on, nothing seen, menu buttons still shut', s.settings.tips === true && !(s.tips ?? []).length && !(s.open ?? []).length && !s.intro, JSON.stringify([s.tips, s.open]));
     await p.context().close();
   }
 
@@ -105,6 +121,7 @@ const check = (name, ok, detail = '') => {
     const s = await loaded(q);
     check('reset: progress cleared', s.dough === 0 && s.clears === 0 && s.unlocked.join() === 'plain');
     check('reset: settings kept', s.settings.music === 35);
+    check('reset: the tutorial and the locked menu come back', !(s.tips ?? []).length && !(s.open ?? []).length);
     check('reset: old save kept as the spare', JSON.parse(await q.evaluate((k) => localStorage.getItem(k), SPARE)).dough === ERAS.phase2end.dough);
     await q.context().close();
   }

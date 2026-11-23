@@ -14,6 +14,8 @@ import { playMusic } from '../music';
 import { buildSettings, segmented } from '../settingsPanel';
 import { WHATS_NEW } from '../whatsnew';
 import { wipeOpen, wipeTo } from '../wipe';
+import { MENU_LOCK, TIPS, clearFresh, markTip, menuFresh, menuOpen, tipDue, type MenuItem, type TipId } from '../tips';
+import { tipBox } from '../run/tutor';
 
 const SECRET_BAGEL_HINT = 'A secret bagel. Keep clearing stages to find it.';
 const SECRET_RECIPE_HINT = 'A secret recipe. Keep evolving weapons to find it.';
@@ -47,9 +49,15 @@ export class MenuScene extends Phaser.Scene {
   private slideFrom = 0;
   /** Card shown in the stage picker. */
   private stageIdx = 0;
+  /** A pop-up to open straight away (the first run's results screen sends the player to the Bakery). */
+  private openOn = '';
 
   constructor() {
     super('menu');
+  }
+
+  init(data: { open?: string }): void {
+    this.openOn = data?.open ?? '';
   }
 
   create(): void {
@@ -65,7 +73,10 @@ export class MenuScene extends Phaser.Scene {
     this.scale.on('resize', onResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off('resize', onResize));
     if (!wipeOpen()) this.cameras.main.fadeIn(250, 43, 33, 24);
-    this.greet(save);
+    if (this.openOn === 'bakery' && menuOpen(save, 'bakery')) {
+      clearFresh(save, 'bakery');
+      this.openBakery();
+    } else this.greet(save);
   }
 
   /** One note at most each time the menu opens: a recovered save, what's new after an update, or the backup reminder. */
@@ -133,6 +144,7 @@ export class MenuScene extends Phaser.Scene {
     buildSettings(this, c, {
       tab,
       onClose: () => this.closePopup(false),
+      onIntro: () => wipeTo(this, 'intro'),
       // A pasted or reset save changes everything the menu shows: start the menu again from it.
       onSaveReplaced: () => this.scene.restart(),
     });
@@ -391,6 +403,7 @@ export class MenuScene extends Phaser.Scene {
           save.endless = m === 'endless';
           persist();
           this.build();
+          if (m !== 'full') this.firstTime(m, toastY);
         });
         c.add(z);
       });
@@ -436,15 +449,17 @@ export class MenuScene extends Phaser.Scene {
     bar.fillStyle(INK, 1).fillRect(0, barTop - 1.5 * S, W, 3 * S);
     bar.fillStyle(COLORS.panelLight, 0.7).fillRect(0, barTop + 1.5 * S, W, 1.5 * S);
     c.add(bar);
-    const items: [string, string, () => void][] = [
-      ['Bakery', 'ic_bk_oven', () => this.openBakery()],
-      ['Goals', 'ic_star', () => this.openGoals(unseenGoals(save).length ? 1 : 0)],
-      ['Cookbook', 'ic_book', () => this.openCookbook()],
-      ['Settings', 'ic_gear', () => this.openSettings()],
+    // On a new save only Settings is open: the Bakery and Goals open after the first run, the Cookbook after the
+    // first evolution. A button that just opened wears a NEW tag until it's tapped.
+    const items: [string, string, () => void, MenuItem | null][] = [
+      ['Bakery', 'ic_bk_oven', () => this.openBakery(), 'bakery'],
+      ['Goals', 'ic_star', () => this.openGoals(unseenGoals(save).length ? 1 : 0), 'goals'],
+      ['Cookbook', 'ic_book', () => this.openCookbook(), 'cookbook'],
+      ['Settings', 'ic_gear', () => this.openSettings(), null],
     ];
     const barW = Math.min(W, 440 * S);
     const iw = barW / items.length;
-    items.forEach(([label, icon, fn], i) => {
+    items.forEach(([label, icon, fn, id], i) => {
       const x = W / 2 - barW / 2 + iw * (i + 0.5);
       const iy = barTop + (compact ? 22 : 27) * S;
       const isz = (compact ? 30 : 36) * S;
@@ -452,8 +467,23 @@ export class MenuScene extends Phaser.Scene {
       const sc = isz / im.height;
       im.setScale(sc);
       c.add(im);
-      c.add(txt(this, x, barTop + (compact ? 46 : 56) * S, label, compact ? 11 : 12, '#e9dcc3', { stroke: false }));
-      if (label === 'Goals' && unseenGoals(save).length) {
+      const shut = !!id && !menuOpen(save, id);
+      const isNew = !!id && menuFresh(save, id);
+      c.add(txt(this, x, barTop + (compact ? 46 : 56) * S, label, compact ? 11 : 12, shut ? '#7d6f5c' : '#e9dcc3', { stroke: false }));
+      if (shut) {
+        im.setTint(0x3a3028).setAlpha(0.7);
+        c.add(this.add.image(x + isz * 0.34, iy + isz * 0.26, 'ic_lock').setScale(sc * 0.55));
+      }
+      if (isNew) {
+        const tag = this.add.container(x + isz * 0.5, iy - isz * 0.42);
+        const tg = this.add.graphics();
+        tg.fillStyle(INK, 1).fillRoundedRect(-17 * S, -9 * S, 34 * S, 18 * S, 9 * S);
+        tg.fillStyle(COLORS.red, 1).fillRoundedRect(-15 * S, -7 * S, 30 * S, 14 * S, 7 * S);
+        tag.add([tg, txt(this, 0, 0, 'NEW', 9, CSS.cream, { stroke: false })]);
+        tag.setAngle(8);
+        c.add(tag);
+        this.tweens.add({ targets: tag, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      } else if (label === 'Goals' && !shut && unseenGoals(save).length) {
         const dot = this.add.graphics();
         dot.fillStyle(INK, 1).fillCircle(x + isz * 0.46, iy - isz * 0.4, 7.5 * S);
         dot.fillStyle(COLORS.red, 1).fillCircle(x + isz * 0.46, iy - isz * 0.4, 5.5 * S);
@@ -475,10 +505,24 @@ export class MenuScene extends Phaser.Scene {
       z.on('pointerup', () => {
         const fire = armed;
         reset();
-        if (fire) fn();
+        if (!fire) return;
+        if (shut) {
+          sfx('lock');
+          this.toast(MENU_LOCK[id!], barTop - 26 * S);
+          return;
+        }
+        if (isNew) clearFresh(save, id!);
+        fn();
       });
       c.add(z);
     });
+  }
+
+  /** The first time a mode is picked, a note says what it is. */
+  private firstTime(id: TipId, y: number): void {
+    if (!tipDue(id)) return;
+    markTip(id);
+    this.toast(TIPS[id], y);
   }
 
   /** Makes extra parts of a button (pictures, a second line) move with its press. */
@@ -492,14 +536,16 @@ export class MenuScene extends Phaser.Scene {
 
   /** Short note that floats up and fades, e.g. why a locked mode can't be picked. */
   private toast(text: string, y: number): void {
-    const t = txt(this, 0, 0, text, 14, CSS.cream, { stroke: false });
+    const t = txt(this, 0, 0, text, 14, CSS.cream, { stroke: false, wrap: Math.min(this.scale.width / S - 60, 320) });
     const g = this.add.graphics();
     const w = t.width + 28 * S;
-    const h = 32 * S;
-    g.fillStyle(0x24160d, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
-    const box = this.add.container(this.scale.width / 2, y, [g, t]);
+    const h = t.height + 14 * S;
+    g.fillStyle(0x24160d, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, Math.min(h / 2, 16 * S));
+    // Its bottom edge stays where a one-line note's would be, however many lines it has. Longer notes stay longer.
+    const cy = y + 16 * S - h / 2;
+    const box = this.add.container(this.scale.width / 2, cy, [g, t]);
     this.root.add(box);
-    this.tweens.add({ targets: box, y: y - 18 * S, alpha: 0, delay: 1300, duration: 500, onComplete: () => box.destroy() });
+    this.tweens.add({ targets: box, y: cy - 18 * S, alpha: 0, delay: 1000 + text.length * 35, duration: 500, onComplete: () => box.destroy() });
   }
 
   /** Square flame button: turns Extra Crispy on and off (locked until the stage is cleared). */
@@ -515,7 +561,10 @@ export class MenuScene extends Phaser.Scene {
       save.crispy = !save.crispy;
       persist();
       this.build();
-      if (save.crispy) this.toast('Extra Crispy: tougher enemies, 1.5x Dough', toastY);
+      if (save.crispy) {
+        markTip('crispy');
+        this.toast(TIPS.crispy, toastY);
+      }
     }, { color: on ? COLORS.red : COLORS.panelLight, radius: 12 });
     const fl = this.add.image(0, 0, 'ic_flame').setScale(0.62).setAlpha(open ? (on ? 1 : 0.55) : 0.3);
     b.add(fl);
@@ -671,6 +720,12 @@ export class MenuScene extends Phaser.Scene {
         save.practice = i === 1;
         persist();
         this.drawStages(save, 0);
+        if (save.practice && tipDue('practice')) {
+          markTip('practice');
+          const note = tipBox(this, W / 2, py - 62 * S, TIPS.practice, 14);
+          this.popup?.add(note);
+          this.tweens.add({ targets: note, alpha: 0, delay: 4200, duration: 400, onComplete: () => note.destroy() });
+        }
       }, 14));
     }
     const pickLabel = playable ? (picked ? 'Picked' : 'Pick this stage') : st.built ? 'Locked' : 'Coming soon';

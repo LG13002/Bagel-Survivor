@@ -8,6 +8,7 @@ import { setSetting, settings } from './settings';
 import { setMusicVolume, setSoundVolume, sfx } from './sfx';
 import { HEADER, button, popupFrame, txt } from './ui';
 import { WHATS_NEW } from './whatsnew';
+import { replayTutorial } from './tips';
 
 const INK = 0x24160d;
 
@@ -93,6 +94,17 @@ function slider(scene: Phaser.Scene, x: number, y: number, w: number, value: num
   return c;
 }
 
+/** The Help tab: a picture and a line for each thing a player needs to know. */
+const HOW_TO: [string, string][] = [
+  ['bagel_plain', 'Drag anywhere to move. Your bagel fires on its own.'],
+  ['gem1', 'Grab seeds to level up, then pick a card: orange is a weapon, blue is a topping.'],
+  ['ic_star', 'You can hold 4 weapons and 4 toppings. Each goes up to level 5.'],
+  ['goldchest', 'Evolve: max a weapon, own its matching topping, then open a chest. Elites drop chests.'],
+  ['bun', 'The Sticky Bun pulls in every seed on the floor.'],
+  ['ic_crown', 'Beat the boss at 4:30 to clear the stage and open the next one.'],
+  ['coin', 'Spend Dough in the Bakery on upgrades that last forever.'],
+];
+
 export interface SettingsOpts {
   /** Opened from the pause screen: only the options that matter mid-run. */
   inRun?: boolean;
@@ -100,7 +112,11 @@ export interface SettingsOpts {
   onClose: () => void;
   /** The save was replaced or reset: the caller should rebuild everything from it. */
   onSaveReplaced?: () => void;
+  /** "Watch the intro" was tapped (About tab). */
+  onIntro?: () => void;
   tab?: number;
+  /** "Replay tutorial" was just tapped (the button says so). Set by the panel itself. */
+  replayed?: boolean;
 }
 
 /**
@@ -118,16 +134,16 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
   const H = scene.scale.height;
   const tab = opts.inRun ? 0 : (opts.tab ?? 0);
   const pw = Math.min(W - 24 * S, 380 * S);
-  const ph = Math.min(H - 20 * S, (opts.inRun ? 440 : 520) * S);
+  const ph = Math.min(H - 20 * S, (opts.inRun ? 484 : 560) * S);
   const top = H / 2 - ph / 2;
   for (const o of popupFrame(scene, W / 2, H / 2, pw, ph, 'SETTINGS', opts.onClose)) add(o);
-  const reopen = (t: number) => {
+  const reopen = (t: number, replayed = false) => {
     for (const o of mine) o.destroy();
-    buildSettings(scene, c, { ...opts, tab: t });
+    buildSettings(scene, c, { ...opts, tab: t, replayed });
   };
   let y = top + (HEADER + 30) * S;
   if (!opts.inRun) {
-    add(segmented(scene, W / 2, y, pw - 40 * S, 36 * S, ['Game', 'Save', 'About'], tab, reopen, 15));
+    add(segmented(scene, W / 2, y, pw - 40 * S, 36 * S, ['Game', 'Save', 'Help', 'About'], tab, reopen, 15));
     y += 34 * S;
   } else y -= 16 * S;
   const s = settings();
@@ -135,7 +151,7 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
   const cw = pw - 44 * S;
   if (tab === 0) {
     // Fit the rows to the panel on short screens.
-    const rows = 6;
+    const rows = 7;
     const room = top + ph - 14 * S - y;
     const rh = Math.min(62 * S, room / rows);
     const row = (label: string, build: (cy: number) => Phaser.GameObjects.GameObject) => {
@@ -152,6 +168,22 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
     row('FLASHING EFFECTS', pick('flash', ['normal', 'reduced'], ['Normal', 'Reduced']));
     row('BATTERY SAVER (FEWER SPARKS)', pick('saver', [false, true], ['Off', 'On']));
     row('LEFT-HANDED BUTTONS', pick('lefty', [false, true], ['Off', 'On']));
+    if (opts.inRun) row('TIPS', pick('tips', [true, false], ['On', 'Off']));
+    else {
+      // Tips: on or off, and a button that brings the whole tutorial back.
+      const sh = Math.min(34 * S, rh * 0.5);
+      const half = (cw - 10 * S) / 2;
+      row('TIPS', (cy) => {
+        const box = scene.add.container(0, 0);
+        box.add(segmented(scene, left + half / 2, cy, half, sh, ['On', 'Off'], s.tips === false ? 1 : 0, (i) => setSetting('tips', i === 0)));
+        const again = button(scene, left + cw - half / 2, cy - 2 * S, half, sh + 2 * S, opts.replayed ? 'Tips will replay' : 'Replay tutorial', () => {
+          replayTutorial();
+          reopen(0, true);
+        }, { size: 13, color: COLORS.panelLight, textColor: opts.replayed ? CSS.gold : CSS.cream, radius: 12 });
+        box.add(again);
+        return box;
+      });
+    }
   } else if (tab === 1) {
     const why = add(txt(scene, W / 2, y, 'Your progress lives on this phone only. A backup code lets you move it to a new phone, or get it back if the browser data is ever cleared.', 13, '#e8d8c0', { bold: false, stroke: false, wrap: cw / S }).setOrigin(0.5, 0));
     y += why.height + 40 * S;
@@ -186,6 +218,19 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
       opts.onSaveReplaced?.();
     }, { size: 15, color: COLORS.red, textColor: CSS.cream }));
     add(txt(scene, W / 2, y + 44 * S, 'Starts over from nothing. The old save is kept as a spare.', 12, CSS.muted, { bold: false, stroke: false, wrap: cw / S }));
+  } else if (tab === 2) {
+    // How to play: the whole game in a few lines.
+    y += 6 * S;
+    const room = top + ph - 16 * S - y;
+    const gap = Math.min(12 * S, (room - HOW_TO.length * 40 * S) / HOW_TO.length);
+    for (const [icon, line] of HOW_TO) {
+      const t = add(txt(scene, left + 44 * S, y, line, 13, '#e8d8c0', { bold: false, stroke: false, wrap: (cw - 46 * S) / S, align: 'left' }).setOrigin(0, 0));
+      const hgt = Math.max(t.height, 32 * S);
+      t.setY(y + (hgt - t.height) / 2);
+      const im = add(scene.add.image(left + 18 * S, y + hgt / 2, icon));
+      im.setScale((30 * S) / Math.max(im.width, im.height));
+      y += hgt + gap;
+    }
   } else {
     add(txt(scene, W / 2, y + 14 * S, 'EVERYTHING BAGEL', 20, CSS.cream));
     add(txt(scene, W / 2, y + 40 * S, `Version ${VERSION.replace(/\.0$/, '')}`, 14, CSS.gold, { stroke: false }));
@@ -196,5 +241,6 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
     y += 42 * S + lines.height + 26 * S;
     add(txt(scene, W / 2, y, 'No data leaves your phone.', 15, CSS.cream));
     add(txt(scene, W / 2, y + 26 * S, 'No accounts, no ads, no tracking. Your save stays in this browser.', 12, CSS.muted, { bold: false, stroke: false, wrap: cw / S }));
+    if (opts.onIntro) add(button(scene, W / 2, Math.min(y + 84 * S, top + ph - 40 * S), Math.min(cw, 220 * S), 44 * S, 'Watch the intro', opts.onIntro, { size: 16, color: COLORS.panelLight, textColor: CSS.cream }));
   }
 }

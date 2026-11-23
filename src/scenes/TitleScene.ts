@@ -116,7 +116,8 @@ export class TitleScene extends Phaser.Scene {
     const zone = this.add.zone(0, 0, W, H).setOrigin(0).setInteractive();
     zone.once('pointerup', () => {
       unlockAudio();
-      wipeTo(this, 'menu');
+      // The very first launch tells the story first.
+      wipeTo(this, load().intro ? 'menu' : 'intro');
     });
   }
 }

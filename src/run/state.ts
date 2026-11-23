@@ -35,6 +35,8 @@ export interface RunResult {
   goals: { name: string; reward: number }[];
   /** The secret combo evolution was made this run. */
   combo?: boolean;
+  /** This was the stage's first clear (the results screen adds a line of story). */
+  firstClear?: boolean;
 }
 
 /**
