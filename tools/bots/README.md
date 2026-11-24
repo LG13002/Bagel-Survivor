@@ -30,3 +30,5 @@ Notes:
 - Use `waitUntil: 'domcontentloaded'` and resolve level-up and chest overlays through `window.__game` rather than by clicking, because card positions change.
 - Headless Chromium runs slowly, and later pages in the same script render few frames. Fades can look dim and FPS is meaningless there. Use the numbers to compare runs, not as absolute values.
 - Bot numbers vary run to run. Run anything you plan to act on twice.
+- `wbench.cjs` also takes `combo` and `pair` (Lox and Schmear against its two evolutions side by side) and `tjcombo` and `tjpair` (the same for Toast and Jam) in place of a weapon id.
+- Run one bench at a time and nothing else beside it. A busy machine shortens the stretch of game time each sample covers, and the numbers drop with it (the `secs` in each line should match between the runs you compare).

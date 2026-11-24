@@ -8,7 +8,7 @@ import { shake } from '../settings';
 import { bigBagel } from '../textures';
 import type { RunResult } from './GameScene';
 import { BAGELS, WEAPONS, stageById } from '../data';
-import { nearestGoals } from '../progress';
+import { nearestGoals, weaponGoalStatus, weaponOpen } from '../progress';
 import { wipeOpen, wipeTo } from '../wipe';
 import { TIPS, markTip, menuOpen, nextHint, tipDue } from '../tips';
 
@@ -130,7 +130,7 @@ export class ResultsScene extends Phaser.Scene {
     if (r.endless && r.cleared) notes.push('The boss fell, so this run counts as a stage clear.');
     if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newStage) notes.push(`NEW STAGE: ${r.newStage}!`);
-    if (r.combo) notes.push('SECRET RECIPE FOUND: Lox and Schmear!');
+    for (const name of r.combos ?? []) notes.push(`SECRET RECIPE FOUND: ${name}!`);
     if (r.newUnlock) notes.push(`NEW BAGEL UNLOCKED: ${r.newUnlock}!`);
     if (r.newWeapon) notes.push(`NEW WEAPON: ${r.newWeapon}!`);
     if (r.evolutions.length) notes.push(`Evolved: ${r.evolutions.join(', ')}`);
@@ -156,7 +156,13 @@ export class ResultsScene extends Phaser.Scene {
       button(this, W / 2, by + 74 * S, bw, 50 * S, 'Again', again, quiet);
     } else {
       // The unlock you are closest to, with a bar. It takes the bottom of the panel; the notes sit above it.
-      const goal = r.practice ? undefined : nearestGoals(save, 1)[0];
+      const bg = r.practice ? undefined : nearestGoals(save, 1)[0];
+      let goal = bg && { tex: bg.bagel.tex, scale: 0.82, label: `Next unlock: ${bg.bagel.name} bagel`, status: bg.status };
+      // Whisk Whirl's coin count takes the spot while it is the closer of the two.
+      const ws = weaponGoalStatus(save, WEAPONS.whisk);
+      if (!r.practice && !weaponOpen(save, 'whisk') && !ws.done && (!goal || ws.frac >= goal.status.frac)) {
+        goal = { tex: WEAPONS.whisk.icon, scale: 1.15, label: `Next unlock: ${WEAPONS.whisk.name}`, status: { ...ws, progress: `${ws.progress} coins` } };
+      }
       const areaTop = top + 284 * S;
       const areaBottom = top + ph - 14 * S;
       const goalH = 50 * S;
@@ -170,10 +176,10 @@ export class ResultsScene extends Phaser.Scene {
         const gw = pw - 40 * S;
         const gr = this.add.graphics();
         gr.fillStyle(0x1d140d, 0.55).fillRoundedRect(gl, gy - goalH / 2, gw, goalH, 10 * S);
-        const ic = this.add.image(gl + 24 * S, gy, goal.bagel.tex).setScale(0.82).setTint(0x8a8a8a);
+        const ic = this.add.image(gl + 24 * S, gy, goal.tex).setScale(goal.scale).setTint(0x8a8a8a);
         const tx = gl + 48 * S;
         const room = gl + gw - 12 * S - tx;
-        const name = fit(txt(this, tx, gy - 11 * S, `Next unlock: ${goal.bagel.name} bagel`, 13, CSS.cream, { stroke: false }).setOrigin(0, 0.5), room);
+        const name = fit(txt(this, tx, gy - 11 * S, goal.label, 13, CSS.cream, { stroke: false }).setOrigin(0, 0.5), room);
         const prog = txt(this, gl + gw - 12 * S, gy + 10 * S, goal.status.progress, 11, CSS.gold, { stroke: false }).setOrigin(1, 0.5);
         const barW = Math.max(40 * S, room - prog.width - 8 * S);
         const bar = this.add.graphics();

@@ -1,11 +1,11 @@
 // The "What's new" card: shown once on the menu after an update, and any time from Settings.
 // Keep it to two or three short lines about what a player will notice.
 export const WHATS_NEW: { title: string; lines: string[] } = {
-  title: 'Two new stages, and the ending',
+  title: 'New weapons and a bigger Bakery',
   lines: [
-    'Stage 4, the Pantry: shelves, rolling cans and Mother Dough. Beat the Broiler to get in.',
-    'Stage 5, the Bread Bin: Stale creep, old bosses back for revenge, and the Stale King. Beat him to see the ending.',
-    'Two new bagels: Garlic, the boss hunter, and Pretzel, who picks two cards every 5th level.',
-    'Every stage: lighter crowds, and charging enemies show a red lane before they dash.',
+    'Pizza Cutter: a wheel that bounces around the screen. Beat Mother Dough to get it.',
+    'Whisk Whirl: a whirlwind that wanders out and back. Pick up 500 Dough coins to get it.',
+    'The Bakery has Proofing (more XP) and the Day-Old Bin (throw a card out for the rest of the run).',
+    'There is a second secret recipe to find.',
   ],
 };

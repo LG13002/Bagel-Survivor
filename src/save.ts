@@ -58,6 +58,8 @@ export interface SaveData {
   beaten?: string[];
   /** Warm Mugs picked up, all runs together. */
   mugs?: number;
+  /** Dough coins picked up off the floor, all runs together (counted since save version 4). */
+  coinsTotal?: number;
   /** Enemy kinds met at least once (the Cookbook's Enemies tab shows the rest as "???"). */
   met?: string[];
   /** Best single-run numbers, for the Goals page's challenges. */
@@ -66,7 +68,7 @@ export interface SaveData {
   noHitBoss?: boolean;
   /** Challenges whose Dough reward has been paid. */
   goalsPaid?: string[];
-  /** Secrets found: 'combo' (Lox and Schmear). The Rainbow bagel counts as found once unlocked. */
+  /** Secrets found: 'combo' (Lox and Schmear), 'toastjam' (Toast and Jam). The Rainbow bagel counts as found once unlocked. */
   secrets?: string[];
   /** Paid challenges already seen on the Goals page (the rest give the Goals button a red dot). */
   goalsSeen?: string[];
@@ -88,6 +90,8 @@ export interface RunRecords {
   strike?: number;
   /** Most patches of Stale creep burned away in one run. */
   creep?: number;
+  /** Most cards binned in one run (Day-Old Bin). */
+  banish?: number;
   kills?: number;
   level?: number;
   /** Evolutions in one run. */
@@ -148,6 +152,11 @@ const STEPS: ((d: SaveData) => void)[] = [
     if (d.stageTime?.stage3) for (const id of ['oven', 'grease']) seen.add(id);
     if ((d.best && Object.keys(d.best).some((k) => k.endsWith(':blueberry')))) seen.add('dash');
     d.tips = [...seen];
+  },
+  // 3 to 4: Dough coins picked up are counted from here on (the Whisk Whirl's unlock). A save that has cleared a
+  // stage starts halfway, so long-time players aren't sent back to zero.
+  (d) => {
+    d.coinsTotal = d.coinsTotal ?? (Object.values(d.stageClears ?? {}).some((n) => n > 0) ? 250 : 0);
   },
 ];
 export const SAVE_VERSION = STEPS.length;

@@ -19,11 +19,17 @@ export interface RunSnapshot {
   xp: number;
   pendingLevels: number;
   hp: number;
-  weapons: { id: string; level: number; evolved: boolean; combo?: boolean }[];
+  weapons: { id: string; level: number; evolved: boolean; combo?: boolean; at?: number }[];
   toppings: [string, number][];
   kills: number;
   coins: number;
   rerolls: number;
+  /** Day-Old Bin: banishes left, cards binned, and how many this run. */
+  banishes?: number;
+  banished?: string[];
+  banishedN?: number;
+  /** Dough coins picked up off the floor. */
+  coinPickups?: number;
   nextWave: number;
   nextAnts: number;
   nextElite: number;

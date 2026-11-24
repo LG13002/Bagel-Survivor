@@ -22,6 +22,8 @@ export const TIPS = {
   lane: 'A red strip shows where an enemy will dash. Step out of it!',
   creep: 'Grey patches slow you. Your weapons burn them back.',
   shield: "A Crouton Knight's shield halves your hits until it cracks off.",
+  banish: 'Tap a bin to throw a card out for the rest of the run.',
+  bounce: 'Pizza Cutter wheels bounce off edges, shelves and knobs.',
   dash: 'Flick to dash.',
   // Menu, the first time each mode is picked
   quick: 'Quick Run: the whole stage in about 3 minutes. More XP, a little less Dough.',

@@ -93,6 +93,9 @@ export const CHALLENGES: ChallengeDef[] = [
   { id: 'breadbin', name: 'Clear the Bread Bin', reward: 80, icon: 'ic_crown', status: (s) => flag((s.stageClears?.stage5 ?? 0) > 0) },
   { id: 'breadbinx', name: 'Clear the Bread Bin on Extra Crispy', reward: 120, icon: 'ic_flame', status: (s) => flag((s.crispyClears?.stage5 ?? 0) > 0) },
   { id: 'creep', name: 'Burn away 25 patches of Stale creep in one run', reward: 50, icon: 'ic_bolt', status: (s) => count(s.records?.creep ?? 0, 25, true) },
+  { id: 'pizzaparty', name: 'Evolve the Pizza Cutter into Pizza Party', reward: 40, icon: 'ic_cutter', status: (s) => flag(s.cookbook.includes('cutter')) },
+  { id: 'standmixer', name: 'Evolve the Whisk Whirl into the Stand Mixer', reward: 40, icon: 'ic_whisk', status: (s) => flag(s.cookbook.includes('whisk')) },
+  { id: 'banish', name: 'Bin 5 cards in one run', reward: 40, icon: 'ic_bk_bin', status: (s) => count(s.records?.banish ?? 0, 5, true) },
   { id: 'strike', name: 'Strike! Flatten 12 enemies with one rolling can', reward: 50, icon: 'ic_bolt', status: (s) => count(s.records?.strike ?? 0, 12, true) },
 ];
 

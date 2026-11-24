@@ -19,7 +19,7 @@ import { Player, type Enemy, type Stats } from '../entities';
 import { bestStage, load, persist, recordBest } from '../save';
 import { bodyBagel, makeRunTextures } from '../textures';
 import { Face } from '../face';
-import { createWeapon, type FxId, type Weapon, type World } from '../weapons';
+import { COMBOS, createWeapon, type FxId, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, sfx, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
@@ -29,7 +29,7 @@ import { Ambient } from '../run/ambient';
 import { Director } from '../run/director';
 import { Effects } from '../run/effects';
 import { Enemies } from '../run/enemies';
-import { Floor } from '../run/floor';
+import { Floor, POST_R } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { CREEP_SLOW } from '../run/bin';
 import { Hud } from '../run/hud';
@@ -267,6 +267,55 @@ export class GameScene extends Phaser.Scene implements World {
     sfx(name);
   }
 
+  /** Bounces a moving thing off the screen's edges, shelves, short-lived walls and oven knobs. True if it bounced. */
+  bounce(o: { x: number; y: number; vx: number; vy: number }, r: number): boolean {
+    let hit = false;
+    const hw = this.viewW() / 2 - r;
+    const hh = this.viewH() / 2 - r;
+    const c = this.cameras.main.midPoint;
+    if (o.x > c.x + hw && o.vx > 0) (o.vx = -o.vx), (hit = true);
+    else if (o.x < c.x - hw && o.vx < 0) (o.vx = -o.vx), (hit = true);
+    if (o.y > c.y + hh && o.vy > 0) (o.vy = -o.vy), (hit = true);
+    else if (o.y < c.y - hh && o.vy < 0) (o.vy = -o.vy), (hit = true);
+    for (const w of this.floor.walls) {
+      const dx = o.x - w.x;
+      const dy = o.y - w.y;
+      const px = w.hw + r - Math.abs(dx);
+      if (px <= 0) continue;
+      const py = w.hh + r - Math.abs(dy);
+      if (py <= 0) continue;
+      // Out through the nearer side, and away from it.
+      if (px < py) {
+        const sx = Math.sign(dx || 1);
+        o.x += sx * px;
+        if (o.vx * sx < 0) (o.vx = -o.vx), (hit = true);
+      } else {
+        const sy = Math.sign(dy || 1);
+        o.y += sy * py;
+        if (o.vy * sy < 0) (o.vy = -o.vy), (hit = true);
+      }
+    }
+    for (const po of this.floor.posts) {
+      const dx = o.x - po.x;
+      const dy = o.y - po.y;
+      const rr = r + POST_R;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr) continue;
+      const d = Math.sqrt(d2) || 0.01;
+      const nx = dx / d;
+      const ny = dy / d;
+      o.x = po.x + nx * rr;
+      o.y = po.y + ny * rr;
+      const dot = o.vx * nx + o.vy * ny;
+      if (dot < 0) {
+        o.vx -= 2 * dot * nx;
+        o.vy -= 2 * dot * ny;
+        hit = true;
+      }
+    }
+    return hit;
+  }
+
   trailDot(x: number, y: number, color: number): void {
     this.effects.trailDot(x, y, color);
   }
@@ -344,6 +393,8 @@ export class GameScene extends Phaser.Scene implements World {
       maxHp: Math.round((b.hp + 10 * (up.hp ?? 0)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
       proj: (t('honey') >= 1 ? 1 : 0) + (t('honey') >= 4 ? 1 : 0),
       dur: 1 + 0.15 * t('jam'),
+      shot: 1 + 0.1 * t('oil'),
+      xp: 1 + 0.05 * t('vanilla') + 0.03 * (up.proof ?? 0),
     };
     if (this.stats.maxHp > prevMax && this.player.hp > 0) this.player.hp += this.stats.maxHp - prevMax;
     this.player.maxHp = this.stats.maxHp;
@@ -363,9 +414,22 @@ export class GameScene extends Phaser.Scene implements World {
     return open[Math.floor(Math.random() * open.length)] ?? this.bagel.weapon;
   }
 
-  /** Lox and Schmear is in the build (Schmear Flood merged into the Lox). */
-  private get comboDone(): boolean {
-    return this.weapons.some((w) => w.combo);
+  /** A weapon that was merged away into a secret combo this run: it never comes back on cards. */
+  private merged(id: WeaponId): boolean {
+    return COMBOS.some((c) => c.drop === id && !!this.weaponOf(c.keep)?.combo);
+  }
+
+  /** Day-Old Bin: this card is binned for the rest of the run. Binning a weapon you don't own also bins its topping. */
+  banish(c: Choice): void {
+    const r = this.run;
+    if (c.kind === 'wnew' || c.kind === 'wup') {
+      r.banished.push(`w:${c.id}`);
+      const top = WEAPONS[c.id as WeaponId].evolveWith;
+      if (c.kind === 'wnew' && !this.toppings.has(top)) r.banished.push(`t:${top}`);
+    } else if (c.kind === 'tnew' || c.kind === 'tup') r.banished.push(`t:${c.id}`);
+    else return;
+    r.banishes--;
+    r.banishedN++;
   }
 
   addWeapon(id: WeaponId): void {
@@ -382,12 +446,14 @@ export class GameScene extends Phaser.Scene implements World {
     const save = load();
     // Lucky Seed: cards for what you already own (the road to evolutions) come up more often.
     const own = 1 + 0.1 * this.luckNow;
-    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
+    // Day-Old Bin: binned cards are gone for the rest of the run.
+    const out0 = new Set(this.run.banished);
+    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved && !out0.has(`w:${w.def.id}`)) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
     if (this.weapons.length < MAX_SLOTS)
-      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id) && !(id === 'puddle' && this.comboDone)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
-    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) pool.push({ c: { kind: 'tup', id }, w: own });
+      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id) && !this.merged(id) && !out0.has(`w:${id}`)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
+    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL && !out0.has(`t:${id}`)) pool.push({ c: { kind: 'tup', id }, w: own });
     if (this.toppings.size < MAX_SLOTS)
-      for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon))) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
+      for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon)) && !out0.has(`t:${id}`)) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
     const out: Choice[] = [];
     const n = this.bagel.choices;
     while (out.length < n && pool.length) {
@@ -434,7 +500,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   gainXp(v: number): void {
     const r = this.run;
-    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
+    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1) * this.stats.xp;
     while (r.xp >= r.xpNext) {
       r.xp -= r.xpNext;
       r.level++;
@@ -1020,6 +1086,7 @@ export class GameScene extends Phaser.Scene implements World {
       rec.evos = Math.max(rec.evos ?? 0, r.evolutionsThisRun.length);
       if (r.canBest) rec.strike = Math.max(rec.strike ?? 0, r.canBest);
       if (r.creepBurned) rec.creep = Math.max(rec.creep ?? 0, r.creepBurned);
+      if (r.banishedN) rec.banish = Math.max(rec.banish ?? 0, r.banishedN);
       if (this.endless) {
         rec.endless = Math.max(rec.endless ?? 0, Math.floor(this.now));
         rec.endlessBosses = Math.max(rec.endlessBosses ?? 0, this.director.bossRound);
@@ -1033,6 +1100,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (cleared) beaten.add(this.stage.boss.kind);
       save.beaten = [...beaten];
       save.mugs = (save.mugs ?? 0) + r.runMugs;
+      save.coinsTotal = (save.coinsTotal ?? 0) + r.coinPickups;
     }
     const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
     const newWeapon = this.practice ? '' : checkWeaponUnlocks(save).join(', ');
@@ -1069,7 +1137,7 @@ export class GameScene extends Phaser.Scene implements World {
       newBest,
       evolutions: r.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),
       goals,
-      combo: r.foundCombo,
+      combos: r.foundCombos,
       firstClear,
     };
     const p = this.player.sprite;
@@ -1101,5 +1169,5 @@ export class GameScene extends Phaser.Scene implements World {
 }
 
 function defaultStats(): Stats {
-  return { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100, proj: 0, dur: 1 };
+  return { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100, proj: 0, dur: 1, shot: 1, xp: 1 };
 }

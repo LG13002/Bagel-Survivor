@@ -12,7 +12,8 @@ export type Sfx =
   | 'hiss' | 'flare' | 'bubble' | 'grease' | 'sauce' | 'popcorn' | 'ignite' | 'clang'
   | 'thud' | 'flip' | 'tip' | 'tick'
   | 'rattle' | 'roll' | 'poof' | 'whip'
-  | 'creep' | 'burnoff' | 'crumbfall' | 'shieldbreak' | 'kingcrack';
+  | 'creep' | 'burnoff' | 'crumbfall' | 'shieldbreak' | 'kingcrack'
+  | 'cutter' | 'ting' | 'whisk' | 'mixer' | 'bin';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -31,9 +32,10 @@ const minGap: Record<Sfx, number> = {
   thud: 0.2, flip: 0.05, tip: 0.3, tick: 0.04,
   rattle: 0.4, roll: 0.3, poof: 0.2, whip: 0.2,
   creep: 1.5, burnoff: 0.25, crumbfall: 0.25, shieldbreak: 0.12, kingcrack: 0.8,
+  cutter: 0.2, ting: 0.09, whisk: 0.3, mixer: 3.2, bin: 0.15,
 };
 /** Sounds that may be dropped when too many play at once. */
-const LOW: Partial<Record<Sfx, true>> = { hit: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
+const LOW: Partial<Record<Sfx, true>> = { hit: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true, ting: true };
 const recent: number[] = [];
 /**
  * Sounds heard over and over get a slightly different pitch each time, so a swarm doesn't sound like one sample
@@ -42,6 +44,7 @@ const recent: number[] = [];
 const VARY: Partial<Record<Sfx, true>> = {
   hit: true, crunch: true, splat: true, clatter: true, shatter: true, pop: true, hurt: true, coin: true, pea: true, melt: true,
   popcorn: true, grease: true, sauce: true, flakes: true, swoosh: true, knife: true, jar: true, toastpop: true, stamp: true,
+  ting: true, cutter: true, whisk: true,
   burnoff: true, crumbfall: true, shieldbreak: true, clang: true, pin: true, splash: true, shoot: true, lox: true, thud: true, ignite: true, charge: true, icicle: true, flare: true,
 };
 /** The pitch multiplier for the sound being built right now. */
@@ -215,6 +218,17 @@ export function hitSfx(id: string): void {
     case 'iron': // thud
       tone('sine', 150 * j, 70, 0.09, 0.18);
       break;
+    case 'cutter': // a thin slice
+      noise(0.04, 0.09, 5200 * j, { type: 'highpass' });
+      tone('triangle', 1700 * j, 1300, 0.04, 0.04);
+      break;
+    case 'whisk': // a soft whoosh
+      noise(0.07, 0.07, 1300 * j, { type: 'bandpass', freq1: 2200 });
+      break;
+    case 'toastjam': // crunch into something sticky
+      noise(0.05, 0.12, 1900 * j, { type: 'bandpass' });
+      tone('sine', 360 * j, 600, 0.06, 0.07);
+      break;
     case 'combo': // squelchy slap
       noise(0.06, 0.12, 900 * j, { type: 'bandpass' });
       tone('sine', 440 * j, 260, 0.06, 0.07);
@@ -385,6 +399,27 @@ function play(name: Sfx, now: number): void {
     case 'toastpop': // toaster pop: a spring boing
       tone('square', 300, 900, 0.07, 0.06);
       tone('sine', 900, 600, 0.12, 0.08, 0.05);
+      break;
+    case 'cutter': // pizza cutter: a rising metal zing
+      tone('sawtooth', 700, 1500, 0.12, 0.04);
+      noise(0.14, 0.1, 3500, { type: 'bandpass', freq1: 7000 });
+      break;
+    case 'ting': // a wheel bouncing off something
+      tone('sine', 2600, 2500, 0.1, 0.05);
+      tone('triangle', 3900, 3800, 0.05, 0.025);
+      break;
+    case 'whisk': // whisk whirl: a quick whirr going up and down
+      noise(0.5, 0.11, 700, { type: 'bandpass', freq1: 2400 });
+      tone('sine', 320, 620, 0.25, 0.04);
+      tone('sine', 620, 320, 0.25, 0.04, 0.25);
+      break;
+    case 'mixer': // stand mixer: a low motor hum
+      tone('sawtooth', 92, 98, 0.9, 0.035);
+      noise(0.9, 0.05, 420, { type: 'bandpass' });
+      break;
+    case 'bin': // a card dropped in the bin
+      noise(0.1, 0.16, 500, { type: 'lowpass' });
+      tone('sine', 300, 150, 0.12, 0.08);
       break;
     case 'stamp': // waffle smash: a heavy thunk
       tone('sine', 110, 45, 0.22, 0.32);

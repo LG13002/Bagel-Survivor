@@ -28,11 +28,15 @@ export function writeSnapshot(g: GameScene): void {
     xp: r.xp,
     pendingLevels: r.pendingLevels,
     hp: g.player.hp,
-    weapons: g.weapons.map((w) => ({ id: w.def.id, level: w.level, evolved: w.evolved, ...(w.combo ? { combo: true } : {}) })),
+    weapons: g.weapons.map((w) => ({ id: w.def.id, level: w.level, evolved: w.evolved, ...(w.combo ? { combo: true } : {}), ...(w.evolvedAt ? { at: w.evolvedAt } : {}) })),
     toppings: [...g.toppings],
     kills: r.kills,
     coins: r.coins,
     rerolls: r.rerolls,
+    banishes: r.banishes,
+    banished: [...r.banished],
+    banishedN: r.banishedN,
+    coinPickups: r.coinPickups,
     nextWave: dir.nextWave,
     nextAnts: dir.nextAnts,
     nextElite: dir.nextElite,
@@ -68,6 +72,7 @@ export function applySnapshot(g: GameScene, s: RunSnapshot): void {
     wp.level = w.level;
     wp.evolved = w.evolved;
     wp.combo = !!w.combo;
+    wp.evolvedAt = w.at ?? 0;
     g.weapons.push(wp);
   }
   g.toppings = new Map(s.toppings as [ToppingId, number][]);
@@ -79,6 +84,10 @@ export function applySnapshot(g: GameScene, s: RunSnapshot): void {
   r.kills = s.kills;
   r.coins = s.coins;
   r.rerolls = s.rerolls;
+  r.banishes = s.banishes ?? 0;
+  r.banished = [...(s.banished ?? [])];
+  r.banishedN = s.banishedN ?? 0;
+  r.coinPickups = s.coinPickups ?? 0;
   dir.nextWave = s.nextWave;
   dir.nextAnts = s.nextAnts;
   dir.nextElite = s.nextElite;

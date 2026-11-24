@@ -17,17 +17,36 @@ export interface World {
   tweens: Phaser.Tweens.TweenManager;
   shake(ms: number, intensity: number): void;
   playSfx(name: Sfx): void;
+  /** Bounces a moving thing off the screen's edges, shelves, short-lived walls and oven knobs. True if it bounced. */
+  bounce(o: { x: number; y: number; vx: number; vy: number }, r: number): boolean;
 }
 
-/** Hit sound and spark id: a weapon, or the secret Lox and Schmear combo. */
-export type FxId = WeaponId | 'combo';
+/** Hit sound and spark id: a weapon, or one of the secret combos. */
+export type FxId = WeaponId | 'combo' | 'toastjam';
 
-/** The secret combo evolution: Schmear Flood + Lox Cyclone merge into one weapon (it lives on the Lox weapon). */
-export const COMBO = { name: 'Lox and Schmear', icon: 'ic_loxschmear', blurb: 'A spinning storm of lox and cream cheese that pulls enemies in.' };
+/**
+ * A secret combo evolution: two evolved weapons merge into one on the next gold toaster. The merged weapon lives on
+ * `keep` (its `combo` flag is set) and `drop` leaves the build, freeing a slot. `id` is the name it goes by in
+ * `save.secrets` and as a hit sound and spark.
+ */
+export interface ComboDef {
+  id: 'combo' | 'toastjam';
+  name: string;
+  icon: string;
+  blurb: string;
+  keep: WeaponId;
+  drop: WeaponId;
+}
+export const COMBOS: ComboDef[] = [
+  { id: 'combo', name: 'Lox and Schmear', icon: 'ic_loxschmear', blurb: 'A spinning storm of lox and cream cheese that pulls enemies in.', keep: 'lox', drop: 'puddle' },
+  { id: 'toastjam', name: 'Toast and Jam', icon: 'ic_toastjam', blurb: 'Raining toast lands in jam pools that splash.', keep: 'toastpop', drop: 'jar' },
+];
+/** The first combo, Lox and Schmear. */
+export const COMBO = COMBOS[0];
 
 const GOLD_TINT = 0xffe7a0;
 /** Evolved projectiles change color (the fire seeds already have their own texture). */
-const EVO_TINT: Partial<Record<WeaponId, number>> = { lox: 0xffc2a8, pin: 0xffd28a, knife: 0xbfe0ff, jar: 0xe0c8ff, toastpop: 0xfff0b0 };
+const EVO_TINT: Partial<Record<WeaponId, number>> = { lox: 0xffc2a8, pin: 0xffd28a, knife: 0xbfe0ff, jar: 0xe0c8ff, toastpop: 0xfff0b0, cutter: 0xffc9a8, whisk: 0xfff3d6 };
 const EVO_TRAIL: Record<WeaponId, number> = {
   sesame: 0xff8a3a,
   storm: 0xff7a2a,
@@ -39,13 +58,19 @@ const EVO_TRAIL: Record<WeaponId, number> = {
   jar: 0xb07ae0,
   toastpop: 0xffd27a,
   iron: 0xffd27a,
+  cutter: 0xff7a52, // tomato red, never blue or green
+  whisk: 0xfff0c8,
 };
 
 export abstract class Weapon {
   level = 1;
   evolved = false;
-  /** Merged into Lox and Schmear (only ever set on the Lox weapon). */
+  /** Merged into a secret combo (only ever set on a combo's `keep` weapon). */
   combo = false;
+  /** A Pizza Cutter wheel has bounced off something (the tutor's tip reads it). */
+  bounced = false;
+  /** Run time when it evolved (0 if it came back from a saved run): the pair finished first merges first. */
+  evolvedAt = 0;
   protected t = 0.3;
   readonly def: WeaponDef;
   constructor(protected w: World, id: WeaponId) {
@@ -55,11 +80,15 @@ export abstract class Weapon {
   destroy(): void {}
   /** Hits an enemy with this weapon's own spark and hit sound. */
   protected strike(e: Enemy, dmg: number, kx: number, ky: number, key = '', cd = 0): boolean {
-    return this.w.hit(e, dmg, kx, ky, key, cd, this.combo ? 'combo' : this.def.id);
+    return this.w.hit(e, dmg, kx, ky, key, cd, this.combo ? this.comboDef!.id : this.def.id);
   }
-  /** Icon for the HUD and pause screen (the combo has its own). */
+  /** The combo this weapon keeps when merged. */
+  get comboDef(): ComboDef | undefined {
+    return COMBOS.find((c) => c.keep === this.def.id);
+  }
+  /** Icon for the HUD and pause screen (a combo has its own). */
   get icon(): string {
-    return this.combo ? COMBO.icon : this.def.icon;
+    return this.combo ? this.comboDef!.icon : this.def.icon;
   }
   /** 0 = normal, 1 = level 5 (gold), 2 = evolved (new color and a trail). */
   protected get look(): number {
@@ -155,7 +184,7 @@ class SesameShot extends Weapon {
   }
   private fire(angle: number, dmg: number, pierce: number, tex: string): void {
     const p = this.w.player;
-    const speed = 480;
+    const speed = 480 * this.w.stats.shot;
     const img = this.style(this.w.img(tex, p.x, p.y, 20));
     img.setRotation(angle).setData('dmg', dmg);
     img.setScale(img.scaleX * this.w.stats.area);
@@ -521,8 +550,8 @@ class RollingPinW extends Weapon {
     }
     for (let i = this.pins.length - 1; i >= 0; i--) {
       const pin = this.pins[i];
-      pin.x += pin.dx * 270 * dt;
-      pin.y += pin.dy * 270 * dt;
+      pin.x += pin.dx * 270 * s.shot * dt;
+      pin.y += pin.dy * 270 * s.shot * dt;
       pin.life -= dt;
       pin.img.setPosition(pin.x, pin.y);
       this.trail(pin.x, pin.y, 0.35);
@@ -655,7 +684,7 @@ class ButterKnife extends Weapon {
   }
   private throw(angle: number, dmg: number, fast: boolean): void {
     const p = this.w.player;
-    const speed = fast ? 640 : 520;
+    const speed = (fast ? 640 : 520) * this.w.stats.shot;
     const img = this.style(this.w.img('knife_w', p.x, p.y, 20));
     img.setRotation(angle).setData('dmg', dmg);
     img.setScale(img.scaleX * this.w.stats.area * (fast ? 1.2 : 1));
@@ -679,7 +708,7 @@ class JamJar extends PoolWeapon {
       for (const tg of pickTargets(this.w, n, 260)) {
         const img = this.style(this.w.img('jar', p.x, p.y, 22));
         img.setScale(img.scaleX * 1.2);
-        this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.55, h: 70, spin: 9, land: (x, y) => this.land(x, y) });
+        this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.55 / s.shot, h: 70, spin: 9, land: (x, y) => this.land(x, y) });
       }
     }
     updateLobs(this.lobs, dt, (x, y) => this.trail(x, y, 0.4));
@@ -719,7 +748,7 @@ class JamJar extends PoolWeapon {
   }
 }
 
-class ToasterPop extends Weapon {
+class ToasterPop extends PoolWeapon {
   private lobs: Lob[] = [];
   update(dt: number): void {
     const s = this.w.stats;
@@ -730,7 +759,7 @@ class ToasterPop extends Weapon {
       this.w.playSfx('toastpop');
       if (ev) {
         // Toast Barrage: toast rains down all over the screen.
-        for (const tg of pickTargets(this.w, 12 + s.proj, 420)) {
+        for (const tg of pickTargets(this.w, (this.combo ? 14 : 12) + s.proj, 420)) {
           const img = this.style(this.w.img('ptoast', tg.x, tg.y - 320, 22));
           img.setScale(img.scaleX * 1.4);
           this.lobs.push({ img, x0: tg.x + (Math.random() - 0.5) * 60, y0: tg.y - 320, x1: tg.x, y1: tg.y, t: -Math.random() * 0.4, T: 0.45, h: 0, spin: 6, land: (x, y) => this.land(x, y) });
@@ -740,7 +769,7 @@ class ToasterPop extends Weapon {
         for (const tg of pickTargets(this.w, n, 240)) {
           const img = this.style(this.w.img('ptoast', p.x, p.y, 22));
           img.setScale(img.scaleX * 1.4);
-          this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.5, h: 90, spin: 8, land: (x, y) => this.land(x, y) });
+          this.lobs.push({ img, x0: p.x, y0: p.y, x1: tg.x, y1: tg.y, t: 0, T: 0.5 / s.shot, h: 90, spin: 8, land: (x, y) => this.land(x, y) });
         }
       }
     }
@@ -748,17 +777,21 @@ class ToasterPop extends Weapon {
     for (const l of this.lobs) if (l.t < 0) l.img.setVisible(false);
     updateLobs(this.lobs, dt, (x, y) => this.trail(x, y, 0.3));
     for (const l of this.lobs) if (l.t >= 0) l.img.setVisible(true);
+    // Toast and Jam: the jam pools slow and hurt what stands in them.
+    if (this.combo) this.soak(dt, 11 * s.damage);
   }
   private land(x: number, y: number): void {
     const s = this.w.stats;
     const lv = this.level;
     const ev = this.evolved;
     const r = (ev ? 42 : 34 * (lv >= 5 ? 1.3 : 1)) * s.area;
-    const dmg = (ev ? 30 : 24 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    // The combo's hits stay under 30 so they don't set off the freeze-frame all the time.
+    const dmg = (this.combo ? 26 : ev ? 30 : 24 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     this.w.query(x, y, r, (e) => {
       const d = Math.hypot(e.x - x, e.y - y) || 1;
       this.strike(e, dmg, ((e.x - x) / d) * 120, ((e.y - y) / d) * 120, '', 0);
     });
+    if (this.combo) this.jam(x, y);
     // Crumbs fly out where it lands.
     for (let i = 0; i < 5; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -767,9 +800,214 @@ class ToasterPop extends Weapon {
       this.w.tweens.add({ targets: img, x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, alpha: 0, duration: 260, onComplete: () => img.destroy() });
     }
   }
+  /** Toast and Jam: a toast that lands in a jam pool makes it splash; one that lands on bare floor leaves a new pool. */
+  private jam(x: number, y: number): void {
+    const s = this.w.stats;
+    const pool = this.pools.find((pl) => Math.hypot(pl.x - x, pl.y - y) < pl.r);
+    if (pool) {
+      const r = pool.r + 34 * s.area;
+      this.w.query(pool.x, pool.y, r, (e) => {
+        const d = Math.hypot(e.x - pool.x, e.y - pool.y) || 1;
+        this.strike(e, 16 * s.damage, ((e.x - pool.x) / d) * 140, ((e.y - pool.y) / d) * 140, '', 0);
+      });
+      pool.life = Math.min(pool.life + 0.6, 4 * s.dur);
+      // The splash: jam drops flying out past the pool's edge.
+      for (let i = 0; i < 7; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const img = this.w.img('dot', pool.x, pool.y, 21);
+        img.setTint(0xb0407a).setScale(img.scaleX * (0.7 + Math.random() * 0.6));
+        this.w.tweens.add({ targets: img, x: pool.x + Math.cos(a) * r, y: pool.y + Math.sin(a) * r, alpha: 0, duration: 300, ease: 'Cubic.Out', onComplete: () => img.destroy() });
+      }
+      this.w.playSfx('jar');
+    } else if (this.pools.length < 7) {
+      this.addPool(this.w.img('jam_pool', x, y, 2).setAlpha(0.92), x, y, 52 * s.area, 3 * s.dur);
+    }
+  }
   destroy(): void {
+    super.destroy();
     this.lobs.forEach((l) => l.img.destroy());
     this.lobs = [];
+  }
+}
+
+interface Wheel {
+  img: Phaser.GameObjects.Image;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  left: number;
+  life: number;
+  id: string;
+  drip: number;
+}
+
+/** Pizza Cutter: wheels that cut through everything and bounce off the screen's edges and anything solid. */
+class PizzaCutter extends PoolWeapon {
+  private wheels: Wheel[] = [];
+  private seq = 0;
+  update(dt: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const ev = this.evolved;
+    const p = this.w.player;
+    const size = (lv >= 5 || ev ? 1.3 : 1) * s.area;
+    const dmg = (ev ? 20 : 12 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    // Pizza Party keeps its three wheels rolling for good; a lost one is thrown again.
+    const want = (ev ? 3 : 1 + (lv >= 4 ? 1 : 0)) + s.proj;
+    if (ev ? this.wheels.length < want && this.tick(dt, 0.5) : this.tick(dt, 2.7 * s.cooldown)) {
+      const n = ev ? want - this.wheels.length : want;
+      const dir = this.aim(420);
+      const base = Math.atan2(dir.y, dir.x);
+      const speed = 340 * s.shot;
+      this.w.playSfx('cutter');
+      for (let i = 0; i < n; i++) {
+        const a = base + (i - (n - 1) / 2) * (ev ? (Math.PI * 2) / n : 0.5);
+        const img = this.style(this.w.img('cutter_w', p.x, p.y, 20));
+        img.setScale(img.scaleX * size);
+        const left = ev ? Infinity : 3 + (lv >= 2 ? 1 : 0) + (lv >= 5 ? 1 : 0);
+        this.wheels.push({ img, x: p.x, y: p.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, left, life: ev ? Infinity : 6, id: `cut${this.seq++ % 40}`, drip: 0 });
+      }
+    }
+    const R = 15 * size;
+    for (let i = this.wheels.length - 1; i >= 0; i--) {
+      const wh = this.wheels[i];
+      wh.x += wh.vx * dt;
+      wh.y += wh.vy * dt;
+      wh.life -= dt;
+      // Out of bounces, the wheel rolls off the screen.
+      if (wh.left > 0 && this.w.bounce(wh, R)) {
+        wh.left--;
+        this.bounced = true;
+        this.w.playSfx('ting');
+      }
+      wh.img.setPosition(wh.x, wh.y).setRotation(wh.img.rotation + 16 * dt);
+      this.trail(wh.x, wh.y, 0.4);
+      const d = Math.hypot(wh.vx, wh.vy) || 1;
+      this.w.query(wh.x, wh.y, R, (e) => {
+        this.strike(e, dmg, (wh.vx / d) * 70, (wh.vy / d) * 70, wh.id, 0.45);
+      });
+      // Pizza Party: a line of hot sauce behind each wheel.
+      if (ev) {
+        wh.drip -= dt;
+        if (wh.drip <= 0 && this.pools.length < 60) {
+          wh.drip = 0.07;
+          this.addPool(this.w.img('sauce_pool', wh.x, wh.y, 2).setAlpha(0.7), wh.x, wh.y, 14 * s.area, 1.1 * s.dur);
+        }
+      }
+      if (wh.life <= 0 || Math.abs(wh.x - p.x) > 700 || Math.abs(wh.y - p.y) > 900) {
+        wh.img.destroy();
+        this.wheels.splice(i, 1);
+      }
+    }
+    if (ev) this.soak(dt, 8 * s.damage);
+  }
+  destroy(): void {
+    super.destroy();
+    this.wheels.forEach((wh) => wh.img.destroy());
+    this.wheels = [];
+  }
+}
+
+interface Whirl {
+  img: Phaser.GameObjects.Image;
+  dx: number;
+  dy: number;
+  t: number;
+  turn: number;
+  id: string;
+}
+
+/** Whisk Whirl: a small whirlwind that wanders out in a loop and comes back. It never pulls seeds or coins. */
+class WhiskWhirl extends Weapon {
+  private whirls: Whirl[] = [];
+  private seq = 0;
+  private mixers: Phaser.GameObjects.Image[] = [];
+  update(dt: number): void {
+    const s = this.w.stats;
+    const lv = this.level;
+    const p = this.w.player;
+    if (this.evolved) {
+      this.mixer(dt);
+      return;
+    }
+    const r = 30 * (lv >= 2 ? 1.3 : 1) * s.area;
+    const dmg = 9 * (lv >= 3 ? 1.5 : 1) * s.damage;
+    const range = 165 * (lv >= 5 ? 1.3 : 1) * s.area;
+    const T = (lv >= 5 ? 2.5 : 2.1) * s.dur;
+    if (this.tick(dt, (lv >= 5 ? 2.7 : 2.9) * s.cooldown)) {
+      const n = 1 + (lv >= 4 ? 1 : 0) + s.proj;
+      const dir = this.aim(300);
+      const base = Math.atan2(dir.y, dir.x);
+      this.w.playSfx('whisk');
+      for (let i = 0; i < n; i++) {
+        const a = base + (i * Math.PI * 2) / n;
+        const img = this.style(this.w.img('whirl', p.x, p.y, 21));
+        this.whirls.push({ img, dx: Math.cos(a), dy: Math.sin(a), t: 0, turn: i % 2 ? -1 : 1, id: `wh${this.seq++ % 40}` });
+      }
+    }
+    for (let i = this.whirls.length - 1; i >= 0; i--) {
+      const wl = this.whirls[i];
+      wl.t += dt * s.shot;
+      const k = Math.min(1, wl.t / T);
+      // Out along the aim and back, swinging wide to one side: a loop that ends at the bagel.
+      const out = range * Math.sin(Math.PI * k);
+      const side = range * 0.55 * Math.sin(Math.PI * 2 * k) * wl.turn;
+      const x = p.x + wl.dx * out - wl.dy * side;
+      const y = p.y + wl.dy * out + wl.dx * side;
+      const grow = Math.min(1, k * 6, (1 - k) * 6);
+      wl.img.setPosition(x, y).setRotation(wl.img.rotation - 13 * dt).setScale(wl.img.getData('base') * ((r * 2) / 64) * (0.4 + 0.6 * grow));
+      this.trail(x, y, 0.3);
+      this.w.query(x, y, r, (e) => {
+        const d = Math.hypot(e.x - x, e.y - y) || 1;
+        // A light sideways shove, the way a whirl would spin things round.
+        this.strike(e, dmg, (-(e.y - y) / d) * 60, ((e.x - x) / d) * 60, wl.id, lv >= 5 ? 0.24 : 0.3);
+      });
+      if (k >= 1) {
+        wl.img.destroy();
+        this.whirls.splice(i, 1);
+      }
+    }
+  }
+  /** Stand Mixer: one big slow tornado circling you (Honey adds more), pulling light enemies in. */
+  private mixer(dt: number): void {
+    const s = this.w.stats;
+    const p = this.w.player;
+    if (this.whirls.length) {
+      this.whirls.forEach((wl) => wl.img.destroy());
+      this.whirls = [];
+    }
+    const n = 1 + s.proj;
+    while (this.mixers.length < n) this.mixers.push(this.style(this.w.img('whirl', p.x, p.y, 21)).setAlpha(0.9));
+    const r = 78 * s.area;
+    const dmg = 16 * s.damage;
+    const now = this.w.now;
+    this.w.playSfx('mixer'); // throttled to a low hum now and then
+    for (let i = 0; i < n; i++) {
+      const a = now * 0.85 * s.shot + (i / n) * Math.PI * 2;
+      const d = (118 + 34 * Math.sin(now * 0.6 + i)) * s.area;
+      const x = p.x + Math.cos(a) * d;
+      const y = p.y + Math.sin(a) * d;
+      this.mixers[i].setPosition(x, y).setRotation(-now * 9).setScale(this.mixers[i].getData('base') * ((r * 2) / 64));
+      this.trail(x + (Math.random() - 0.5) * r, y + (Math.random() - 0.5) * r, 0.25);
+      this.w.query(x, y, r * 1.9, (e) => {
+        const dx = e.x - x;
+        const dy = e.y - y;
+        const ed = Math.hypot(dx, dy) || 1;
+        // Pull toward the tornado: never bosses or heavy elites.
+        if (!e.boss && e.mass < 5 && ed > 10) {
+          e.kx -= ((dx / ed) * 620 * dt) / e.mass;
+          e.ky -= ((dy / ed) * 620 * dt) / e.mass;
+        }
+        if (ed < r + e.radius) this.strike(e, dmg, 0, 0, `mix${i}`, 0.3);
+      });
+    }
+  }
+  destroy(): void {
+    this.whirls.forEach((wl) => wl.img.destroy());
+    this.whirls = [];
+    this.mixers.forEach((m) => m.destroy());
+    this.mixers = [];
   }
 }
 
@@ -869,5 +1107,9 @@ export function createWeapon(w: World, id: WeaponId): Weapon {
       return new ToasterPop(w, id);
     case 'iron':
       return new WaffleStomp(w, id);
+    case 'cutter':
+      return new PizzaCutter(w, id);
+    case 'whisk':
+      return new WhiskWhirl(w, id);
   }
 }

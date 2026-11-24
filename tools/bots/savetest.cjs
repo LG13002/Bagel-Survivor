@@ -49,7 +49,8 @@ const check = (name, ok, detail = '') => {
     const s = await loaded(p);
     const kept = ['dough', 'upgrades', 'unlocked', 'selected', 'cookbook', 'totalKills', 'clears', 'best', 'weapons', 'records', 'goalsPaid', 'secrets', 'mugs', 'crispyClears'].filter((k) => old[k] !== undefined && JSON.stringify(s[k]) !== JSON.stringify(old[k]));
     check(`${era}: progress kept`, kept.length === 0, `changed: ${kept.join(', ')}`);
-    check(`${era}: save version set`, s.v === 3, `v=${s.v}`);
+    check(`${era}: save version set`, s.v === 4, `v=${s.v}`);
+    check(`${era}: coin count starts at 250 for a save that has cleared a stage`, s.coinsTotal === 250, `coinsTotal=${s.coinsTotal}`);
     if (era === 'foundations') check('foundations: settings left alone', s.settings.music === 40 && s.settings.sound === 80 && s.settings.shake === 'reduced' && s.settings.flash === 'reduced' && s.settings.saver && s.settings.lefty, JSON.stringify(s.settings));
     else {
       check(`${era}: volumes follow the old switches`, s.settings && s.settings.music === (old.music === false ? 0 : 100) && s.settings.sound === (old.sound === false ? 0 : 100), JSON.stringify(s.settings));
@@ -81,7 +82,7 @@ const check = (name, ok, detail = '') => {
   {
     const p = await open({});
     const s = await loaded(p);
-    check('new player: fresh save', s.dough === 0 && s.unlocked.join() === 'plain' && s.v === 3 && s.settings.music === 100);
+    check('new player: fresh save', s.dough === 0 && s.unlocked.join() === 'plain' && s.v === 4 && s.coinsTotal === 0 && s.settings.music === 100);
     check('new player: tips on, nothing seen, menu buttons still shut', s.settings.tips === true && !(s.tips ?? []).length && !(s.open ?? []).length && !s.intro, JSON.stringify([s.tips, s.open]));
     await p.context().close();
   }

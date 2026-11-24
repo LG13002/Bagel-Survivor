@@ -387,6 +387,28 @@ Change list: https://claude.ai/artifact/WPJU3GQWLY1s8LSoL9wmVk (approved by the 
 
 **Measured** (`dodgebench.cjs`, careless walking, damage a minute, from 1:00 / 2:10 / 3:35): Bread Bin 185 / 264 / 204 against the Pantry's 182 / 262 / 135, about 13% more overall, nearly all of it in the King's stretch. To get there the stage's damage dial went from 1.0 to 1.1 and spawn rate from 1.06 to 1.12. A careful bot took far less (61 / 98 / 15 before the dials moved). King fight with an ordinary build (two evolved weapons and two at level 5), circling him: down in 103s of stage time, 220 damage taken, phases at 66% and 33%; the same bot against Mother Dough takes 199 in 67s and against the Broiler 130 in 59s. Frame rate in the bot: Bread Bin 17.5 against the Pantry's 18.5 (the dim layer; 21.4 with Battery saver). Songs levelled with `mixtest.cjs`. `savetest`, `tutortest` (both heights), `qtest` and the new `endtest` pass; resuming mid-King returns in the right phase.
 
+### Phase 3, M17: weapons and Bakery (version 0.17)
+
+Change list: https://claude.ai/artifact/22ikfbSGgbRAPgEAFGNWDD (approved by the owner with Vanilla at +5% XP a level, banishes lasting one run, and the three suggestions).
+
+- **Pizza Cutter** (beat Mother Dough): wheels that cut through enemies and bounce off the screen's edges, the Pantry's shelves, short-lived walls and the oven's knobs. Olive Oil (+10% shot speed a level) evolves it into **Pizza Party**: three wheels that never stop, each leaving a thin red sauce trail that hurts and slows.
+- **Whisk Whirl** (pick up 500 Dough coins): a whirlwind that loops out and back. Vanilla (+5% XP a level) evolves it into **Stand Mixer**: a big tornado circling the bagel that pulls light enemies in. Coins picked up are counted from this version (`save.coinsTotal`); a save that had cleared a stage starts at 250.
+- **Toast and Jam:** the second secret merge (Toast Barrage + Jam Session). `COMBOS` in `weapons.ts` now lists both merges, and the Secrets tab, Cookbook and results screen read from it. With both ready, the pair finished first merges first.
+- **Bakery:** Proofing (Basics, +3% XP a rank) and the Day-Old Bin (Extras, one banish a run per rank). Five upgrades a tab; both tabs fit at 390x640. Each level-up card has a bin button, a binned card can be taken back until a card is picked or the hand is rerolled, and the pause screen shows rerolls and bins left.
+- Two tips (first bin, first bounce), three challenges (both evolutions, 5 banishes in a run), the Cookbook's Weapons tab now has pages, the results screen shows Whisk Whirl's coin count while it is the nearest unlock, save version 4, What's new, version 0.17.
+
+**Deviations from the list:** Pizza Party's wheels never run out of bounces (three wheels on screen at all times) instead of being thrown again and again: the first version piled up seven wheels and covered the floor in sauce. The sauce dabs are small and last about a second for the same reason. Pizza Cutter's base damage went from 15 to 12 after measuring.
+
+**Measured** (`wbench.cjs`, one weapon alone, useful damage a second, Bakery / Freezer / Oven; the crowd changes of M15 mean these don't compare with the older table below):
+
+| | Level 3 | Evolved |
+| --- | --- | --- |
+| The ten older weapons, lowest to highest | 86 to 167 / 107 to 248 / 147 to 261 | 221 to 284 / 298 to 412 / 293 to 384 |
+| Pizza Cutter / Pizza Party | 165 / 248 / about 210 | 221 / 307 / 323 |
+| Whisk Whirl / Stand Mixer | 168 / 218 / 232 | 229 / 321 / 328 |
+
+Pizza Cutter at level 3 matches the best older weapon on the Bakery (Cream Cheese Puddle, 167) and the Freezer (Jam Jar Lob, 248); its oven figure was taken before the last trim and scaled. Toast and Jam against its two evolutions side by side, two runs each: 250 against 248 damage a second, 210 against 214 damage taken a minute, so the merge is worth the freed slot and no more. Lox and Schmear on the same bench: 252 against 232. XP: with the level curve, a run that would end at level 20 ends at 21 with Proofing at rank 5, 21 with Vanilla at level 5, and 23 with both.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.

@@ -3,7 +3,7 @@ import { Face } from '../face';
 import { COLORS, CSS, S, VERSION, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, ENEMIES, ENEMY_BOOK, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
 import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
-import { COMBO } from '../weapons';
+import { COMBOS } from '../weapons';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
 import { bestStage, getBest, load, persist, takeRecovered, type BestScore, type RunMode, type SaveData } from '../save';
@@ -865,14 +865,15 @@ export class MenuScene extends Phaser.Scene {
     } else {
       const rainbow = BAGELS.find((b) => b.secret)!;
       const bagelFound = save.unlocked.includes(rainbow.id);
-      const comboFound = (save.secrets ?? []).includes('combo');
       rows = [
         bagelFound
           ? { icon: rainbow.tex, name: `${rainbow.name} bagel`, sub: `Found! ${rainbow.goal!.text}.`, frac: 1, done: true }
           : { icon: 'ic_secret', name: '???', sub: SECRET_BAGEL_HINT, frac: 0, done: false },
-        comboFound
-          ? { icon: COMBO.icon, name: COMBO.name, sub: 'Found! Evolve Schmear Flood and Lox Cyclone, then open a gold toaster.', frac: 1, done: true }
-          : { icon: 'ic_secret', name: '???', sub: SECRET_RECIPE_HINT, frac: 0, done: false },
+        ...COMBOS.map((cd) =>
+          (save.secrets ?? []).includes(cd.id)
+            ? { icon: cd.icon, name: cd.name, sub: `Found! Evolve ${WEAPONS[cd.drop].evoName} and ${WEAPONS[cd.keep].evoName}, then open a gold toaster.`, frac: 1, done: true }
+            : { icon: 'ic_secret', name: '???', sub: SECRET_RECIPE_HINT, frac: 0, done: false },
+        ),
       ];
       sub = `${rows.filter((r) => r.done).length} of ${rows.length} secrets found`;
     }
@@ -939,11 +940,12 @@ export class MenuScene extends Phaser.Scene {
     const save = load();
     const all = Object.keys(WEAPONS) as WeaponId[];
     const locked = all.filter((id) => WEAPONS[id].unlock);
-    // Five rows a page keeps it on screen on small phones. The secret combo is the last Evolutions row.
+    // Five rows a page keeps it on screen on small phones. The secret combos are the last Evolutions rows.
     const PER = 5;
-    const evoRows: (WeaponId | 'combo')[] = [...all, 'combo'];
-    const ids = tab === 0 ? evoRows.slice(page * PER, page * PER + PER) : locked;
-    const pages = tab === 0 ? Math.ceil(evoRows.length / PER) : 1;
+    const evoRows: (WeaponId | 'combo' | 'toastjam')[] = [...all, ...COMBOS.map((cd) => cd.id)];
+    const rows = tab === 0 ? evoRows : locked;
+    const ids = rows.slice(page * PER, page * PER + PER);
+    const pages = Math.ceil(rows.length / PER);
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 60 * S;
     const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S;
@@ -956,16 +958,18 @@ export class MenuScene extends Phaser.Scene {
       txt(this, x, y, s, 12, CSS.muted, { bold: false, stroke: false, wrap, align: 'left' }).setOrigin(0, 0.5);
     ids.forEach((id, i) => {
       const y = top + 160 * S + i * rowH;
-      if (id === 'combo') {
-        const found = (save.secrets ?? []).includes('combo');
-        c.add(this.add.image(lx + 18 * S, y, found ? WEAPONS.puddle.icon : 'ic_secret').setScale(0.9));
+      const cd = COMBOS.find((o) => o.id === id);
+      if (cd) {
+        const found = (save.secrets ?? []).includes(cd.id);
+        c.add(this.add.image(lx + 18 * S, y, found ? WEAPONS[cd.drop].icon : 'ic_secret').setScale(0.9));
         c.add(txt(this, lx + 44 * S, y, '+', 18, CSS.muted));
-        c.add(this.add.image(lx + 70 * S, y, found ? WEAPONS.lox.icon : 'ic_secret').setScale(0.9));
+        c.add(this.add.image(lx + 70 * S, y, found ? WEAPONS[cd.keep].icon : 'ic_secret').setScale(0.9));
         const tx = lx + 98 * S;
-        c.add(txt(this, tx, y - 10 * S, found ? COMBO.name : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
-        c.add(small(tx, y + 11 * S, found ? 'Schmear Flood + Lox Cyclone' : 'A secret recipe', (pw - 120 * S) / S));
+        c.add(txt(this, tx, y - 10 * S, found ? cd.name : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
+        c.add(small(tx, y + 11 * S, found ? `${WEAPONS[cd.drop].evoName} + ${WEAPONS[cd.keep].evoName}` : 'A secret recipe', (pw - 120 * S) / S));
         return;
       }
+      if (id === 'combo' || id === 'toastjam') return;
       const w = WEAPONS[id];
       if (tab === 0) {
         const t = TOPPINGS[w.evolveWith];
@@ -991,7 +995,7 @@ export class MenuScene extends Phaser.Scene {
     });
     const by = top + 160 * S + PER * rowH - 10 * S;
     if (pages > 1) {
-      const go = (d: number) => this.openCookbook(0, (page + d + pages) % pages);
+      const go = (d: number) => this.openCookbook(tab, (page + d + pages) % pages);
       c.add(button(this, W / 2 - 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
       c.add(txt(this, W / 2, by + 4 * S, `${page + 1} / ${pages}`, 15, CSS.cream));
       c.add(button(this, W / 2 + 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));

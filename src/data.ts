@@ -1,12 +1,12 @@
 // All tunable game content lives here.
 import type { SongId } from './music';
 
-export type WeaponId = 'sesame' | 'storm' | 'puddle' | 'lox' | 'coffee' | 'pin' | 'knife' | 'jar' | 'toastpop' | 'iron';
-export type ToppingId = 'butter' | 'dough' | 'caffeine' | 'oven' | 'salt' | 'glaze' | 'honey' | 'jam' | 'seasoning' | 'frosting';
+export type WeaponId = 'sesame' | 'storm' | 'puddle' | 'lox' | 'coffee' | 'pin' | 'knife' | 'jar' | 'toastpop' | 'iron' | 'cutter' | 'whisk';
+export type ToppingId = 'butter' | 'dough' | 'caffeine' | 'oven' | 'salt' | 'glaze' | 'honey' | 'jam' | 'seasoning' | 'frosting' | 'oil' | 'vanilla';
 
-/** How a locked weapon is earned. 'boss' = beat that boss or mini-boss once; 'mugs' = Warm Mugs picked up in total; 'cookbook' = evolutions found. */
+/** How a locked weapon is earned. 'boss' = beat that boss or mini-boss once; 'mugs' = Warm Mugs picked up in total; 'cookbook' = evolutions found; 'coins' = Dough coins picked up in total. */
 export interface WeaponGoal {
-  kind: 'boss' | 'mugs' | 'cookbook';
+  kind: 'boss' | 'mugs' | 'cookbook' | 'coins';
   boss?: string;
   target: number;
   text: string;
@@ -130,6 +130,28 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evoBlurb: 'A giant stamp and a shockwave ring.',
     unlock: { kind: 'cookbook', target: 6, text: 'Discover 6 evolutions' },
   },
+  cutter: {
+    id: 'cutter',
+    name: 'Pizza Cutter',
+    icon: 'ic_cutter',
+    blurb: 'A wheel that cuts through and bounces.',
+    levels: ['A wheel that cuts through and bounces.', '+1 bounce', '+50% damage', '+1 wheel', 'Bigger wheels, +1 bounce'],
+    evolveWith: 'oil',
+    evoName: 'Pizza Party',
+    evoBlurb: 'Three wheels that leave hot sauce trails.',
+    unlock: { kind: 'boss', boss: 'mdough', target: 1, text: 'Beat Mother Dough' },
+  },
+  whisk: {
+    id: 'whisk',
+    name: 'Whisk Whirl',
+    icon: 'ic_whisk',
+    blurb: 'A whirlwind wanders out and circles back.',
+    levels: ['A whirlwind wanders out and circles back.', 'Bigger whirl', '+50% damage', '+1 whirl', 'Longer trips, spins faster'],
+    evolveWith: 'vanilla',
+    evoName: 'Stand Mixer',
+    evoBlurb: 'A big slow tornado that pulls enemies in.',
+    unlock: { kind: 'coins', target: 500, text: 'Pick up 500 Dough coins' },
+  },
 };
 
 export interface ToppingDef {
@@ -152,6 +174,8 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   jam: { id: 'jam', name: 'Jam', icon: 'ic_jam', blurb: '+15% duration: puddles, pools, boomerangs', weapon: 'jar' },
   seasoning: { id: 'seasoning', name: 'Everything Seasoning', icon: 'ic_seasoning', blurb: '+luck: better cards and chests', weapon: 'toastpop' },
   frosting: { id: 'frosting', name: 'Cream Cheese Frosting', icon: 'ic_frosting', blurb: '-1 damage from every hit', weapon: 'iron' },
+  oil: { id: 'oil', name: 'Olive Oil', icon: 'ic_oil', blurb: '+10% shot speed: seeds, knives, pins, wheels', weapon: 'cutter' },
+  vanilla: { id: 'vanilla', name: 'Vanilla', icon: 'ic_vanilla', blurb: '+5% XP from seeds', weapon: 'whisk' },
 };
 
 export type StageId = 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'stage5';
@@ -640,11 +664,13 @@ export const BAKERY: UpgradeDef[] = [
   { id: 'dmg', icon: 'ic_bk_oven', name: 'Hotter Oven', blurb: '+6% damage per rank', costs: [25, 55, 110, 190, 300] },
   { id: 'speed', icon: 'ic_bk_rise', name: 'Quick Rise', blurb: '+4% move speed per rank', costs: [15, 35, 70, 130, 210] },
   { id: 'magnet', icon: 'ic_bk_sticky', name: 'Sticky Seeds', blurb: '+15% pickup range per rank', costs: [15, 35, 70, 130, 210] },
+  { id: 'proof', icon: 'ic_bk_proof', name: 'Proofing', blurb: '+3% XP from seeds per rank', costs: [20, 45, 90, 160, 260] },
   // Extras (Phase 2)
   { id: 'luck', icon: 'ic_bk_luck', name: 'Lucky Seed', blurb: '+5% luck: better cards', costs: [25, 55, 110, 190, 300], tab: 1 },
   { id: 'reroll', icon: 'ic_bk_reroll', name: 'Reroll Rack', blurb: '+1 reroll per run', costs: [30, 60, 110, 180, 270], tab: 1 },
   { id: 'revive', icon: 'ic_bk_revive', name: 'Second Bake', blurb: 'Revive once per run', costs: [60, 120, 200, 300, 420], tab: 1 },
   { id: 'armor', icon: 'ic_bk_armor', name: 'Hard Crust', blurb: '-1 damage per hit taken', costs: [25, 55, 110, 190, 300], tab: 1 },
+  { id: 'bin', icon: 'ic_bk_bin', name: 'Day-Old Bin', blurb: 'Bin 1 more card per run', costs: [30, 60, 110, 180, 270], tab: 1 },
 ];
 
 export type EnemyKind =

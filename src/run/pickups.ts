@@ -142,6 +142,7 @@ export class Pickups {
         break;
       case 'coin':
         run.coins += 1;
+        run.coinPickups++;
         break;
       case 'heal':
         run.healsTaken++;
