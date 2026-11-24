@@ -154,7 +154,7 @@ export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   frosting: { id: 'frosting', name: 'Cream Cheese Frosting', icon: 'ic_frosting', blurb: '-1 damage from every hit', weapon: 'iron' },
 };
 
-export type StageId = 'stage1' | 'stage2' | 'stage3';
+export type StageId = 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'stage5';
 
 /** One spawn-table step: regular enemies picked by weight until stage time `until` (seconds). */
 export interface MixStep {
@@ -179,7 +179,7 @@ export interface StageDef {
   /** False until the stage's content exists: shown as "Coming soon" and can't be picked. */
   built: boolean;
   floor: string; // tiling texture, 256 × 256
-  props: 'counter' | 'freezer' | 'oven';
+  props: 'counter' | 'freezer' | 'oven' | 'pantry' | 'bin';
   /** Freezer hazards: slippery ice patches on the floor, frost when standing still, Warm Mug drops. */
   ice?: boolean;
   frost?: boolean;
@@ -188,6 +188,14 @@ export interface StageDef {
   coils?: boolean;
   grease?: boolean;
   posts?: boolean;
+  /** The Pantry: solid shelves that make aisles (enemies path around them), rolling cans and flour puffs. */
+  shelves?: boolean;
+  cans?: boolean;
+  flour?: boolean;
+  /** The Bread Bin: Stale creep (grey patches that slow you and that weapons burn back), falling crumbs, and a dim bin lit around the bagel. */
+  creep?: boolean;
+  crumbs?: boolean;
+  dark?: boolean;
   /** Dough multiplier for runs on this stage. */
   dough: number;
   /** XP multiplier for every seed picked up on this stage (default 1). */
@@ -214,8 +222,8 @@ export interface StageDef {
   /** `line`: what the mini-boss says under its name when it arrives. */
   mini: { kind: EnemyKind; name: string; banner: string; line: string };
   /** `card`: the boss's line on the big announcement card when it arrives. */
-  /** `phase2`: it changes at half health (the boss bar marks the spot). */
-  boss: { kind: EnemyKind; name: string; banner: string; card: string; phase2?: boolean };
+  /** `phase2`: it changes at half health (the boss bar marks the spot). `marks`: other shares of health where it changes. */
+  boss: { kind: EnemyKind; name: string; banner: string; card: string; phase2?: boolean; marks?: number[] };
   /** One line of story on the results screen the first time the stage is cleared. */
   outro: string;
   music: { run: SongId; boss: SongId };
@@ -332,6 +340,88 @@ export const STAGES: StageDef[] = [
     outro: 'The oven is yours. But in the bread bin, a crown glints in the dark...',
     music: { run: 'orun', boss: 'oboss' },
   },
+  {
+    ...BAKERY_STAGE,
+    id: 'stage4',
+    num: 4,
+    name: 'The Pantry',
+    story: 'The Stale has raided the pantry. Clear the shelves.',
+    thumb: 'thumb_stage4',
+    pips: 4,
+    unlockAfter: 'stage3',
+    unlockText: 'Beat the Broiler',
+    built: true,
+    floor: 'floor_stage4',
+    props: 'pantry',
+    shelves: true,
+    cans: true,
+    flour: true,
+    dough: 2.5,
+    xp: 0.9,
+    hpGrowth: 135,
+    // Bot benchmark (pin, storm and lox at 2:00 and 3:30, two passes): 27% more damage taken per minute than the oven
+    // at 1.12, 7% more at 0.98. Shelves and cans carry the rest, so contact damage sits below the oven's.
+    dmg: 0.94,
+    spawnRate: 1.04,
+    mix: [
+      { until: 45, table: [['dustbunny', 1]] },
+      { until: 90, table: [['dustbunny', 62], ['sugarcube', 38]] },
+      // Molten Muffins wait until 2:00, so the first two minutes teach shelves and cans with the simpler enemies.
+      { until: 120, table: [['dustbunny', 44], ['sugarcube', 24], ['peacan', 14], ['pepper', 14]] },
+      { until: 165, table: [['dustbunny', 36], ['sugarcube', 24], ['peacan', 12], ['pepper', 13], ['spore', 9]] },
+      { until: Infinity, table: [['dustbunny', 32], ['sugarcube', 20], ['peacan', 12], ['pepper', 13], ['pmuffin', 10], ['spore', 9]] },
+    ],
+    wave: { kinds: ['sugarcube', 'dustbunny'], banner: 'The dust closes in!' },
+    lines: 'wafflebit',
+    elites: [{ kind: 'loaf', banner: 'A Moldy Loaf! It breathes spores.', color: '#a9cf6a' }],
+    extras: [{ at: 240, kind: 'broilerjr', banner: 'Broiler Jr. wants a turn!', color: '#ff9a3c' }],
+    mini: { kind: 'tangle', name: 'Spaghetti Tangle', banner: 'Spaghetti Tangle!', line: "You're in a knot now!" },
+    boss: { kind: 'mdough', name: 'Mother Dough', banner: 'MOTHER DOUGH', card: 'I have been rising for a hundred years.', phase2: true },
+    outro: 'The shelves are clear. Only the bread bin is left, and the King is waiting.',
+    music: { run: 'prun', boss: 'pboss' },
+  },
+  {
+    ...BAKERY_STAGE,
+    id: 'stage5',
+    num: 5,
+    name: 'The Bread Bin',
+    story: 'The Stale King waits in the dark. End this.',
+    thumb: 'thumb_stage5',
+    pips: 5,
+    unlockAfter: 'stage4',
+    unlockText: 'Beat Mother Dough',
+    built: true,
+    floor: 'floor_stage5',
+    props: 'bin',
+    creep: true,
+    crumbs: true,
+    dark: true,
+    dough: 3,
+    xp: 0.9,
+    hpGrowth: 125,
+    dmg: 1.1,
+    spawnRate: 1.12,
+    mix: [
+      { until: 45, table: [['stalecrumb', 1]] },
+      { until: 90, table: [['stalecrumb', 66], ['bspore', 34]] },
+      { until: 120, table: [['stalecrumb', 58], ['bspore', 26], ['knight', 16]] },
+      // From 2:00 one regular from each earlier stage joins in: the whole kitchen has turned.
+      { until: Infinity, table: [['stalecrumb', 34], ['bspore', 18], ['knight', 10], ['tot', 9], ['fcrumb', 10], ['ember', 9], ['dustbunny', 10]] },
+    ],
+    wave: { kinds: ['bspore', 'stalecrumb'], banner: 'The Stale closes in!' },
+    lines: 'crumbmarch',
+    // The gauntlet: each elite slot brings back an old boss, smaller, with one of its attacks.
+    elites: [
+      { kind: 'tyrantjr', banner: 'The Toaster Tyrant is back!', color: '#ffb36b' },
+      { kind: 'fburnt', banner: 'The Freezer Burn is back!', color: '#ff7a5c' },
+      { kind: 'broilerjr', banner: 'The Broiler is back!', color: '#ff9a3c' },
+      { kind: 'tanglejr', banner: 'The Spaghetti Tangle is back!', color: '#f0d27a' },
+    ],
+    mini: { kind: 'mdoughjr', name: 'Mother Dough', banner: 'Mother Dough returns!', line: 'I rise again!' },
+    boss: { kind: 'king', name: 'The Stale King', banner: 'THE STALE KING', card: 'Everything goes stale in the end.', marks: [2 / 3, 1 / 3] },
+    outro: 'The Stale King has crumbled. The bakery is warm again.',
+    music: { run: 'brun', boss: 'king' },
+  },
 ];
 
 export function stageById(id: string | undefined): StageDef {
@@ -341,7 +431,7 @@ export function stageById(id: string | undefined): StageDef {
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 
-export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy' | 'mixin';
+export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy' | 'mixin' | 'ward' | 'twist';
 
 /** stageclear / stagetime: clear, or survive `target` seconds in, the goal's `stage`. */
 export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook' | 'stageclear' | 'stagetime' | 'rainbow';
@@ -490,6 +580,34 @@ export const BAGELS: BagelDef[] = [
     choices: 3,
     allStats: 0,
   },
+  // Phase 3: the Pantry bagel
+  {
+    id: 'garlic',
+    name: 'Garlic',
+    tex: 'bagel_garlic',
+    weapon: 'pin',
+    quirk: 'Warding: +25% damage to elites and bosses. Starts with Rolling Pin.',
+    quirkId: 'ward',
+    goal: { kind: 'stageclear', target: 1, stage: 'stage4', text: 'Clear the Pantry' },
+    hp: 100,
+    speed: 140,
+    choices: 3,
+    allStats: 0,
+  },
+  // Phase 3: the Bread Bin bagel
+  {
+    id: 'pretzel',
+    name: 'Pretzel',
+    tex: 'bagel_pretzel',
+    weapon: 'storm',
+    quirk: 'Twisted: every 5th level-up, pick two cards. Starts with Seed Storm.',
+    quirkId: 'twist',
+    goal: { kind: 'stageclear', target: 1, stage: 'stage5', text: 'Clear the Bread Bin' },
+    hp: 100,
+    speed: 140,
+    choices: 3,
+    allStats: 0,
+  },
   // M11: the secret bagel
   {
     id: 'rainbow',
@@ -536,7 +654,12 @@ export type EnemyKind =
   | 'scoop' | 'fcroissant' | 'tyrantjr' | 'waffle' | 'wafflesq' | 'fburn'
   // The Toaster Oven
   | 'ember' | 'btoast' | 'hotsauce' | 'popcorn' | 'popbit' | 'tot' | 'wafflebit' | 'mscoop'
-  | 'muffin' | 'fburnt' | 'flapjack' | 'broiler';
+  | 'muffin' | 'fburnt' | 'flapjack' | 'broiler'
+  // The Pantry
+  | 'dustbunny' | 'peacan' | 'pepper' | 'sugarcube' | 'crystal' | 'pmuffin' | 'spore'
+  | 'loaf' | 'broilerjr' | 'tangle' | 'mdough' | 'doughball'
+  // The Bread Bin
+  | 'stalecrumb' | 'crumbmarch' | 'knight' | 'bspore' | 'tanglejr' | 'mdoughjr' | 'king';
 
 export interface EnemyDef {
   tex: string;
@@ -557,11 +680,17 @@ export interface EnemyDef {
   /** Elites, mini-bosses and bosses: flat health (no growth over the run), never recycled or capped. */
   flat?: boolean;
   /** Shooters: what they fire (default: one Pea Pod pea). */
-  shot?: { tex: string; n: number; spread: number; speed: number; dmg: number; r: number; every: number };
+  shot?: { tex: string; n: number; spread: number; speed: number; dmg: number; r: number; every: number; life?: number };
+  /** Chargers: bounce off shelves instead of stopping against them. */
+  bounce?: boolean;
   /** Leaves a small, short-lived ember spark where it dies. */
   ember?: boolean;
   /** Drips small melt puddles as it walks. */
   drip?: boolean;
+  /** Carries a shield that halves damage until it has soaked up this much (grows with the stage like health), then breaks off. */
+  shield?: number;
+  /** Pops into a ring of this many short-lived shots when beaten (never one straight at you). */
+  pop?: number;
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
@@ -601,6 +730,27 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   fburnt: { tex: 'en_fburnt', hp: 950, speed: 40, dmg: 17, radius: 26, xp: 20, mass: 10, burst: 0xd9472e, flat: true },
   flapjack: { tex: 'en_flap5', hp: 1700, speed: 50, dmg: 16, radius: 30, xp: 30, mass: 12, burst: 0xe0a24a, flat: true },
   broiler: { tex: 'en_broiler', hp: 7000, speed: 32, dmg: 26, radius: 46, xp: 0, mass: 40, burst: 0xff6a2a, flat: true },
+  // The Pantry
+  dustbunny: { tex: 'en_dustbunny', hp: 8, speed: 80, dmg: 5, radius: 9, xp: 1, mass: 0.8, burst: 0xb9b2aa },
+  peacan: { tex: 'en_peacan', hp: 42, speed: 46, dmg: 11, radius: 13, xp: 3, mass: 2.4, ai: 'charge', dash: 370, bounce: true, burst: 0x9fb2bd },
+  pepper: { tex: 'en_pepper', hp: 24, speed: 50, dmg: 6, radius: 11, xp: 3, mass: 1.2, ai: 'shoot', burst: 0x3a3632, shot: { tex: 'peppershot', n: 5, spread: 0.15, speed: 165, dmg: 6, r: 5, every: 3, life: 1.1 } },
+  sugarcube: { tex: 'en_sugarcube', hp: 26, speed: 47, dmg: 8, radius: 11.5, xp: 2, mass: 1.4, split: { kind: 'crystal', n: 3 }, burst: 0xffffff },
+  crystal: { tex: 'en_crystal', hp: 8, speed: 84, dmg: 4, radius: 7.5, xp: 1, mass: 0.8, burst: 0xeaf6ff },
+  pmuffin: { tex: 'en_pmuffin', hp: 60, speed: 42, dmg: 10, radius: 14, xp: 4, mass: 2.6, burst: 0xff8a3a },
+  spore: { tex: 'en_spore', hp: 10, speed: 66, dmg: 5, radius: 8, xp: 1, mass: 0.7, burst: 0x9fc85a },
+  loaf: { tex: 'en_loaf', hp: 420, speed: 40, dmg: 15, radius: 25, xp: 15, mass: 6, burst: 0x8fb04e, flat: true },
+  broilerjr: { tex: 'en_broilerjr', hp: 1100, speed: 38, dmg: 18, radius: 26, xp: 20, mass: 10, burst: 0xff6a2a, flat: true },
+  tangle: { tex: 'en_tangle', hp: 1700, speed: 52, dmg: 16, radius: 30, xp: 30, mass: 12, burst: 0xf0d27a, flat: true },
+  mdough: { tex: 'en_mdough', hp: 8200, speed: 30, dmg: 27, radius: 46, xp: 0, mass: 40, burst: 0xf3e3c0, flat: true },
+  doughball: { tex: 'en_doughball', hp: 26, speed: 62, dmg: 8, radius: 10, xp: 2, mass: 1.4, burst: 0xf3e3c0 },
+  // The Bread Bin
+  stalecrumb: { tex: 'en_stalecrumb', hp: 9, speed: 76, dmg: 5, radius: 9, xp: 1, mass: 0.9, burst: 0xa7a199 },
+  crumbmarch: { tex: 'en_stalecrumb', hp: 12, speed: 100, dmg: 6, radius: 9, xp: 1, mass: 0.9, ai: 'line', burst: 0xa7a199 },
+  knight: { tex: 'en_knight_s', hp: 52, speed: 40, dmg: 11, radius: 13, xp: 4, mass: 3, burst: 0xd9a85c, shield: 34 },
+  bspore: { tex: 'en_bspore', hp: 12, speed: 60, dmg: 5, radius: 9, xp: 2, mass: 0.8, burst: 0x9fc85a, pop: 5 },
+  tanglejr: { tex: 'en_tanglejr', hp: 1100, speed: 46, dmg: 16, radius: 26, xp: 20, mass: 10, burst: 0xf0d27a, flat: true },
+  mdoughjr: { tex: 'en_mdoughjr', hp: 2300, speed: 32, dmg: 18, radius: 34, xp: 30, mass: 14, burst: 0xf3e3c0, flat: true },
+  king: { tex: 'en_king', hp: 9500, speed: 30, dmg: 28, radius: 46, xp: 0, mass: 40, burst: 0xa7a199, flat: true },
 };
 
 // Run pacing (seconds)
@@ -671,5 +821,35 @@ export const ENEMY_BOOK: Record<StageId, BookEnemy[]> = {
     { kind: 'fburnt', name: 'Freezer Burn, Again', blurb: 'Back for revenge at 4:00, a bit smaller.', role: 'elite' },
     { kind: 'flapjack', name: 'Flapjack Stack', blurb: 'Throws pancakes. Gets faster as it loses them.', role: 'mini' },
     { kind: 'broiler', name: 'The Broiler', blurb: 'Sweeping flame lines and fireballs. Things are heating up!', role: 'boss' },
+  ],
+  stage4: [
+    { kind: 'dustbunny', name: 'Dust Bunny', blurb: 'Fast, fluffy, and never alone.' },
+    { kind: 'sugarcube', name: 'Sugar Cube', blurb: 'Shatters into three sharp crystals.' },
+    { kind: 'crystal', name: 'Sugar Crystal', blurb: 'A quick little shard of Sugar Cube.' },
+    { kind: 'peacan', name: 'Rolling Pea Can', blurb: 'Charges, and bounces off the shelves.' },
+    { kind: 'pepper', name: 'Pepper Shaker', blurb: 'Shakes out a short cone of pepper.' },
+    { kind: 'pmuffin', name: 'Molten Muffin', blurb: 'Demoted from the oven. Still leaves a little fire.' },
+    { kind: 'spore', name: 'Mold Spore', blurb: 'Drifts out of a Moldy Loaf, or in on its own.' },
+    { kind: 'wafflebit', name: 'Waffle Bit', blurb: 'Hops over the shelves in long lines.' },
+    { kind: 'loaf', name: 'Moldy Loaf', blurb: 'Slow and tough. Breathes out puffs of spores.', role: 'elite' },
+    { kind: 'broilerjr', name: 'Broiler Jr.', blurb: 'A surprise at 4:00. One flame line at a time.', role: 'elite' },
+    { kind: 'tangle', name: 'Spaghetti Tangle', blurb: 'Lashes noodle lines and knots a doorway shut.', role: 'mini' },
+    { kind: 'mdough', name: 'Mother Dough', blurb: 'Popping bubbles, then dough walls. She has been rising for a hundred years.', role: 'boss' },
+    { kind: 'doughball', name: 'Dough Ball', blurb: 'A little piece of Mother Dough, sent to fetch you.' },
+  ],
+  stage5: [
+    { kind: 'stalecrumb', name: 'Stone Crumb', blurb: 'Stale all the way through. Grey, hard and quick.' },
+    { kind: 'bspore', name: 'Puff Spore', blurb: 'Pops into a ring of spores. The gap always faces you.' },
+    { kind: 'knight', name: 'Crouton Knight', blurb: 'Its crust shield halves every hit until it cracks off.' },
+    { kind: 'tot', name: 'Toaster Tot', blurb: 'Back from the oven for the last stand.' },
+    { kind: 'fcrumb', name: 'Frost Crumb', blurb: 'Back from the Freezer for the last stand.' },
+    { kind: 'ember', name: 'Ember Crumb', blurb: 'Back from the oven. Still leaves a little flame.' },
+    { kind: 'dustbunny', name: 'Dust Bunny', blurb: 'Back from the Pantry, and still never alone.' },
+    { kind: 'tyrantjr', name: 'The Toaster Tyrant', blurb: 'First of the old bosses to return. A fan of toast.', role: 'elite' },
+    { kind: 'fburnt', name: 'The Freezer Burn', blurb: 'Second to return. One warned icicle fan at a time.', role: 'elite' },
+    { kind: 'broilerjr', name: 'The Broiler', blurb: 'Third to return. One flame line at a time.', role: 'elite' },
+    { kind: 'tanglejr', name: 'The Spaghetti Tangle', blurb: 'Last to return. Noodle lines, but no knots.', role: 'elite' },
+    { kind: 'mdoughjr', name: 'Mother Dough', blurb: 'Smaller, with her bubbles and dough blobs. No walls.', role: 'mini' },
+    { kind: 'king', name: 'The Stale King', blurb: 'Crumbs and knights, then shards, then the dark. Everything goes stale in the end.', role: 'boss' },
   ],
 };

@@ -42,6 +42,13 @@ export class Pickups {
 
   drop(kind: Pickup['kind'], x: number, y: number, value: number, land = true): void {
     const g = this.g;
+    // Nothing lands inside a shelf: it slides out to the nearest open floor.
+    if (g.floor.walls.length) {
+      const o = { x, y };
+      g.floor.pushOut(o, kind === 'xp' || kind === 'coin' || kind === 'heal' ? 8 : 16);
+      x = o.x;
+      y = o.y;
+    }
     const tex = kind === 'xp' ? gemTex(value) : kind;
     const isChest = kind === 'chest' || kind === 'goldchest' || kind === 'bun' || kind === 'mug';
     const sprite = g.img(tex, x, y, isChest ? 12 : 10);

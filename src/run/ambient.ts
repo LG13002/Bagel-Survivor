@@ -21,6 +21,8 @@ const AIR = {
   cold: { tint: 0x0b2c5c, edge: 0.46, n: 18, color: 0xe6f7ff, alpha: [0.25, 0.6], size: [0.4, 0.95], vx: [-16, -4], vy: [14, 32], haze: 0 },
   // The Toaster Oven: red-hot edges, sparks and a haze of heat rising.
   hot: { tint: 0x7a1c05, edge: 0.46, n: 12, color: 0xffa64a, alpha: [0.3, 0.6], size: [0.35, 0.8], vx: [-5, 5], vy: [-38, -18], haze: 4 },
+  // The Pantry: a dim amber light at the edges and slow dust hanging in the air.
+  dim: { tint: 0x2a1604, edge: 0.52, n: 16, color: 0xf2dcae, alpha: [0.12, 0.3], size: [0.4, 1.1], vx: [-4, 4], vy: [-3, 5], haze: 0 },
 };
 
 const rnd = (r: number[]) => r[0] + Math.random() * (r[1] - r[0]);
@@ -39,7 +41,7 @@ export class Ambient {
 
   constructor(private g: GameScene) {
     const st = g.stage;
-    const air = st.frost ? AIR.cold : st.coils ? AIR.hot : AIR.warm;
+    const air = st.frost ? AIR.cold : st.coils ? AIR.hot : st.shelves ? AIR.dim : AIR.warm;
     this.tint = g.ui(g.add.image(0, 0, 'vignette').setOrigin(0).setTint(air.tint).setAlpha(air.edge).setDepth(-8));
     // Battery saver: no tint (a whole screen of blending every frame) and no specks.
     if (settings().saver) {

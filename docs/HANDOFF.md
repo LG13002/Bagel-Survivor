@@ -19,6 +19,8 @@ This is the history and the decisions behind the current game. The working rules
 | M12 change list (Foundations) | https://claude.ai/artifact/VUGKSKxsbQ3LFNHHNDwChA |
 | M13 change list (Onboarding and story) | https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44 |
 | M14 change list (Animation and feel) | https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL |
+| M15 change list (the Pantry) | https://claude.ai/artifact/Ue8289z2E3gN9o1oY9ppJs |
+| Dodging and crowd tuning (after the Pantry playtest) | https://claude.ai/artifact/R2g7G4kYhdQsr8QpJZp6xo |
 
 ## The owner's standing decisions
 
@@ -300,6 +302,90 @@ How it was checked:
 - Frame rate (`fpsbench.cjs`, 12 seconds from about 4:10, M14 and M13 served side by side): Bakery 15.8 against 18.4 frames a second, Freezer 16.1 against 19.0, oven 14.7 against 16.7; a second Bakery pair read 17.6 against 18.5. So 5 to 15% lower in the bot. The bot draws without a graphics chip, where filling the screen is the slow part, and the stage's edge tint is one more screen-sized layer: with the tint hidden the Bakery read 18.3, level with M13. A phone's graphics chip handles one such layer easily, but if the owner's phone feels slower, the tint is the first thing to cut (Battery saver already does).
 - Weapon bench against M13, alternating: Rolling Pin level 3 at 217 and 272 damage a second (M13: 300 and 264), Sesame Shot level 3 at 99 and 104 (M13: 109 and 103). The usual run-to-run spread.
 - `savetest.cjs` (72 checks), `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Screens and slowed-down frames of each animation were looked at by hand.
+
+### Phase 3, M15: the Pantry (version 0.15)
+
+Built from the approved [M15 change list](https://claude.ai/artifact/Ue8289z2E3gN9o1oY9ppJs) (30 items plus the four suggestions). Stages 1 to 3 play as before. M15 and M16 share one branch and PR; the owner merges after M16.
+
+- **Stage 4, the Pantry:** unlocked by beating the Broiler. Wooden shelves stand on the floor and line up into aisles. They block you, enemies and enemy shots, never your shots. The borders between shelf cells are always open corridors, so nothing can box the bagel in.
+- **Path-finding (new system):** enemies walk around shelves by following a flow field toward the bagel, rebuilt five times a second (`Floor.steer`). Bosses, mini-bosses and the Waffle Bit lines ignore shelves.
+- **Hazards:** rolling cans (a rattle, a red strip with arrows for 1.2s, then the can rolls down the nearest corridor: 8 damage to you, 45 to every enemy it flattens; 12 or more is a "Strike!") and flour puffs (a sack wobbles, then a 3 second cloud that makes small enemies inside it faint; the bagel, shots and pickups are never hidden).
+- **Cast:** Dust Bunny, Sugar Cube (splits into 3 crystals), Rolling Pea Can (charges and bounces off shelves), Pepper Shaker (a short cone of 5 pepper shots), Molten Muffin as a regular from 2:00, Mold Spores, Waffle Bit lines. Elite: Moldy Loaf (breathes spores). Surprise at 4:00: Broiler Jr. Mini-boss: Spaghetti Tangle (noodle lines, and a knot that blocks part of an aisle for a few seconds). Boss: Mother Dough (bubbles that pop in warned circles, dough blob fans; at half health she rises, grows and pushes dough walls into the aisles).
+- **Short-lived walls** (`floor.addTemp`): a warning outline, then solid, then they melt. Used by the knot and the dough walls.
+- **Music:** `prun` (woodblocks and a plucked bass) and `pboss`. New sounds: rattle, roll, poof, whip.
+- **Garlic bagel** (clear the Pantry): "Warding", everything it does deals 25% more to elites, mini-bosses and bosses. Starts with the Rolling Pin. The design doc's first idea was a short-range aura; the owner found that too close to Onion Olly and picked Warding from three options.
+- **Menus:** the stage picker shows five stages and five difficulty flames; Stage 5 (the Bread Bin) is "Coming soon". Cookbook Enemies has a Pantry page. Three new challenges (clear the Pantry 60 Dough, clear it on Extra Crispy 100, a Strike 50). Two new tips (shelves, cans) and two hints.
+- **Older goals keep their meaning:** "clear every stage" style challenges and the Rainbow goal are pinned to the first three stages.
+
+Deviations from the list, told to the owner:
+- **Suggestion 3 (warnings near shelves)** was done by drawing warning rings and outlines above the shelves instead of dimming the shelves.
+- **The flour cloud sits on the floor** and fades the small enemies inside it, instead of being drawn over them. It reads the same and can never cover a shot or a pickup.
+- **Waffle Bit lines hop over shelves** (they would bunch up at a shelf otherwise).
+- **Contact damage dial is 0.94,** below the oven's. Shelves funnel enemies into the bagel, so the first dial (1.12) measured 27% more damage a minute than the oven. See the numbers below.
+
+How it was checked:
+- Difficulty (`wbench.cjs 6 sesame,storm`, damage taken a minute, oven against Pantry, alternating, two runs of each): from 2:00, oven 350 and Pantry 421 (20% more); from 3:30, oven 488 and Pantry 492 (level); together 419 against 457, about 9% more. The target was about 10% (9.0 against the oven's 8.2). The Pantry's extra bite is in the middle of the run, when the Spaghetti Tangle and the Muffins arrive; by the end the two stages hurt the same. Earlier dial settings, same method: 1.12 gave 27% more, 1.0 gave 16%, 0.97 gave 13%.
+- Frame rate (`fpsbench.cjs`, alternating): oven 20.0 and 19.6 frames a second, Pantry 19.8 and 20.4. The first build read about 15% lower than the oven; the cause was the shelves' shadows, drawn as rounded shapes every frame. They are plain rectangles now and only the ones on screen are drawn.
+- Boss timing (`bosstime.cjs`): Mother Dough arrives at 4:30 and first attacks 1.48s later, like every other boss.
+- Music (`mixtest.cjs`): `prun` at full strength -14.6 dB and `pboss` -13.8 dB, inside the band the other stages sit in.
+- Garlic (`bagelbench.cjs`, Stage 1 to 4:25): 428 damage a second, against Plain Jane 469 and Onion Olly 452 with the same card policy. Warding only touches elites and bosses, so it does not speed up ordinary waves.
+- Stages 1 to 3 against the live game, alternating: Rolling Pin level 3 at 279, 415 and 452 damage a second on Stages 1, 2 and 3 (live game: 280, 342, 414), Sesame Shot level 3 at 104, 128 and 185 (live: 109, 129, 175): the usual run-to-run spread. `bosstime.cjs`: every boss arrives at 4:30 and first attacks 1.45 to 1.51s later on both builds.
+- A Pantry win was played by bot in Full, Quick, Endless, Extra Crispy and Practice; the clear, the Garlic unlock, the bests and the challenge pay all landed, and a run resumed in the Pantry with its shelves and boss. `savetest.cjs`, `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Every new screen was looked at by hand at both sizes.
+
+### Dodging and crowd tuning, every stage (after the owner's Pantry playtest, still version 0.15)
+
+The owner played the Pantry, could not get past the Spaghetti Tangle, and said damage arrives from too many angles at once to survive by skill: enemies should be more manageable in every stage (kept in line with each other), and good movement should be rewarded. Built from the approved [tuning list](https://claude.ai/artifact/R2g7G4kYhdQsr8QpJZp6xo).
+
+What the new bot (`dodgebench.cjs`) found: charging enemies were the largest source of damage in every stage unless their wind-up was read, and the wind-up was only a colour flash on a small enemy in a crowd. The game also spawned 70% of enemies in the direction of travel and sent waves as a closed ring, so there was rarely a gap. In the Pantry the Pea Can's bounce could not be read at all.
+
+- **Charge lanes:** a red strip shows where each charger will dash, from the start of its wind-up. A Pea Can's lane bends where it will bounce.
+- **At most three chargers** wind up or dash at once.
+- **Spawns:** 40% in the direction of travel (was 70%). Ring waves leave an opening of about 110 degrees in a random place.
+- **Regular enemies: 15% less health in every stage.** Elites and bosses unchanged.
+- **Safe time after a hit:** 1.1s (was 0.9s).
+- **Pantry:** Spaghetti Tangle health 2,000 to 1,700 and 3.3s between noodle volleys (was 2.7s); Molten Muffins join at 2:45 (was 2:00, the same moment as the Tangle); Pea Can damage 14 to 11 and about a quarter fewer.
+- **One addition not on the list:** a one-time tip the first time a lane shows ("A red strip shows where an enemy will dash. Step out of it!").
+
+Measured (`dodgebench.cjs`, 2:00 to about 3:15, damage taken a minute, old and new builds alternating, two runs each, hits counted 1.1s apart on both builds so the longer safe time is not part of the comparison):
+
+| Stage | Careless: before | Careless: after | Careful: before | Careful: after |
+| --- | --- | --- | --- | --- |
+| 1 | 236 | 259 | 92 | 38 |
+| 2 | 273 | 255 | 160 | 130 |
+| 3 | 272 | 254 | 161 | 117 |
+| 4 | 265 | 245 | 162 | 138 |
+
+Careful play takes 26% less damage; careless play about the same (3% less). So the gap between the two grew from 1.8 times to 2.4 times: dodging pays more, which was the aim. The careful bot reads lanes perfectly on both builds, so the lanes' benefit to a person is not in these numbers. If the owner still finds crowds too thick, `CROWD_HP` is the dial (he was offered 20%).
+
+`savetest.cjs`, `tutortest.cjs` (both sizes) and `qtest.cjs` pass.
+
+**Second pass, the same evening.** The owner played it ("feels much better"), then asked for 20% and fewer enemies across the board, because the swarms were still thick. Regular enemy health is now 20% lower (`CROWD_HP` 0.8) and there are about a fifth fewer regular enemies in every stage (`CROWD_COUNT` 0.82: slower spawns, lower caps, 23 in a wave instead of 28). Seeds are worth 22% more (`CROWD_XP`), so levels come at the same pace. Same bot, against the build from before any tuning, two runs each:
+
+| Stage | Careless: before | Careless: now | Careful: before | Careful: now |
+| --- | --- | --- | --- | --- |
+| 1 | 233 | 184 | 80 | 33 |
+| 2 | 286 | 260 | 130 | 92 |
+| 3 | 296 | 237 | 125 | 96 |
+| 4 | 267 | 227 | 159 | 102 |
+
+Careless play takes 16% less, careful play 35% less, and the crowd within reach of the bagel fell from about 7 enemies to about 4.
+
+### Phase 3, M16: the Bread Bin finale (version 0.16)
+
+Change list: https://claude.ai/artifact/WPJU3GQWLY1s8LSoL9wmVk (approved by the owner; no personal name in the credits, and the breaking shield for the Crouton Knight).
+
+- **Stage 5, the Bread Bin** (`breadbin.ts` for the art, `run/bin.ts` for the hazards): an open, dim floor with a pool of light around the bagel. Unlocked by beating Mother Dough. Dough 3x.
+- **Stale creep:** cold grey patches that grow, slow the bagel 30% and never start under it. Any weapon hit near a patch burns it back; 25 burned in one run is a challenge. Capped at 8 patches.
+- **Falling crumbs:** a shadow for 1.2s, then 8 damage to you and 45 to enemies under it. Both hazards run on real time and ease off while a boss is out.
+- **Cast:** Stone Crumb (swarm), Puff Spore (pops into a ring of short-lived shots; the ring's gap always faces the bagel), Crouton Knight (a shield that soaks half of each hit until it breaks), old faces from 2:00, marching lines. The four elite slots are the old bosses in order (Toaster Tyrant, Freezer Burn, Broiler, Spaghetti Tangle; the last carries the second bun). Mini-boss: a smaller Mother Dough with no walls.
+- **The Stale King** (9500 health, three phases at two thirds and one third, both marked on his bar): crumb fans and two guard knights; then shard lines with a warning and creep around him; then dark spells, where he charges three times along a glowing lane and rests in the light. In the dark, enemies' eyes glow, and the fade is slow with Flashing Reduced. His fall has a longer slow motion and clears all creep.
+- **Ending:** the first King win (any mode but Practice) plays a four-page comic and a credits scroll before the results. Settings, About gets Ending and Credits buttons. The title screen turns to morning with a crown by the version, and the stage card gets a gold Cleared stamp.
+- **Pretzel** (quirk `twist`, unlocked by clearing the Bread Bin): every 5th level reached, pick two cards from the same hand (no reroll on the second pick). Starts with Seed Storm.
+- Three songs (`brun`, `king` stepping up with each phase, `ending`), five sounds, a Cookbook page, three challenges, two tips, What's new, version 0.16.
+
+**Deviations from the list:** the swarm enemy is "Stone Crumb" and the spore "Puff Spore" (the older stages already use Stale Crumb and Mold Spore); the credits show stage clears, because saves never counted runs played; the base dimness is skipped with Battery saver; the What's new card covers both the Pantry and the Bread Bin, since they ship together.
+
+**Measured** (`dodgebench.cjs`, careless walking, damage a minute, from 1:00 / 2:10 / 3:35): Bread Bin 185 / 264 / 204 against the Pantry's 182 / 262 / 135, about 13% more overall, nearly all of it in the King's stretch. To get there the stage's damage dial went from 1.0 to 1.1 and spawn rate from 1.06 to 1.12. A careful bot took far less (61 / 98 / 15 before the dials moved). King fight with an ordinary build (two evolved weapons and two at level 5), circling him: down in 103s of stage time, 220 damage taken, phases at 66% and 33%; the same bot against Mother Dough takes 199 in 67s and against the Broiler 130 in 59s. Frame rate in the bot: Bread Bin 17.5 against the Pantry's 18.5 (the dim layer; 21.4 with Battery saver). Songs levelled with `mixtest.cjs`. `savetest`, `tutortest` (both heights), `qtest` and the new `endtest` pass; resuming mid-King returns in the right phase.
 
 ## Weapon benchmark (bot, M11 part 3)
 

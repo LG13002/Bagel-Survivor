@@ -10,7 +10,9 @@ export type Sfx =
   | 'ice' | 'frost' | 'sip' | 'pea' | 'shatter' | 'icicle' | 'roar' | 'melt' | 'charge'
   | 'knife' | 'jar' | 'toastpop' | 'stamp'
   | 'hiss' | 'flare' | 'bubble' | 'grease' | 'sauce' | 'popcorn' | 'ignite' | 'clang'
-  | 'thud' | 'flip' | 'tip' | 'tick';
+  | 'thud' | 'flip' | 'tip' | 'tick'
+  | 'rattle' | 'roll' | 'poof' | 'whip'
+  | 'creep' | 'burnoff' | 'crumbfall' | 'shieldbreak' | 'kingcrack';
 
 let ctx: AudioContext | null = null;
 let sfxBus: GainNode | null = null;
@@ -27,6 +29,8 @@ const minGap: Record<Sfx, number> = {
   knife: 0.12, jar: 0.15, toastpop: 0.2, stamp: 0.25,
   hiss: 0.4, flare: 0.25, bubble: 0.6, grease: 0.2, sauce: 0.2, popcorn: 0.06, ignite: 0.15, clang: 0.12,
   thud: 0.2, flip: 0.05, tip: 0.3, tick: 0.04,
+  rattle: 0.4, roll: 0.3, poof: 0.2, whip: 0.2,
+  creep: 1.5, burnoff: 0.25, crumbfall: 0.25, shieldbreak: 0.12, kingcrack: 0.8,
 };
 /** Sounds that may be dropped when too many play at once. */
 const LOW: Partial<Record<Sfx, true>> = { hit: true, xp: true, shoot: true, crunch: true, splat: true, clatter: true, coin: true, shatter: true, melt: true, popcorn: true, ignite: true, clang: true };
@@ -38,7 +42,7 @@ const recent: number[] = [];
 const VARY: Partial<Record<Sfx, true>> = {
   hit: true, crunch: true, splat: true, clatter: true, shatter: true, pop: true, hurt: true, coin: true, pea: true, melt: true,
   popcorn: true, grease: true, sauce: true, flakes: true, swoosh: true, knife: true, jar: true, toastpop: true, stamp: true,
-  clang: true, pin: true, splash: true, shoot: true, lox: true, thud: true, ignite: true, charge: true, icicle: true, flare: true,
+  burnoff: true, crumbfall: true, shieldbreak: true, clang: true, pin: true, splash: true, shoot: true, lox: true, thud: true, ignite: true, charge: true, icicle: true, flare: true,
 };
 /** The pitch multiplier for the sound being built right now. */
 let vary = 1;
@@ -429,6 +433,42 @@ function play(name: Sfx, now: number): void {
       break;
     case 'tick': // the results screen counting up
       tone('triangle', 1250, 1100, 0.025, 0.07);
+      break;
+    case 'rattle': // a can about to roll: a tinny rattle over a second
+      for (let i = 0; i < 9; i++) tone('triangle', 900 + (i % 3) * 180, 700, 0.05, 0.07, i * 0.12);
+      break;
+    case 'roll': // the can rolls: a low rumble that fades
+      noise(1.6, 0.22, 240, { freq1: 120 });
+      tone('triangle', 140, 90, 1.2, 0.08);
+      break;
+    case 'poof': // a flour sack bursts
+      noise(0.5, 0.22, 900, { type: 'lowpass', freq1: 200 });
+      break;
+    case 'whip': // a noodle lashes out
+      noise(0.16, 0.2, 800, { type: 'bandpass', freq1: 5200 });
+      tone('sine', 300, 120, 0.12, 0.1, 0.1);
+      break;
+    case 'creep': // the Stale spreading: a low, dry crackle that swells
+      noise(0.9, 0.1, 500, { type: 'bandpass', freq1: 1400 });
+      for (let i = 0; i < 5; i++) tone('triangle', 240 - i * 22, 150, 0.05, 0.035, 0.1 + i * 0.14);
+      break;
+    case 'burnoff': // a patch of creep burned away: a quick sizzle with a bright tick
+      noise(0.22, 0.14, 2400, { type: 'highpass', freq1: 6000 });
+      tone('sine', 700, 1300, 0.12, 0.06);
+      break;
+    case 'crumbfall': // a chunk of crust lands: a dry thump and a scatter
+      tone('sine', 120, 50, 0.22, 0.32);
+      noise(0.25, 0.2, 900, { type: 'bandpass', freq1: 300 });
+      break;
+    case 'shieldbreak': // a Crouton Knight's shield cracks off
+      tone('triangle', 1500, 900, 0.1, 0.09);
+      tone('square', 420, 180, 0.08, 0.06, 0.02);
+      noise(0.12, 0.16, 2600, { type: 'bandpass', delay: 0.02 });
+      break;
+    case 'kingcrack': // the Stale King cracks: a deep split with stone falling after it
+      tone('sawtooth', 150, 40, 0.5, 0.2);
+      noise(0.5, 0.3, 500, { freq1: 150 });
+      for (let i = 0; i < 4; i++) noise(0.08, 0.14, 1800, { type: 'bandpass', delay: 0.12 + i * 0.09 });
       break;
     case 'lock':
       tone('square', 160, 110, 0.07, 0.14);

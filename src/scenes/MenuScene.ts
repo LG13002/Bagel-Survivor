@@ -146,6 +146,8 @@ export class MenuScene extends Phaser.Scene {
       tab,
       onClose: () => this.closePopup(false),
       onIntro: () => wipeTo(this, 'intro'),
+      onEnding: () => wipeTo(this, 'intro', { ending: true }),
+      onCredits: () => wipeTo(this, 'credits'),
       // A pasted or reset save changes everything the menu shows: start the menu again from it.
       onSaveReplaced: () => this.scene.restart(),
     });
@@ -659,6 +661,18 @@ export class MenuScene extends Phaser.Scene {
       card.add(rib);
     }
 
+    if (st.boss.kind === 'king' && (save.stageClears?.[st.id] ?? 0) > 0) {
+      // The last stage wears a gold stamp once the Stale King has fallen.
+      const rib = this.add.container(pic.displayWidth / 2 - 46 * S, picY + pic.displayHeight / 2 - 10 * S);
+      const g = this.add.graphics();
+      const rw = 104 * S;
+      g.fillStyle(0x24160d, 1).fillRoundedRect(-rw / 2 - 2 * S, -15 * S, rw + 4 * S, 30 * S, 8 * S);
+      g.fillStyle(COLORS.gold, 1).fillRoundedRect(-rw / 2, -13 * S, rw, 26 * S, 7 * S);
+      rib.add([g, txt(this, 0, 0, 'CLEARED', 15, CSS.dark, { stroke: false })]);
+      rib.setAngle(-6);
+      card.add(rib);
+    }
+
     let y = picY + pic.displayHeight / 2 + 30 * S;
     card.add(txt(this, 0, y, `STAGE ${st.num}`, 13, CSS.muted, { stroke: false }));
     y += 24 * S;
@@ -668,8 +682,8 @@ export class MenuScene extends Phaser.Scene {
     if ((save.crispyClears?.[st.id] ?? 0) > 0) card.add(this.add.image(nameT.width / 2 + 18 * S, y, 'ic_flame').setScale(0.55).setTint(0xffd27a));
     y += 30 * S;
     // Difficulty: one flame per step up.
-    for (let i = 0; i < 3; i++) {
-      const f = this.add.image((i - 1) * 26 * S, y, 'ic_flame').setScale(0.65);
+    for (let i = 0; i < 5; i++) {
+      const f = this.add.image((i - 2) * 24 * S, y, 'ic_flame').setScale(0.6);
       if (i >= st.pips) f.setAlpha(0.22);
       card.add(f);
     }
@@ -989,7 +1003,9 @@ export class MenuScene extends Phaser.Scene {
     const W = this.scale.width;
     const save = load();
     makeEnemyTextures(this);
-    const st = STAGES[stageIdx];
+    // Only stages that exist have a page.
+    const BOOK = STAGES.filter((s2) => s2.built);
+    const st = BOOK[stageIdx] ?? BOOK[0];
     const list = ENEMY_BOOK[st.id];
     const beaten = new Set(save.beaten ?? []);
     // A beaten boss was certainly met (older saves recorded wins before meetings).
@@ -1056,7 +1072,7 @@ export class MenuScene extends Phaser.Scene {
     const ny = gy + gridRows * cellH + infoH + 30 * S;
     const go = (d: number) => {
       sfx('swoosh');
-      this.openEnemies((stageIdx + d + STAGES.length) % STAGES.length);
+      this.openEnemies((stageIdx + d + BOOK.length) % BOOK.length);
     };
     c.add(button(this, W / 2 - pw / 2 + 44 * S, ny, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
     c.add(txt(this, W / 2, ny, `Stage ${st.num}: ${st.name}`, 15, CSS.cream));

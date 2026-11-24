@@ -133,12 +133,13 @@ export class Hud {
     this.bossGhost.setVisible(show);
     if (b && show) {
       const isBoss = b.kind === g.stage.boss.kind;
-      const mark = isBoss && !!g.stage.boss.phase2;
+      const marks = isBoss ? bossMarks(g.stage.boss) : [];
+      const mark = marks.length > 0;
       if (this.bossShown !== b.kind) {
         this.bossShown = b.kind;
         this.ghost = b.hp / b.maxHp;
         this.bossName.setText(isBoss ? g.stage.boss.name : g.stage.mini.name);
-        this.drawBossFrame(isBoss, mark);
+        this.drawBossFrame(isBoss, marks);
       }
       const frac = Math.max(0, b.hp / b.maxHp);
       this.ghost = frac > this.ghost ? frac : Math.max(frac, this.ghost - 0.006);
@@ -147,7 +148,7 @@ export class Hud {
       // Past the half-health mark the bar burns hotter.
       this.bossFill.setFillStyle(mark && b.enraged ? 0xff7a2a : COLORS.red);
     } else this.bossShown = '';
-    this.bossMark.setVisible(show && !!b && b.kind === g.stage.boss.kind && !!g.stage.boss.phase2);
+    this.bossMark.setVisible(show && !!b && b.kind === g.stage.boss.kind && bossMarks(g.stage.boss).length > 0);
     // Low health: the screen's edges glow red and beat like the heartbeat (a steady glow when flashing is Reduced).
     const hpFrac = g.player.hp / g.stats.maxHp;
     const low = g.player.hp > 0 && hpFrac < 0.25;
@@ -158,7 +159,7 @@ export class Hud {
   }
 
   /** The boss bar's frame: a dark name plate, the bar's ink outline and track, and the half-health mark. */
-  private drawBossFrame(isBoss: boolean, mark: boolean): void {
+  private drawBossFrame(isBoss: boolean, marks: number[]): void {
     const bw = this.bossBarW + 4 * S;
     const gr = this.bossBg;
     gr.clear();
@@ -170,12 +171,13 @@ export class Hud {
     gr.fillStyle(0x1d140d, 1).fillRoundedRect(-bw / 2, -5.5 * S, bw, 11 * S, 5.5 * S);
     const m = this.bossMark;
     m.clear();
-    if (mark) {
-      // A notch at half health, where the boss changes.
-      m.fillStyle(0x24160d, 1).fillRect(-2.5 * S, -8 * S, 5 * S, 16 * S);
-      m.fillStyle(COLORS.gold, 1).fillRect(-1 * S, -6.5 * S, 2 * S, 13 * S);
-      m.fillStyle(0x24160d, 1).fillTriangle(-6 * S, 8 * S, 6 * S, 8 * S, 0, 2 * S);
-      m.fillStyle(COLORS.gold, 1).fillTriangle(-3.5 * S, 7.5 * S, 3.5 * S, 7.5 * S, 0, 4 * S);
+    for (const f of marks) {
+      // A notch where the boss changes (half health for most; the Stale King has two).
+      const x = (f - 0.5) * this.bossBarW;
+      m.fillStyle(0x24160d, 1).fillRect(x - 2.5 * S, -8 * S, 5 * S, 16 * S);
+      m.fillStyle(COLORS.gold, 1).fillRect(x - 1 * S, -6.5 * S, 2 * S, 13 * S);
+      m.fillStyle(0x24160d, 1).fillTriangle(x - 6 * S, 8 * S, x + 6 * S, 8 * S, x, 2 * S);
+      m.fillStyle(COLORS.gold, 1).fillTriangle(x - 3.5 * S, 7.5 * S, x + 3.5 * S, 7.5 * S, x, 4 * S);
     }
   }
 
@@ -318,7 +320,7 @@ export class Hud {
     const gr = g.add.graphics();
     gr.fillStyle(0x24160d, 1).fillRoundedRect(-w / 2 - 4 * S, -h / 2 - 4 * S, w + 8 * S, h + 8 * S, 20 * S);
     // Themed per stage: icy blue in the Freezer, glowing red-hot in the oven, toasted brown on the countertop.
-    const th = g.stage.coils ? CARD_HOT : g.stage.frost ? CARD_ICY : CARD_TOAST;
+    const th = g.stage.coils ? CARD_HOT : g.stage.frost ? CARD_ICY : g.stage.shelves ? CARD_DOUGH : g.stage.dark ? CARD_STALE : CARD_TOAST;
     gr.fillStyle(th.fill, 0.97).fillRoundedRect(-w / 2, -h / 2, w, h, 16 * S);
     gr.lineStyle(2 * S, th.edge, 0.85).strokeRoundedRect(-w / 2 + 5 * S, -h / 2 + 5 * S, w - 10 * S, h - 10 * S, 12 * S);
     const t1 = fit(txt(g, 0, -17 * S, name.toUpperCase(), 26, th.name), w - 24 * S);
@@ -330,8 +332,15 @@ export class Hud {
   }
 }
 
+/** The shares of a boss's health where it changes, for the bar's notches. */
+function bossMarks(boss: { phase2?: boolean; marks?: number[] }): number[] {
+  return boss.marks ?? (boss.phase2 ? [0.5] : []);
+}
+
+const CARD_STALE = { fill: 0x2e2c2a, edge: 0xd9d2c6, name: CSS.gold, line: '#e9e4da' };
 const CARD_HOT = { fill: 0x4a170c, edge: 0xffb36b, name: CSS.gold, line: '#ffe2c4' };
 const CARD_ICY = { fill: 0x1d3a57, edge: 0xbfe6fb, name: CSS.red, line: '#dff4ff' };
+const CARD_DOUGH = { fill: 0x3d3324, edge: 0xf3e3c0, name: '#fff3dc', line: '#f2d9a6' };
 const CARD_TOAST = { fill: 0x5a3416, edge: 0xf2b84b, name: CSS.gold, line: '#fff3dc' };
 
 /** Change a pill's text only when it differs (setText re-renders the text texture). */

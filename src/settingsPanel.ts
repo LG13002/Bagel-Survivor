@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { COLORS, CSS, S, VERSION } from './config';
 import { askBackupCode, showBackupCode } from './backupDialog';
 import { clearRun } from './runsave';
-import { resetSave, type Settings } from './save';
+import { load, resetSave, type Settings } from './save';
 import { setSetting, settings } from './settings';
 import { setMusicVolume, setSoundVolume, sfx } from './sfx';
 import { HEADER, button, popupFrame, txt } from './ui';
@@ -114,6 +114,9 @@ export interface SettingsOpts {
   onSaveReplaced?: () => void;
   /** "Watch the intro" was tapped (About tab). */
   onIntro?: () => void;
+  /** "Ending" or "Credits" was tapped (About tab, once the ending has been seen). */
+  onEnding?: () => void;
+  onCredits?: () => void;
   tab?: number;
   /** "Replay tutorial" was just tapped (the button says so). Set by the panel itself. */
   replayed?: boolean;
@@ -241,6 +244,14 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
     y += 42 * S + lines.height + 26 * S;
     add(txt(scene, W / 2, y, 'No data leaves your phone.', 15, CSS.cream));
     add(txt(scene, W / 2, y + 26 * S, 'No accounts, no ads, no tracking. Your save stays in this browser.', 12, CSS.muted, { bold: false, stroke: false, wrap: cw / S }));
-    if (opts.onIntro) add(button(scene, W / 2, Math.min(y + 84 * S, top + ph - 40 * S), Math.min(cw, 220 * S), 44 * S, 'Watch the intro', opts.onIntro, { size: 16, color: COLORS.panelLight, textColor: CSS.cream }));
+    const by = Math.min(y + 84 * S, top + ph - 40 * S);
+    const quiet = { size: 15, color: COLORS.panelLight, textColor: CSS.cream };
+    if (opts.onIntro && opts.onEnding && opts.onCredits && load().ending) {
+      // Once the story is finished, all three of its pieces can be watched again.
+      const bw = (cw - 16 * S) / 3;
+      add(button(scene, left + bw / 2, by, bw, 44 * S, 'Intro', opts.onIntro, quiet));
+      add(button(scene, left + cw / 2, by, bw, 44 * S, 'Ending', opts.onEnding, quiet));
+      add(button(scene, left + cw - bw / 2, by, bw, 44 * S, 'Credits', opts.onCredits, quiet));
+    } else if (opts.onIntro) add(button(scene, W / 2, by, Math.min(cw, 220 * S), 44 * S, 'Watch the intro', opts.onIntro, { ...quiet, size: 16 }));
   }
 }

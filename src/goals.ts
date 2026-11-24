@@ -13,7 +13,8 @@ export interface ChallengeDef {
   status(save: SaveData): GoalStatus;
 }
 
-const BUILT = STAGES.filter((st) => st.built);
+/** The first three stages: the challenges written before the Pantry keep meaning what they said. */
+const BUILT = STAGES.slice(0, 3);
 /** The original six bagels (Plain to Onion), marked `starter` in BAGELS. */
 const STARTERS = BAGELS.filter((b) => b.starter).map((b) => b.id);
 
@@ -85,6 +86,14 @@ export const CHALLENGES: ChallengeDef[] = [
     icon: 'bagel_plain',
     status: (s) => count(STARTERS.filter((id) => clearedBest(s, (_, b) => b === id)).length, STARTERS.length),
   },
+  // The Pantry (M15)
+  { id: 'pantry', name: 'Clear the Pantry', reward: 60, icon: 'ic_crown', status: (s) => flag((s.stageClears?.stage4 ?? 0) > 0) },
+  { id: 'pantryx', name: 'Clear the Pantry on Extra Crispy', reward: 100, icon: 'ic_flame', status: (s) => flag((s.crispyClears?.stage4 ?? 0) > 0) },
+  // The Bread Bin (M16)
+  { id: 'breadbin', name: 'Clear the Bread Bin', reward: 80, icon: 'ic_crown', status: (s) => flag((s.stageClears?.stage5 ?? 0) > 0) },
+  { id: 'breadbinx', name: 'Clear the Bread Bin on Extra Crispy', reward: 120, icon: 'ic_flame', status: (s) => flag((s.crispyClears?.stage5 ?? 0) > 0) },
+  { id: 'creep', name: 'Burn away 25 patches of Stale creep in one run', reward: 50, icon: 'ic_bolt', status: (s) => count(s.records?.creep ?? 0, 25, true) },
+  { id: 'strike', name: 'Strike! Flatten 12 enemies with one rolling can', reward: 50, icon: 'ic_bolt', status: (s) => count(s.records?.strike ?? 0, 12, true) },
 ];
 
 /** Pays every challenge that is done but not paid yet. Returns the ones it paid. */

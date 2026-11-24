@@ -4,7 +4,7 @@ import type { SaveData } from './save';
 
 /** Preview builds (VITE_PREVIEW=1, used for the playable preview link) open every stage, and the newest bagels, so they can be tried right away. */
 const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
-const PREVIEW_BAGELS = ['blueberry', 'asiago', 'jalapeno', 'rainbow'];
+const PREVIEW_BAGELS = ['blueberry', 'asiago', 'jalapeno', 'rainbow', 'garlic', 'pretzel'];
 
 export interface GoalStatus {
   done: boolean;
@@ -52,7 +52,8 @@ export function goalStatus(save: SaveData, b: BagelDef): GoalStatus {
  * Clears come from the bests (any mode), so a bagel that cleared two stages still counts for only one.
  */
 export function rainbowStages(save: SaveData): number {
-  const byStage = STAGES.filter((st) => st.built).map((st) => {
+  // The first three stages only: the goal was set before the Pantry existed, and stays as it was.
+  const byStage = STAGES.slice(0, 3).map((st) => {
     const bagels = new Set<string>();
     for (const [k, b] of Object.entries(save.best ?? {})) {
       const [key, bagel] = k.split(':');

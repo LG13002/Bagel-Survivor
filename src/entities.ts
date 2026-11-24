@@ -43,6 +43,8 @@ export class Enemy {
   flame: Phaser.GameObjects.Image | null = null;
   /** Elites, mini-bosses and bosses (radius over 20): they get the full pose animation. */
   big = false;
+  /** Inside a flour cloud: drawn faint. */
+  faint = false;
   /** Seconds of hit squash left (big enemies). */
   sq = 0;
   /** Seconds left of a boss's drop onto the field: it can't move or hurt you until it lands. */
@@ -51,6 +53,11 @@ export class Enemy {
   roarT = 0;
   /** Last frame's attack timer, to spot the moment an attack goes off. */
   prevAtk = 0;
+  /** Crouton Knight: how much more its shield can soak up (0 = no shield). */
+  shield = 0;
+  /** The Stale King: the phase he has announced (1 to 3), and one of the guards he called. */
+  phaseN = 0;
+  guard = false;
 }
 
 export class Player {
@@ -97,6 +104,8 @@ export interface Hazard {
   r: number;
   dmg: number;
   t: number; // time until it fires
+  /** What lands there: a slice of toast (default) or one of Mother Dough's bubbles. */
+  drop?: string;
 }
 
 export interface Stats {

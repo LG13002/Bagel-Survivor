@@ -3,6 +3,7 @@ import { flash, shake } from '../settings';
 import { COLORS, CSS, DEBUG, S, ZOOM } from '../config';
 import {
   BAGELS,
+  ENEMIES,
   MAX_LEVEL,
   MAX_SLOTS,
   TOPPINGS,
@@ -30,8 +31,9 @@ import { Effects } from '../run/effects';
 import { Enemies } from '../run/enemies';
 import { Floor } from '../run/floor';
 import { Hazards } from '../run/hazards';
+import { CREEP_SLOW } from '../run/bin';
 import { Hud } from '../run/hud';
-import { CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
+import { CROWD_XP, HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -59,6 +61,8 @@ const DASH_CD = 5;
 /** Asiago ages: +1% damage every AGE_STEP seconds of the stage clock, up to AGE_MAX%. */
 const AGE_STEP = 10;
 const AGE_MAX = 30;
+/** Garlic's Warding: damage multiplier against elites, mini-bosses and bosses. */
+const WARD = 1.25;
 
 /**
  * A run. This file holds the core: starting and ending a run, the main loop, the player (movement, frost, quirks,
@@ -283,6 +287,17 @@ export class GameScene extends Phaser.Scene implements World {
       if (last !== undefined && this.now - last < cd) return false;
       e.hitCd.set(key, this.now);
     }
+    // Garlic's Warding: elites, mini-bosses and bosses take more from everything this bagel does.
+    if (this.bagel.quirkId === 'ward' && ENEMIES[e.kind].flat) dmg *= WARD;
+    // The Bread Bin: weapon hits burn back the creep they land on or beside.
+    if (this.stage.creep && key !== 'burn' && key !== 'crumb') this.hz.bin.burnAt(e.x, e.y, dmg);
+    if (e.shield > 0) {
+      // A Crouton Knight's shield takes half of every hit until it has soaked up enough, then cracks off.
+      const soak = dmg * 0.5;
+      dmg -= soak;
+      e.shield -= soak;
+      if (e.shield <= 0) this.foes.shieldBreak(e);
+    }
     e.hp -= dmg;
     if (key === 'burn') {
       // Burn ticks are quiet: no flash, no sound, so the orange glow stays visible.
@@ -419,7 +434,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   gainXp(v: number): void {
     const r = this.run;
-    r.xp += v * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
+    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
     while (r.xp >= r.xpNext) {
       r.xp -= r.xpNext;
       r.level++;
@@ -470,7 +485,11 @@ export class GameScene extends Phaser.Scene implements World {
     // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
     // Endless: a little faster every minute after 5:00.
     const extra = this.endless && this.stageT > 300 ? Math.min(0.2, ((this.stageT - 300) / 60) * 0.03) : 0;
-    setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, (this.stageT >= 180 ? 1.08 : 1) + extra);
+    const boss = this.foes.boss;
+    // The Stale King's theme steps up with his phases instead of with the clock.
+    if (boss?.kind === 'king') setRunIntensity(Math.max(0, boss.phaseN - 1), 1 + 0.04 * Math.max(0, boss.phaseN - 1));
+    else if (st.music.boss === 'king' && this.foes.bossOut()) setRunIntensity(0, 1);
+    else setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, (this.stageT >= 180 ? 1.08 : 1) + extra);
     if (this.player.hp > 0 && this.player.hp / this.stats.maxHp < 0.25) sfx('heart');
   }
 
@@ -478,7 +497,8 @@ export class GameScene extends Phaser.Scene implements World {
   step(dt: number): void {
     this.now += dt;
     this.updatePlayer(dt);
-    if (this.floor.posts.length) this.floor.pushOut(this.player, this.player.radius);
+    this.floor.tick(dt);
+    if (this.floor.posts.length || this.floor.walls.length) this.floor.pushOut(this.player, this.player.radius);
     this.director.update(dt);
     this.foes.rebuildGrid();
     this.foes.update(dt);
@@ -493,6 +513,13 @@ export class GameScene extends Phaser.Scene implements World {
       this.writeSnapshot();
     }
     if (this.run.pendingLevels > 0 && !this.paused) this.panels.openLevelUp();
+  }
+
+  /** One rolling can flattened a crowd. */
+  strike(n: number): void {
+    this.run.canBest = Math.max(this.run.canBest, n);
+    this.hud.banner(`Strike! ${n} flattened`, CSS.gold, 22);
+    sfx('gold');
   }
 
   writeSnapshot(): void {
@@ -599,8 +626,10 @@ export class GameScene extends Phaser.Scene implements World {
     }
     const st = this.stage;
     if (!st.ice && !st.frost && !st.grease) {
-      p.x += mx * this.stats.speed * dt;
-      p.y += my * this.stats.speed * dt;
+      // The Bread Bin: creep slows the bagel while it stands in it.
+      const sp = this.stats.speed * (st.creep && this.hz.bin.creepAt(p.x, p.y) ? CREEP_SLOW : 1);
+      p.x += mx * sp * dt;
+      p.y += my * sp * dt;
       return;
     }
     // Freezer: frost slows you, and on ice you keep sliding for a moment when you change direction.
@@ -662,7 +691,7 @@ export class GameScene extends Phaser.Scene implements World {
     const armor = r.armor + (this.toppings.get('frosting') ?? 0);
     if (armor) d = Math.max(d * 0.5, d - armor);
     p.hp -= d;
-    p.invulnUntil = this.now + 0.9;
+    p.invulnUntil = this.now + HIT_GRACE;
     if (this.foes.boss) r.bossClean = false;
     shake(this, 110, 0.005);
     sfx('hurt');
@@ -764,6 +793,10 @@ export class GameScene extends Phaser.Scene implements World {
       g.fillEllipse(e.x, e.y + r * 0.85, r * 2, r * 0.6);
     }
     for (const po of this.floor.posts) g.fillEllipse(po.x + 4, po.y + 13, 34, 10);
+    for (const w of this.floor.walls) {
+      if (w.life || Math.abs(w.x - p.x) > hw + w.hw || Math.abs(w.y - p.y) > hh + w.hh) continue;
+      g.fillRect(w.x - w.hw + 3, w.y + w.hh - 2, w.hw * 2 + 2, 11);
+    }
     for (const it of this.loot.list) {
       if (it.kind !== 'chest' && it.kind !== 'goldchest' && it.kind !== 'bun') continue;
       g.fillEllipse(it.x, it.y + 12, 24, 6);
@@ -985,6 +1018,8 @@ export class GameScene extends Phaser.Scene implements World {
       rec.kills = Math.max(rec.kills ?? 0, r.kills);
       rec.level = Math.max(rec.level ?? 1, r.level);
       rec.evos = Math.max(rec.evos ?? 0, r.evolutionsThisRun.length);
+      if (r.canBest) rec.strike = Math.max(rec.strike ?? 0, r.canBest);
+      if (r.creepBurned) rec.creep = Math.max(rec.creep ?? 0, r.creepBurned);
       if (this.endless) {
         rec.endless = Math.max(rec.endless ?? 0, Math.floor(this.now));
         rec.endlessBosses = Math.max(rec.endlessBosses ?? 0, this.director.bossRound);
@@ -1056,7 +1091,9 @@ export class GameScene extends Phaser.Scene implements World {
     const fade = () => {
       this.cameras.main.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       this.uiCam.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('results', result));
+      // The first time the Stale King falls, the ending comic and the credits come before the results.
+      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !load().ending;
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => (ending ? this.scene.start('intro', { ending: true, result }) : this.scene.start('results', result)));
     };
     if (victory && !quit) this.time.delayedCall(600, fade);
     else fade();

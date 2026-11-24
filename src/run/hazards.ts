@@ -5,7 +5,8 @@ import { RUN } from '../data';
 import type { EnemyShot, Hazard } from '../entities';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
-import { inPatch, POST_R, type IcePatch } from './floor';
+import { inPatch, POST_R, SHELF_CELL, type IcePatch } from './floor';
+import { Bin } from './bin';
 
 /** Toaster Oven coil flare-ups: warning time, strip size, damage to you and to enemies on it. */
 const COIL_WARN = 1.5;
@@ -18,9 +19,36 @@ const GREASE_WARN = 1.4;
 const GREASE_R = 22;
 const GREASE_DMG = 4;
 const SLICK_LIFE = 3;
+/** Rolling cans: warning time, speed, how far they roll, their size, damage to you and to enemies. */
+const CAN_WARN = 1.2;
+const CAN_SPEED = 430;
+const CAN_RUN = 820;
+const CAN_R = 20;
+const CAN_DMG = 8;
+const CAN_ENEMY_DMG = 45;
+/** One can flattening this many enemies is a "Strike!" (a challenge). */
+export const STRIKE = 12;
+/** Flour puffs: wobble time, cloud size and how long the cloud hangs. */
+const FLOUR_WARN = 1.2;
+const CLOUD_R = 78;
+const CLOUD_LIFE = 3;
 /** The Broiler's flame lines. */
 const BEAM_W = 30;
 const BEAM_DMG = 14;
+
+interface Can {
+  img: Phaser.GameObjects.Image;
+  /** Where it starts, and the way it rolls (a unit step along one axis). */
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  warn: number;
+  gone: number;
+  hitYou: boolean;
+  hits: Set<unknown>;
+  kills: number;
+}
 
 interface Coil {
   x: number;
@@ -41,19 +69,30 @@ export class Hazards {
   tempIce: (IcePatch & { life: number })[] = [];
   private rings: Hazard[] = [];
   private melts: { img: Phaser.GameObjects.Image; x: number; y: number; r: number; life: number }[] = [];
-  private warns: { x: number; y: number; a: number; t: number; n: number }[] = [];
+  private warns: { x: number; y: number; a: number; t: number; n: number; shard?: boolean }[] = [];
   private freezes: { img: Phaser.GameObjects.Image; x: number; y: number; r: number; t: number }[] = [];
   private coils: Coil[] = [];
   private greases: { img: Phaser.GameObjects.Image; x: number; y: number; t: number }[] = [];
   private sparks: { img: Phaser.GameObjects.Image; x: number; y: number; life: number; max: number; dmg: number; size: number }[] = [];
   /** The Broiler's flame lines: a warning glow, then a burst of fire along the line. */
-  private beams: { x: number; y: number; a: number; t: number; burn: number }[] = [];
+  private beams: { x: number; y: number; a: number; t: number; burn: number; noodle?: boolean }[] = [];
+  /** Flour clouds hanging over the floor: small enemies inside are drawn faint. */
+  clouds: { img: Phaser.GameObjects.Image; x: number; y: number; life: number }[] = [];
+  private cans: Can[] = [];
+  /** A can has rolled (or is about to) this run: the first one brings its tip. */
+  canSeen = false;
+  private sacks: { img: Phaser.GameObjects.Image; x: number; y: number; t: number }[] = [];
+  private canNext: number;
+  private flourNext: number;
+  private pantryGfx: Phaser.GameObjects.Graphics;
   private coilPatternN = 0;
   private coilNext: number;
   private greaseNext: number;
   private bossGfx: Phaser.GameObjects.Graphics;
   private ovenGfx: Phaser.GameObjects.Graphics;
   private beamGfx: Phaser.GameObjects.Graphics;
+  /** The Bread Bin's creep, falling crumbs and darkness. */
+  bin: Bin;
 
   constructor(private g: GameScene) {
     this.bossGfx = g.add.graphics().setDepth(3);
@@ -65,6 +104,12 @@ export class Hazards {
     // Oven hazards start a little into the run (real seconds, so Quick Runs aren't swamped).
     this.coilNext = g.now + 12;
     this.greaseNext = g.now + 20;
+    // Drawn above the shelves, so a warning is never lost against them.
+    this.pantryGfx = g.add.graphics().setDepth(29.5);
+    g.worldLayer.add(this.pantryGfx);
+    this.canNext = g.now + 14;
+    this.flourNext = g.now + 22;
+    this.bin = new Bin(g);
   }
 
   update(dt: number): void {
@@ -73,14 +118,16 @@ export class Hazards {
     this.updateFreezer(dt);
     this.updateOven(dt);
     this.updateBeams(dt);
+    this.updatePantry(dt);
+    this.bin.update(dt);
   }
 
   // ---------------------------------------------------------------- Enemy shots
 
-  fireShot(tex: string, x: number, y: number, a: number, speed: number, dmg: number, r: number, aim = false): void {
+  fireShot(tex: string, x: number, y: number, a: number, speed: number, dmg: number, r: number, aim = false, life = 5): void {
     const sprite = this.g.img(tex, x, y, 45);
     if (aim) sprite.setRotation(a);
-    this.shots.push({ sprite, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r, dmg, life: 5, spin: aim ? 0 : (Math.random() - 0.5) * 10 });
+    this.shots.push({ sprite, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, r, dmg, life, spin: aim ? 0 : (Math.random() - 0.5) * 10 });
   }
 
   /** A ring of n shots all around, turned by a random amount. */
@@ -90,8 +137,8 @@ export class Hazards {
   }
 
   /** A fan of n shots centred on angle a, `step` radians apart. */
-  fan(tex: string, x: number, y: number, a: number, n: number, step: number, speed: number, dmg: number, r: number): void {
-    for (let i = 0; i < n; i++) this.fireShot(tex, x, y, a + (i - (n - 1) / 2) * step, speed, dmg, r);
+  fan(tex: string, x: number, y: number, a: number, n: number, step: number, speed: number, dmg: number, r: number, life = 5): void {
+    for (let i = 0; i < n; i++) this.fireShot(tex, x, y, a + (i - (n - 1) / 2) * step, speed, dmg, r, false, life);
   }
 
   /** Second Bake: clear the air so the revived bagel has a moment. */
@@ -111,6 +158,7 @@ export class Hazards {
   private updateShots(dt: number): void {
     const p = this.g.player;
     const posts = this.g.floor.posts;
+    const walls = this.g.floor.walls.length > 0;
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const s = this.shots[i];
       s.x += s.vx * dt;
@@ -139,6 +187,11 @@ export class Hazards {
             break;
           }
         }
+      // Shelves block them too.
+      if (!dead && walls && this.g.floor.inWall(s.x, s.y, s.r * 0.5)) {
+        dead = true;
+        this.g.effects.burst(s.x, s.y, 0xd8c4a0, 3, 16);
+      }
       if (dead) {
         s.sprite.destroy();
         this.shots.splice(i, 1);
@@ -149,12 +202,12 @@ export class Hazards {
   // ---------------------------------------------------------------- Toaster Tyrant landing rings
 
   /** A warning ring where a giant slice of toast will land. */
-  addRing(x: number, y: number): void {
-    const r = 38;
-    const sprite = this.g.img('ring', x, y, 3);
+  addRing(x: number, y: number, r = 38, dmg = 18, t = 1.1, drop = 'toast'): void {
+    // Mother Dough's bubbles are warned above the shelves, so a circle is never lost against one.
+    const sprite = this.g.img('ring', x, y, drop === 'bubble' ? 29.6 : 3);
     sprite.setScale(((r * 2) / 64) * (1 / S) * 0.2);
     this.g.tweens.add({ targets: sprite, scale: ((r * 2) / 64) * (1 / S), duration: 300, ease: 'Back.Out' });
-    this.rings.push({ sprite, x, y, r, dmg: 18, t: 1.1 });
+    this.rings.push({ sprite, x, y, r, dmg, t, drop });
   }
 
   private updateRings(dt: number): void {
@@ -168,15 +221,17 @@ export class Hazards {
         const dx = h.x - p.x;
         const dy = h.y - p.y;
         if (dx * dx + dy * dy < (h.r + p.radius) ** 2) g.damagePlayer(h.dmg);
-        const toast = g.img('toast', h.x, h.y - 120, 46);
-        toast.setScale(2 / S);
-        const sc = 2 / S;
+        const bubble = h.drop === 'bubble';
+        const toast = g.img(h.drop ?? 'toast', h.x, h.y - (bubble ? 0 : 120), 46);
+        const sc = (bubble ? (h.r * 2) / 40 : 2) / S;
+        toast.setScale(bubble ? sc * 0.6 : sc);
+        if (bubble) sfx('bubble');
         g.tweens.add({
           targets: toast,
           y: h.y,
           duration: 120,
           onComplete: () => {
-            g.effects.burst(h.x, h.y, 0xd59a52, 8, 50);
+            g.effects.burst(h.x, h.y, bubble ? 0xf3e3c0 : 0xd59a52, 8, 50);
             g.tweens.add({ targets: toast, alpha: 0, scale: sc * 1.4, duration: 220, onComplete: () => toast.destroy() });
           },
         });
@@ -209,9 +264,9 @@ export class Hazards {
     this.freezes.push({ img, x, y, r, t: 1.2 });
   }
 
-  /** An icicle volley: a warning line from (x, y) at angle a for t seconds, then n icicles fly along it. */
-  addWarn(x: number, y: number, a: number, t: number, n: number): void {
-    this.warns.push({ x, y, a, t, n });
+  /** An icicle volley: a warning line from (x, y) at angle a for t seconds, then n icicles fly along it. `shard`: the Stale King's crust shards, with a pale line. */
+  addWarn(x: number, y: number, a: number, t: number, n: number, shard = false): void {
+    this.warns.push({ x, y, a, t, n, shard });
   }
 
   /** Is this point in a melt puddle? */
@@ -283,12 +338,12 @@ export class Hazards {
         const ex = w.x + Math.cos(w.a) * len;
         const ey = w.y + Math.sin(w.a) * len;
         const blink = blinkAt(g.now, 12, 0.55, 0.3);
-        gfx.lineStyle(16, 0x6cc7f0, blink).lineBetween(w.x, w.y, ex, ey);
+        gfx.lineStyle(16, w.shard ? 0xd9d2c6 : 0x6cc7f0, blink).lineBetween(w.x, w.y, ex, ey);
         gfx.lineStyle(3, 0xffffff, 0.9).lineBetween(w.x, w.y, ex, ey);
         continue;
       }
-      sfx('icicle');
-      for (let k = 0; k < w.n; k++) this.fireShot('icicle', w.x, w.y, w.a, 300 - k * 35, 14, 6, true);
+      sfx(w.shard ? 'flakes' : 'icicle');
+      for (let k = 0; k < w.n; k++) this.fireShot(w.shard ? 'shard' : 'icicle', w.x, w.y, w.a, 300 - k * 35, 14, 6, true);
       this.warns.splice(i, 1);
     }
   }
@@ -309,8 +364,8 @@ export class Hazards {
   }
 
   /** A Broiler flame line from (x, y) at angle a; it shows its warning glow for the last 1.2s of t. */
-  addBeam(x: number, y: number, a: number, t: number): void {
-    this.beams.push({ x, y, a, t, burn: 0 });
+  addBeam(x: number, y: number, a: number, t: number, noodle = false): void {
+    this.beams.push({ x, y, a, t, burn: 0, noodle });
   }
 
   /** The Broiler's floor patterns, centred on you: a box around you, a cross through you, or stripes. Takes turns. */
@@ -359,11 +414,11 @@ export class Hazards {
         // Warning: an orange glow along the line, blinking faster as it gets close.
         const k = 1 - Math.min(1, b.t / 0.9);
         const blink = blinkAt(g.now, 8 + k * 12, 0.55, 0.3);
-        gfx.lineStyle(BEAM_W, 0xff7a1f, blink * (0.5 + 0.5 * k)).lineBetween(b.x, b.y, ex, ey);
+        gfx.lineStyle(BEAM_W, b.noodle ? 0xf2d77a : 0xff7a1f, blink * (0.5 + 0.5 * k)).lineBetween(b.x, b.y, ex, ey);
         gfx.lineStyle(3, 0xffffff, 0.9).lineBetween(b.x, b.y, ex, ey);
         if (b.t <= 0) {
           b.burn = 0.45;
-          sfx('flare');
+          sfx(b.noodle ? 'whip' : 'flare');
           // Distance from you to the line.
           const vx = Math.cos(b.a);
           const vy = Math.sin(b.a);
@@ -376,14 +431,20 @@ export class Hazards {
             // Second Bake clears every flame line, this one included.
             if (this.beams[i] !== b) return;
           }
-          for (let j = 1; j <= 6; j++) g.effects.burst(b.x + vx * j * 110, b.y + vy * j * 110, 0xffb03a, 3, 30);
+          for (let j = 1; j <= 6; j++) g.effects.burst(b.x + vx * j * 110, b.y + vy * j * 110, b.noodle ? 0xf7e6a0 : 0xffb03a, 3, 30);
         }
         continue;
       }
       b.burn -= dt;
       const a = Math.max(0, b.burn / 0.45);
-      gfx.lineStyle(BEAM_W + 14, 0xff5a14, 0.55 * a).lineBetween(b.x, b.y, ex, ey);
-      gfx.lineStyle(BEAM_W - 8, 0xffe08a, 0.95 * a).lineBetween(b.x, b.y, ex, ey);
+      if (b.noodle) {
+        // A noodle lash: a thick pale strand with an ink edge.
+        gfx.lineStyle(BEAM_W - 2, 0x24160d, 0.8 * a).lineBetween(b.x, b.y, ex, ey);
+        gfx.lineStyle(BEAM_W - 9, 0xf7e2a0, a).lineBetween(b.x, b.y, ex, ey);
+      } else {
+        gfx.lineStyle(BEAM_W + 14, 0xff5a14, 0.55 * a).lineBetween(b.x, b.y, ex, ey);
+        gfx.lineStyle(BEAM_W - 8, 0xffe08a, 0.95 * a).lineBetween(b.x, b.y, ex, ey);
+      }
       if (b.burn <= 0) this.beams.splice(i, 1);
     }
   }
@@ -513,6 +574,168 @@ export class Hazards {
       if (s.life <= 0) {
         s.img.destroy();
         this.sparks.splice(i, 1);
+      }
+    }
+  }
+  // ---------------------------------------------------------------- The Pantry: rolling cans and flour puffs
+
+  /** Is this point inside a flour cloud? */
+  inCloud(x: number, y: number): boolean {
+    for (const c of this.clouds) {
+      const dx = x - c.x;
+      const dy = y - c.y;
+      if (dx * dx + dy * dy < CLOUD_R * CLOUD_R * 0.8) return true;
+    }
+    return false;
+  }
+
+  /**
+   * A can rolls down one of the open corridors between shelf blocks (they run along every shelf cell's border, so the path
+   * is always clear). It rattles at the far end with an arrow showing its path, then rolls.
+   */
+  addCan(second = false): void {
+    const g = this.g;
+    const p = g.player;
+    const C = SHELF_CELL;
+    // The corridor nearest you, across or down; the second can of a pair takes the other direction.
+    const nx = Math.round(p.x / C) * C;
+    const ny = Math.round(p.y / C) * C;
+    let vert = Math.abs(p.x - nx) < Math.abs(p.y - ny);
+    if (second) vert = !vert;
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    const x = vert ? nx : p.x - sign * (CAN_RUN / 2);
+    const y = vert ? p.y - sign * (CAN_RUN / 2) : ny;
+    const img = g.img('can', x, y, 44);
+    if (vert) img.setRotation(Math.PI / 2);
+    this.cans.push({ img, x, y, dx: vert ? 0 : sign, dy: vert ? sign : 0, warn: CAN_WARN, gone: 0, hitYou: false, hits: new Set(), kills: 0 });
+    this.canSeen = true;
+    sfx('rattle');
+  }
+
+  /** A flour sack wobbles near you, then bursts into a cloud. */
+  private addFlour(): void {
+    const g = this.g;
+    const p = g.player;
+    if (this.sacks.length >= 2) return;
+    for (let tries = 0; tries < 6; tries++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 80 + Math.random() * 130;
+      const x = p.x + Math.cos(a) * d;
+      const y = p.y + Math.sin(a) * d;
+      if (g.floor.inWall(x, y, 18)) continue;
+      this.sacks.push({ img: g.img('floursack', x, y, 9), x, y, t: FLOUR_WARN });
+      return;
+    }
+  }
+
+  private updatePantry(dt: number): void {
+    const g = this.g;
+    const st = g.stage;
+    const p = g.player;
+    if (st.cans || st.flour) {
+      // Real time, like the oven's hazards; more often as the run goes on, calmer while the boss is out.
+      const k = Math.min(1, g.stageT / RUN.bossAt);
+      const calm = g.foes.boss ? 1.4 : 1;
+      if (st.cans && g.now >= this.canNext) {
+        this.canNext = g.now + (9 - 3.5 * k) * calm;
+        this.addCan();
+        // Endless: two cans at once after 6:00.
+        if (g.endless && g.stageT > 360) this.addCan(true);
+      }
+      if (st.flour && g.now >= this.flourNext) {
+        this.flourNext = g.now + (11 - 3 * k) * calm;
+        this.addFlour();
+      }
+    }
+    const gfx = this.pantryGfx;
+    const temps = g.floor.temps;
+    if (!this.cans.length && !this.sacks.length && !this.clouds.length && !temps.length) {
+      if (gfx.visible) gfx.clear().setVisible(false);
+      return;
+    }
+    gfx.clear().setVisible(true);
+    // A wall about to rise (a noodle knot, a dough wall): a blinking outline where it will stand.
+    for (const w of temps) {
+      if (!w.warn) continue;
+      const blink = blinkAt(g.now, 12, 1, 0.6);
+      gfx.fillStyle(0xff5a3c, 0.22 * blink).fillRoundedRect(w.x - w.hw, w.y - w.hh, w.hw * 2, w.hh * 2, 8);
+      gfx.lineStyle(3, 0xffffff, 0.9).strokeRoundedRect(w.x - w.hw, w.y - w.hh, w.hw * 2, w.hh * 2, 8);
+    }
+    for (let i = this.cans.length - 1; i >= 0; i--) {
+      const c = this.cans[i];
+      const vert = c.dy !== 0;
+      if (c.warn > 0) {
+        c.warn -= dt;
+        // The can shakes where it stands, and a strip with arrows shows its path.
+        const k = 1 - Math.max(0, c.warn) / CAN_WARN;
+        const blink = blinkAt(g.now, 6 + k * 14, 1, 0.7);
+        const w = vert ? CAN_R * 2 + 6 : CAN_RUN;
+        const h = vert ? CAN_RUN : CAN_R * 2 + 6;
+        const x0 = vert ? c.x - w / 2 : Math.min(c.x, c.x + c.dx * CAN_RUN);
+        const y0 = vert ? Math.min(c.y, c.y + c.dy * CAN_RUN) : c.y - h / 2;
+        gfx.fillStyle(0xff5a3c, (0.14 + 0.24 * k) * blink).fillRoundedRect(x0, y0, w, h, 10);
+        gfx.lineStyle(3, 0xffffff, 0.85).strokeRoundedRect(x0, y0, w, h, 10);
+        gfx.fillStyle(0xffffff, 0.55 + 0.4 * k);
+        for (let j = 1; j <= 7; j++) {
+          const ax = c.x + c.dx * j * 100;
+          const ay = c.y + c.dy * j * 100;
+          gfx.fillTriangle(ax + c.dx * 12, ay + c.dy * 12, ax - c.dx * 8 - c.dy * 10, ay - c.dy * 8 - c.dx * 10, ax - c.dx * 8 + c.dy * 10, ay - c.dy * 8 + c.dx * 10);
+        }
+        c.img.setPosition(c.x + Math.sin(g.now * 60) * 2.5, c.y + Math.cos(g.now * 47) * 2);
+        if (c.warn <= 0) sfx('roll');
+        continue;
+      }
+      c.gone += CAN_SPEED * dt;
+      const x = c.x + c.dx * c.gone;
+      const y = c.y + c.dy * c.gone;
+      c.img.setPosition(x, y);
+      // It turns end over end as it rolls: squash the picture along the way it travels.
+      const turn = Math.cos(c.gone / 9);
+      c.img.setScale((1 / S) * (0.82 + 0.18 * Math.abs(turn)), 1 / S);
+      if (!c.hitYou && Math.abs(x - p.x) < CAN_R + p.radius * 0.7 && Math.abs(y - p.y) < CAN_R + p.radius * 0.7) {
+        c.hitYou = true;
+        g.damagePlayer(CAN_DMG);
+      }
+      g.foes.query(x, y, CAN_R, (e) => {
+        if (c.hits.has(e)) return;
+        c.hits.add(e);
+        // Knocked aside, out of the can's way.
+        const side = (vert ? e.x - x : e.y - y) >= 0 ? 1 : -1;
+        g.hit(e, CAN_ENEMY_DMG, vert ? side * 220 : c.dx * 120, vert ? c.dy * 120 : side * 220, 'can', 0);
+        if (!e.alive) c.kills++;
+      });
+      if (g.effects.particles < 120 && Math.random() < 0.5) g.effects.burst(x - c.dx * 14, y - c.dy * 14, 0xd8c4a0, 1, 16);
+      if (c.gone >= CAN_RUN) {
+        if (c.kills >= STRIKE && !g.practice) g.strike(c.kills);
+        c.img.destroy();
+        this.cans.splice(i, 1);
+      }
+    }
+    for (let i = this.sacks.length - 1; i >= 0; i--) {
+      const sk = this.sacks[i];
+      sk.t -= dt;
+      const k = 1 - Math.max(0, sk.t) / FLOUR_WARN;
+      const wob = 1 + 0.1 * Math.sin(g.now * (12 + k * 20));
+      sk.img.setScale((wob * (1 + 0.25 * k)) / S, (1 + 0.25 * k) / wob / S).setRotation(Math.sin(g.now * 30) * 0.08 * k);
+      if (sk.t > 0) continue;
+      sfx('poof');
+      g.effects.burst(sk.x, sk.y, 0xffffff, 10, 60);
+      const img = g.img('flourcloud', sk.x, sk.y, 5);
+      const sc = (CLOUD_R * 2) / 128 / S;
+      img.setScale(sc * 0.3).setAlpha(0.95);
+      g.tweens.add({ targets: img, scale: sc, duration: 320, ease: 'Cubic.Out' });
+      this.clouds.push({ img, x: sk.x, y: sk.y, life: CLOUD_LIFE });
+      sk.img.destroy();
+      this.sacks.splice(i, 1);
+    }
+    for (let i = this.clouds.length - 1; i >= 0; i--) {
+      const c = this.clouds[i];
+      c.life -= dt;
+      c.img.setRotation(c.img.rotation + dt * 0.15);
+      if (c.life < 0.8) c.img.setAlpha(Math.max(0, (c.life / 0.8) * 0.95));
+      if (c.life <= 0) {
+        c.img.destroy();
+        this.clouds.splice(i, 1);
       }
     }
   }

@@ -17,6 +17,11 @@ export const TIPS = {
   mug: 'A Warm Mug thaws you out.',
   oven: 'Glowing coils flare up. Step off them!',
   grease: 'Grease pops leave a slippery slick. Knobs block enemy shots.',
+  shelves: 'Shelves block you and enemies. Your shots fly over them.',
+  cans: 'A red strip with arrows means a can is about to roll. Step out of it!',
+  lane: 'A red strip shows where an enemy will dash. Step out of it!',
+  creep: 'Grey patches slow you. Your weapons burn them back.',
+  shield: "A Crouton Knight's shield halves your hits until it cracks off.",
   dash: 'Flick to dash.',
   // Menu, the first time each mode is picked
   quick: 'Quick Run: the whole stage in about 3 minutes. More XP, a little less Dough.',
@@ -73,6 +78,8 @@ export const HINTS = [
   'Challenges on the Goals page pay Dough the moment you finish them.',
   'In the Freezer, a Warm Mug heals a little and keeps frost away.',
   'In the Toaster Oven, coil flare-ups burn enemies too.',
+  'In the Pantry, a rolling can flattens every enemy in its way.',
+  'Enemy shots stop at shelves. Yours fly over them.',
   'Copy a backup code in Settings to keep your save safe.',
 ];
 let hintAt = Math.floor(Math.random() * HINTS.length);

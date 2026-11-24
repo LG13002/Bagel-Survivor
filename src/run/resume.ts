@@ -45,6 +45,8 @@ export function writeSnapshot(g: GameScene): void {
     healsTaken: r.healsTaken,
     bossClean: r.bossClean,
     noHitBoss: r.noHitBoss,
+    canBest: r.canBest,
+    creepBurned: r.creepBurned,
     revived: r.revived,
     mugs: r.runMugs,
     buns: g.loot.list.filter((it) => it.kind === 'bun').length,
@@ -90,6 +92,8 @@ export function applySnapshot(g: GameScene, s: RunSnapshot): void {
   r.evolutionsThisRun = s.evolutions;
   r.healsTaken = s.healsTaken;
   r.noHitBoss = !!s.noHitBoss;
+  r.canBest = s.canBest ?? 0;
+  r.creepBurned = s.creepBurned ?? 0;
   r.revived = !!s.revived;
   r.runMugs = s.mugs ?? 0;
   // Surprise elites that already came stay done (older snapshots: judged by the clock), and elites that were out come back.

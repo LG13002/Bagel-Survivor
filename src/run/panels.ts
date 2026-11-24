@@ -98,7 +98,27 @@ export class Panels {
     return null;
   }
 
-  openLevelUp(): void {
+  /** Is this card still worth offering after another one was taken (Pretzel's second pick)? */
+  private stillGood(c: Choice): boolean {
+    const g = this.g;
+    switch (c.kind) {
+      case 'wnew':
+        return g.weapons.length < MAX_SLOTS && !g.weaponOf(c.id!);
+      case 'wup': {
+        const w = g.weaponOf(c.id!);
+        return !!w && w.level < MAX_LEVEL && !w.evolved;
+      }
+      case 'tnew':
+        return g.toppings.size < MAX_SLOTS && !g.toppings.has(c.id as ToppingId);
+      case 'tup':
+        return (g.toppings.get(c.id as ToppingId) ?? 0) < MAX_LEVEL;
+      default:
+        return true;
+    }
+  }
+
+  /** `second`: Pretzel's Twisted second pick, from what is left of the same hand. */
+  openLevelUp(second?: Choice[]): void {
     const g = this.g;
     const run = g.run;
     g.setPaused('levelup');
@@ -109,14 +129,17 @@ export class Panels {
     const openedAt = performance.now();
     const { c } = this.open(0.65);
 
-    const choices = g.choices();
+    const choices = second ?? g.choices();
+    // Pretzel: every 5th level reached lets you take two cards from the hand.
+    const reached = run.level - run.pendingLevels + 1;
+    const twist = !second && g.bagel.quirkId === 'twist' && reached % 5 === 0 && choices.length > 1;
     const cw = Math.min(W - 28 * S, 400 * S);
     const ch = 84 * S;
     const gap = 12 * S;
     const bottom = H - ins.bottom * S - 86 * S;
     const startY = bottom - choices.length * (ch + gap) + gap + ch / 2;
-    const title = txt(g, W / 2, startY - ch / 2 - 56 * S, 'LEVEL UP!', 34, CSS.gold);
-    const sub = txt(g, W / 2, startY - ch / 2 - 24 * S, `Level ${run.level - run.pendingLevels + 1}: pick one`, 15, CSS.muted);
+    const title = txt(g, W / 2, startY - ch / 2 - 56 * S, second ? 'TWISTED!' : 'LEVEL UP!', 34, CSS.gold);
+    const sub = txt(g, W / 2, startY - ch / 2 - 24 * S, second ? 'Pick one more' : twist ? `Level ${reached}: Twisted! Pick two` : `Level ${reached}: pick one`, 15, twist || second ? CSS.gold : CSS.muted);
     c.add([title, sub]);
     // The first level-up explains the cards.
     if (!g.practice && tipDue('cards')) {
@@ -205,6 +228,15 @@ export class Panels {
       card.on('pointerup', () => {
         if (!armed) return;
         g.applyChoice(choice);
+        if (twist) {
+          // The rest of the hand comes back for a second pick (cards the first pick made pointless are dropped).
+          const rest = choices.filter((o) => o !== choice && this.stillGood(o));
+          if (rest.length) {
+            this.close();
+            this.openLevelUp(rest);
+            return;
+          }
+        }
         run.pendingLevels--;
         this.close();
         g.effects.burst(g.player.x, g.player.y, COLORS.xp, 12, 50);
@@ -228,7 +260,7 @@ export class Panels {
       c.add([back, card]);
     });
 
-    if (run.rerolls > 0) {
+    if (run.rerolls > 0 && !second) {
       const rb = button(
         g,
         W / 2,

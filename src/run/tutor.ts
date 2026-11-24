@@ -70,6 +70,11 @@ export class Tutor {
       { id: 'mug', when: () => !!g.stage.mug && g.loot.has('mug') },
       { id: 'oven', when: () => !!g.stage.coils && g.now > 3 },
       { id: 'grease', when: () => !!g.stage.grease && g.now > 14 },
+      { id: 'shelves', when: () => !!g.stage.shelves && g.now > 3 },
+      { id: 'cans', when: () => g.hz.canSeen },
+      { id: 'lane', when: () => g.foes.charging > 0 },
+      { id: 'creep', when: () => g.hz.bin.creepSeen },
+      { id: 'shield', when: () => !!g.stage.creep && g.foes.list.some((e) => e.alive && e.shield > 0 && Math.abs(e.x - p.x) < 150 && Math.abs(e.y - p.y) < 220) },
       { id: 'evolve', when: () => g.weapons.some((w) => w.level >= MAX_LEVEL && !w.evolved) },
       { id: 'bun', when: () => g.loot.has('bun') },
     ];

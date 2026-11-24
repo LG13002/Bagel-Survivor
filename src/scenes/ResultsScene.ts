@@ -122,6 +122,8 @@ export class ResultsScene extends Phaser.Scene {
     const notes: string[] = [];
     // The first clear of a stage moves the story on.
     if (r.firstClear) notes.push(st.outro);
+    // The end of the story points at what is left.
+    if (r.firstClear && st.boss.kind === 'king') notes.push('Still to do: Endless, Extra Crispy and the Goals page.');
     // Finished challenges: first, as one line, or a total when several land at once.
     if (r.goals.length === 1) notes.push(`GOAL DONE: ${r.goals[0].name}, +${r.goals[0].reward} Dough`);
     else if (r.goals.length > 1) notes.push(`${r.goals.length} GOALS DONE! +${r.goals.reduce((a, g) => a + g.reward, 0)} Dough. See the Goals page.`);
