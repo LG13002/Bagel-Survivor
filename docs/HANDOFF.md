@@ -443,6 +443,10 @@ Costs: the Bakery's 10 upgrades come to 6,510 Dough, the 16 looks for sale to 2,
 
 **Checks:** `dailytest.cjs` (17 checks), `savetest.cjs`, `tutortest.cjs` at 760 and 640, `endtest.cjs` and `qtest.cjs` pass. Each twist was checked in a run (kit ranks, health, damage, cards, rerolls, bins, pace, seed coins). `mixtest.cjs`: the Daily song is -20.6 dB at its quietest layer and -14.9 dB at its fullest, beside -21.1 and -15.5 for the Pantry's. `fpsbench.cjs` with `LOOKS=1` (hat, sprinkles, trail) against without: 17.3 and 17.1 frames a second against 17.5 and 17.8 on the Bakery, 17.2 against 17.3 in the Bread Bin (headless numbers; compare, don't read as a phone's).
 
+### Skip on the level-up screen (after the owner's M18 playtest, still version 0.18)
+
+The owner pointed out that "Clear a stage with only one weapon" could not be done on purpose: with no way to pass on a hand, the cards run down to new weapons only (about 24 picks with one weapon). The level-up screen now has a small Skip button beside the title. It asks twice, then spends the level with no card and no reward, so it never beats taking a card. Checked by bot on 760 and 640 tall screens, with the Bin and Reroll buttons showing, and with two levels waiting.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.

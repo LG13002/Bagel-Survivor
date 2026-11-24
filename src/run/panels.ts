@@ -343,6 +343,43 @@ export class Panels {
       );
       c.add(rb);
     }
+
+    // Skip: take no card at all (the owner's ask: a one-weapon run must be possible when every card is a new weapon).
+    // It sits up beside the title, away from the thumb, and asks twice so a slip never costs a level.
+    let sure = false;
+    const sx = W - 44 * S;
+    const sy = title.y;
+    const skip = button(
+      g,
+      sx,
+      sy,
+      64 * S,
+      30 * S,
+      'Skip',
+      () => {
+        if (performance.now() - openedAt < 350) return;
+        if (!sure) {
+          sure = true;
+          skipText.setText('Sure?');
+          skipText.setColor(CSS.gold);
+          return;
+        }
+        commit();
+        run.pendingLevels--;
+        this.close();
+        if (run.pendingLevels > 0) this.openLevelUp();
+        else g.setPaused('');
+      },
+      { color: COLORS.panelLight, textColor: CSS.muted, size: 13 },
+    );
+    const skipText = skip.list.find((o) => o instanceof Phaser.GameObjects.Text) as Phaser.GameObjects.Text;
+    // The title is centred: when it would run under the button, it moves left to make room.
+    const over = title.x + title.width / 2 + 8 * S - (sx - 32 * S);
+    if (over > 0) {
+      title.x -= over;
+      sub.x -= Math.min(over, Math.max(0, sub.x + sub.width / 2 + 8 * S - (sx - 32 * S)));
+    }
+    c.add(skip);
   }
 
   // ---------------------------------------------------------------- Chests
