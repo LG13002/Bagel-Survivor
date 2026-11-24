@@ -30,7 +30,13 @@ export const SLOWMO = 0.3;
 export const SLOWMO_TIME = 0.5;
 
 /** Regular enemies' health in every stage, against the numbers in `ENEMIES` (the owner asked for a more manageable crowd). */
-export const CROWD_HP = 0.85;
+export const CROWD_HP = 0.8;
+/**
+ * How many regular enemies there are in every stage, against the original pacing: slower spawns, a lower cap and
+ * smaller waves. Seeds are worth more by the same share (`CROWD_XP`), so levels come at the same pace.
+ */
+export const CROWD_COUNT = 0.82;
+export const CROWD_XP = 1 / CROWD_COUNT;
 /** How many chargers may be winding up or dashing at once; the rest keep walking until one finishes. */
 export const MAX_CHARGING = 3;
 /** Seconds of safety after a hit. */

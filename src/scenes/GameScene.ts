@@ -32,7 +32,7 @@ import { Enemies } from '../run/enemies';
 import { Floor } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { Hud } from '../run/hud';
-import { HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
+import { CROWD_XP, HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -424,7 +424,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   gainXp(v: number): void {
     const r = this.run;
-    r.xp += v * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
+    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
     while (r.xp >= r.xpNext) {
       r.xp -= r.xpNext;
       r.level++;

@@ -4,7 +4,7 @@ import { RUN, type EnemyKind } from '../data';
 import type { Enemy } from '../entities';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
-import { CRISPY_SPAWN, ENDLESS_BOSS_EVERY, ENDLESS_BOSS_HP, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, ENDLESS_SPAWN_RAMP } from './modes';
+import { CROWD_COUNT, CRISPY_SPAWN, ENDLESS_BOSS_EVERY, ENDLESS_BOSS_HP, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, ENDLESS_SPAWN_RAMP } from './modes';
 
 /**
  * The run's timeline: the steady stream of enemies, crumb waves, ant lines, elites, surprise elites, the mini-boss and
@@ -55,13 +55,13 @@ export class Director {
     const st = g.stage;
     const t = g.stageT;
     const hpMult = foes.hpMult(t);
-    let interval = Math.max(0.1, 0.7 - t * 0.0018) / st.spawnRate / (g.crispy ? CRISPY_SPAWN : 1);
+    let interval = Math.max(0.1, 0.7 - t * 0.0018) / st.spawnRate / CROWD_COUNT / (g.crispy ? CRISPY_SPAWN : 1);
     // Endless: about 10% faster spawns for every minute after 5:00.
     if (g.endless && t > 300) interval /= 1 + ENDLESS_SPAWN_RAMP * ((t - 300) / 60);
     if (foes.boss) interval *= 4;
     // Gentler through 3:00, then the swarm ramps up toward the boss.
     const batch = 1 + Math.floor(t / 75) + (t > 180 ? 2 : 0);
-    const cap = t < 180 ? RUN.earlyMaxEnemies : RUN.maxEnemies;
+    const cap = Math.round((t < 180 ? RUN.earlyMaxEnemies : RUN.maxEnemies) * CROWD_COUNT);
     this.spawnT -= dt;
     while (this.spawnT <= 0) {
       this.spawnT += interval;
@@ -74,7 +74,7 @@ export class Director {
     if (this.endlessCleared && foes.boss && t >= this.nextWave) this.nextWave += RUN.waveEvery;
     if (t >= RUN.miniBossAt && t >= this.nextWave && (t < RUN.bossAt - 5 || (this.endlessCleared && !foes.boss))) {
       this.nextWave += RUN.waveEvery;
-      foes.ringOf(st.wave.kinds, 28);
+      foes.ringOf(st.wave.kinds, Math.round(28 * CROWD_COUNT));
       hud.banner(st.wave.banner, CSS.cream, 18);
     }
     // Lines pause while a boss is out; the ones that came due are skipped.

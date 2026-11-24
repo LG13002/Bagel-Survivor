@@ -139,7 +139,8 @@ Every character, enemy, item and name is original and bakery or breakfast themed
   - **Charge lanes:** every `charge` enemy draws a red strip along its dash while it winds up and dashes (`Enemies.lane`, floor level). A Pea Can's lane bends where it will bounce. The dash direction is fixed when the wind-up starts, so stepping out of the lane always works. A new charger gets a lane for free; a new kind of dash attack needs its own.
   - **At most 3 chargers** wind up or dash at once (`MAX_CHARGING`); the rest keep walking.
   - **Spawns:** 40% appear in the direction you're moving (`spawnPoint`; it was 70%), and the ring waves leave an opening of `WAVE_GAP` (about 110 degrees) in a random place.
-  - **Regular enemies have 15% less health in every stage** (`CROWD_HP`, inside `hpMult`). Flat-health enemies (elites, bosses) are not touched.
+  - **Regular enemies have 20% less health in every stage** (`CROWD_HP`, inside `hpMult`). Flat-health enemies (elites, bosses) are not touched.
+  - **About a fifth fewer regular enemies in every stage** (`CROWD_COUNT` 0.82: slower spawns, lower caps, smaller waves). Seeds are worth more by the same share (`CROWD_XP`), so levels come at the same pace. The owner asked for both after playing the first pass ("the swarms are still pretty thick").
   - **After a hit** the bagel is safe for 1.1s (`HIT_GRACE`).
   - `tools/bots/dodgebench.cjs` plays a stretch carelessly and carefully and prints the damage each takes and what dealt it. If careful play doesn't take much less, the damage isn't dodgeable.
 - **Enemy behavior** comes from `ai` on the enemy's def (`line`, `charge`, `shoot`), plus `split` and `burst` for death effects, so new stage casts reuse it without new code.

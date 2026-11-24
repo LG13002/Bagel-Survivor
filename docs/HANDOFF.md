@@ -359,6 +359,17 @@ Careful play takes 26% less damage; careless play about the same (3% less). So t
 
 `savetest.cjs`, `tutortest.cjs` (both sizes) and `qtest.cjs` pass.
 
+**Second pass, the same evening.** The owner played it ("feels much better"), then asked for 20% and fewer enemies across the board, because the swarms were still thick. Regular enemy health is now 20% lower (`CROWD_HP` 0.8) and there are about a fifth fewer regular enemies in every stage (`CROWD_COUNT` 0.82: slower spawns, lower caps, 23 in a wave instead of 28). Seeds are worth 22% more (`CROWD_XP`), so levels come at the same pace. Same bot, against the build from before any tuning, two runs each:
+
+| Stage | Careless: before | Careless: now | Careful: before | Careful: now |
+| --- | --- | --- | --- | --- |
+| 1 | 233 | 184 | 80 | 33 |
+| 2 | 286 | 260 | 130 | 92 |
+| 3 | 296 | 237 | 125 | 96 |
+| 4 | 267 | 227 | 159 | 102 |
+
+Careless play takes 16% less, careful play 35% less, and the crowd within reach of the bagel fell from about 7 enemies to about 4.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
