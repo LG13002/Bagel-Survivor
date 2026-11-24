@@ -1092,7 +1092,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.cameras.main.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       this.uiCam.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       // The first time the Stale King falls, the ending comic and the credits come before the results.
-      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !quit && !load().ending;
+      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !load().ending;
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => (ending ? this.scene.start('intro', { ending: true, result }) : this.scene.start('results', result)));
     };
     if (victory && !quit) this.time.delayedCall(600, fade);

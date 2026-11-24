@@ -370,6 +370,23 @@ Careful play takes 26% less damage; careless play about the same (3% less). So t
 
 Careless play takes 16% less, careful play 35% less, and the crowd within reach of the bagel fell from about 7 enemies to about 4.
 
+### Phase 3, M16: the Bread Bin finale (version 0.16)
+
+Change list: https://claude.ai/artifact/WPJU3GQWLY1s8LSoL9wmVk (approved by the owner; no personal name in the credits, and the breaking shield for the Crouton Knight).
+
+- **Stage 5, the Bread Bin** (`breadbin.ts` for the art, `run/bin.ts` for the hazards): an open, dim floor with a pool of light around the bagel. Unlocked by beating Mother Dough. Dough 3x.
+- **Stale creep:** cold grey patches that grow, slow the bagel 30% and never start under it. Any weapon hit near a patch burns it back; 25 burned in one run is a challenge. Capped at 8 patches.
+- **Falling crumbs:** a shadow for 1.2s, then 8 damage to you and 45 to enemies under it. Both hazards run on real time and ease off while a boss is out.
+- **Cast:** Stone Crumb (swarm), Puff Spore (pops into a ring of short-lived shots; the ring's gap always faces the bagel), Crouton Knight (a shield that soaks half of each hit until it breaks), old faces from 2:00, marching lines. The four elite slots are the old bosses in order (Toaster Tyrant, Freezer Burn, Broiler, Spaghetti Tangle; the last carries the second bun). Mini-boss: a smaller Mother Dough with no walls.
+- **The Stale King** (9500 health, three phases at two thirds and one third, both marked on his bar): crumb fans and two guard knights; then shard lines with a warning and creep around him; then dark spells, where he charges three times along a glowing lane and rests in the light. In the dark, enemies' eyes glow, and the fade is slow with Flashing Reduced. His fall has a longer slow motion and clears all creep.
+- **Ending:** the first King win (any mode but Practice) plays a four-page comic and a credits scroll before the results. Settings, About gets Ending and Credits buttons. The title screen turns to morning with a crown by the version, and the stage card gets a gold Cleared stamp.
+- **Pretzel** (quirk `twist`, unlocked by clearing the Bread Bin): every 5th level reached, pick two cards from the same hand (no reroll on the second pick). Starts with Seed Storm.
+- Three songs (`brun`, `king` stepping up with each phase, `ending`), five sounds, a Cookbook page, three challenges, two tips, What's new, version 0.16.
+
+**Deviations from the list:** the swarm enemy is "Stone Crumb" and the spore "Puff Spore" (the older stages already use Stale Crumb and Mold Spore); the credits show stage clears, because saves never counted runs played; the base dimness is skipped with Battery saver; the What's new card covers both the Pantry and the Bread Bin, since they ship together.
+
+**Measured** (`dodgebench.cjs`, careless walking, damage a minute, from 1:00 / 2:10 / 3:35): Bread Bin 185 / 264 / 204 against the Pantry's 182 / 262 / 135, about 13% more overall, nearly all of it in the King's stretch. To get there the stage's damage dial went from 1.0 to 1.1 and spawn rate from 1.06 to 1.12. A careful bot took far less (61 / 98 / 15 before the dials moved). King fight with an ordinary build (two evolved weapons and two at level 5), circling him: down in 103s of stage time, 220 damage taken, phases at 66% and 33%; the same bot against Mother Dough takes 199 in 67s and against the Broiler 130 in 59s. Frame rate in the bot: Bread Bin 17.5 against the Pantry's 18.5 (the dim layer; 21.4 with Battery saver). Songs levelled with `mixtest.cjs`. `savetest`, `tutortest` (both heights), `qtest` and the new `endtest` pass; resuming mid-King returns in the right phase.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.

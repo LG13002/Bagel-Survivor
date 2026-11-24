@@ -335,7 +335,7 @@ const SONGS: Record<SongId, Song> = {
 
   // The Bread Bin: a slow, regal march in C minor. A snare march joins at 1:00, the bass at 2:00.
   brun: {
-    level: 1.35,
+    level: 1.2,
     bpm: 108,
     res: 2,
     loop: true,
@@ -406,7 +406,7 @@ const SONGS: Record<SongId, Song> = {
 
   // The ending: the menu's tune, slowed down and warmed up, for the last comic and the credits.
   ending: {
-    level: 1.3,
+    level: 1.1,
     bpm: 84,
     res: 2,
     loop: true,
