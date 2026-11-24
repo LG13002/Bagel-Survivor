@@ -1,12 +1,14 @@
 // Frame-rate check: a busy stretch of each stage (from 4:00, with three evolved weapons, walking in circles), counting
 // real frames for 20 seconds. Prints average frames per second and the slowest 1% of frames.
-// Usage: node tools/bots/fpsbench.cjs [stages] [seconds]   (PORT= for another server; SAVER=1 turns on Battery saver)
+// Usage: node tools/bots/fpsbench.cjs [stages] [seconds]   (PORT= for another server; SAVER=1 turns on Battery saver; LOOKS=1 wears a hat, sprinkles and a trail)
 // Headless Chromium draws in software, so the numbers are far below a phone's. Compare two builds, not the values.
 const { chromium } = require('playwright');
 const STAGES = (process.argv[2] || 'stage1,stage2,stage3').split(',');
 const SECS = Number(process.argv[3] || 20);
 const PORT = process.env.PORT || 4191;
 const SAVE = { dough: 0, upgrades: {}, unlocked: ['plain'], selected: 'plain', cookbook: [], bestTime: 300, totalKills: 0, clears: 3, stageClears: { stage1: 1, stage2: 1, stage3: 1 }, best: {}, intro: true, settings: { music: 0, sound: 0, shake: 'full', flash: 'full', saver: process.env.SAVER === '1', lefty: false, tips: false } };
+// LOOKS=1 puts a hat, sprinkles and a trail on the bagel, to see what they cost.
+if (process.env.LOOKS === '1') SAVE.looks = { owned: ['cowboy', 'rainbow', 'flour'], hat: 'cowboy', sprinkle: 'rainbow', trail: 'flour' };
 (async () => {
   const b = await chromium.launch();
   for (const stage of STAGES) {

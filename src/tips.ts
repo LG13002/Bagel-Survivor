@@ -30,6 +30,7 @@ export const TIPS = {
   endless: 'Endless: beat the boss, then see how long you can last.',
   crispy: 'Extra Crispy: tougher enemies, 1.5x Dough.',
   practice: 'Practice: starts at 2:30 with 12 level-ups. No Dough, no unlocks.',
+  daily: 'New: the Daily Run! One run a day, the same for everyone.',
 } as const;
 export type TipId = keyof typeof TIPS;
 

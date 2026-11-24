@@ -360,6 +360,7 @@ export class Panels {
     const g = this.g;
     const run = g.run;
     g.setPaused('chest');
+    run.chestsOpened++;
     // A secret recipe: the first gold toaster after both weapons of a combo are evolved merges them. It goes ahead
     // of any normal evolution that's waiting (that one comes from the next chest). With two combos ready, the pair
     // that was finished first merges first.

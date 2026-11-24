@@ -1,4 +1,5 @@
-import { BAGELS, STAGES } from './data';
+import { BAGELS, BAKERY, STAGES } from './data';
+import { COMBOS } from './weapons';
 import { fmtTime } from './config';
 import type { SaveData } from './save';
 import type { GoalStatus } from './progress';
@@ -17,6 +18,10 @@ export interface ChallengeDef {
 const BUILT = STAGES.slice(0, 3);
 /** The original six bagels (Plain to Onion), marked `starter` in BAGELS. */
 const STARTERS = BAGELS.filter((b) => b.starter).map((b) => b.id);
+/** Every bagel but the secret one, and every stage that can be played (the M18 challenges cover the whole game). */
+const REGULARS = BAGELS.filter((b) => !b.secret).map((b) => b.id);
+const ALL_STAGES = STAGES.filter((st) => st.built);
+const BAKERY_RANKS = BAKERY.reduce((a, u) => a + u.costs.length, 0);
 
 function count(n: number, target: number, best = false): GoalStatus {
   const v = Math.min(n, target);
@@ -74,7 +79,7 @@ export const CHALLENGES: ChallengeDef[] = [
   { id: 'endless3', name: 'Beat the boss 3 times in one Endless run', reward: 100, icon: 'ic_crown', status: (s) => count(s.records?.endlessBosses ?? 0, 3, true) },
   {
     id: 'quickall',
-    name: 'Clear a Quick Run on every stage',
+    name: `Clear a Quick Run on the first ${BUILT.length} stages`,
     reward: 40,
     icon: 'ic_bolt',
     status: (s) => count(BUILT.filter((st) => clearedBest(s, (k) => k === `${st.id}q` || k === `${st.id}qx`)).length, BUILT.length),
@@ -97,6 +102,40 @@ export const CHALLENGES: ChallengeDef[] = [
   { id: 'standmixer', name: 'Evolve the Whisk Whirl into the Stand Mixer', reward: 40, icon: 'ic_whisk', status: (s) => flag(s.cookbook.includes('whisk')) },
   { id: 'banish', name: 'Bin 5 cards in one run', reward: 40, icon: 'ic_bk_bin', status: (s) => count(s.records?.banish ?? 0, 5, true) },
   { id: 'strike', name: 'Strike! Flatten 12 enemies with one rolling can', reward: 50, icon: 'ic_bolt', status: (s) => count(s.records?.strike ?? 0, 12, true) },
+  // Replay (M18)
+  { id: 'daily1', name: 'Clear a Daily Run', reward: 50, icon: 'ic_cal', status: (s) => flag((s.daily?.wins ?? 0) > 0) },
+  { id: 'daily7', name: 'Play the Daily Run 7 days in a row', reward: 100, icon: 'ic_cal', status: (s) => count(s.daily?.best ?? 0, 7, true) },
+  { id: 'oneweapon', name: 'Clear a stage with only one weapon', reward: 80, icon: 'ic_star', status: (s) => flag(!!s.records?.oneWeapon) },
+  { id: 'nochest', name: 'Clear a stage without opening a chest', reward: 80, icon: 'chest', status: (s) => flag(!!s.records?.noChest) },
+  { id: 'level35', name: 'Reach level 35 in one run', reward: 80, icon: 'ic_bolt', status: (s) => count(s.records?.level ?? 1, 35, true) },
+  {
+    id: 'secrets3',
+    name: 'Find all 3 secrets',
+    reward: 100,
+    icon: 'ic_secret',
+    status: (s) => count(BAGELS.filter((b) => b.secret && s.unlocked.includes(b.id)).length + COMBOS.filter((cd) => (s.secrets ?? []).includes(cd.id)).length, 1 + COMBOS.length),
+  },
+  {
+    id: 'quick5',
+    name: `Clear a Quick Run on all ${ALL_STAGES.length} stages`,
+    reward: 80,
+    icon: 'ic_bolt',
+    status: (s) => count(ALL_STAGES.filter((st) => clearedBest(s, (k) => k === `${st.id}q` || k === `${st.id}qx`)).length, ALL_STAGES.length),
+  },
+  {
+    id: 'bagels11',
+    name: `Clear a stage with each of the ${REGULARS.length} regular bagels`,
+    reward: 150,
+    icon: 'bagel_plain',
+    status: (s) => count(REGULARS.filter((id) => clearedBest(s, (_, b) => b === id)).length, REGULARS.length),
+  },
+  {
+    id: 'bakeryfull',
+    name: 'Fill every Bakery upgrade',
+    reward: 150,
+    icon: 'ic_bk_oven',
+    status: (s) => count(BAKERY.reduce((a, u) => a + Math.min(u.costs.length, s.upgrades[u.id] ?? 0), 0), BAKERY_RANKS),
+  },
 ];
 
 /** Pays every challenge that is done but not paid yet. Returns the ones it paid. */

@@ -411,6 +411,38 @@ Pizza Cutter at level 3 matches the best older weapon on the Bakery (Cream Chees
 
 **After the owner's M17 playtest:** weapons now burn Stale creep directly wherever they reach (a spark shows it), where before only a hit on an enemy standing on the patch did; every level reached adds 2 max health and heals by it; health packs drop 0.75% of the time instead of 0.5%; Fresh Dough heals 25 instead of 15. `bagelbench.cjs`, Plain Jane, one run each, before and after: healing a minute 49 to 88 (Bakery) and 28 to 66 (Bread Bin); health bars lost over the run 3.1 to 1.9 and 6.1 to 4.5. Everything Ed, same order: bars lost 11.9 to 8.9 and 8.2 to 5.9. The bot's card picks differ between runs, so treat these as rough.
 
+### Phase 3, M18: replay (version 0.18)
+
+[Change list](https://claude.ai/artifact/QPf3SoSQvUPe1S3QWNMJUp), approved with its three suggestions and these picks: one scored Daily try a day (later runs are replays for fun), a set kit for the Daily (every Bakery upgrade at rank 2), and the Golden Bagel as a look. Nothing about an ordinary run changed.
+
+- **Daily Run** (`daily.ts`): the day's stage, bagel and twist come from the local date alone (a hash of the date, then three picks), so every phone agrees with no server. Seven twists. A Full Run with a set kit, on a bagel and stage the player may not own. The first run of the day is scored (time survived; a clear beats any time), kept for two weeks, and pays 30 Dough plus 5 a streak day (up to 25 more). It counts for Dough, defeats, coins, records, challenges and stats, and never for stage clears, bests, beaten bosses or the ending.
+- **Daily card** (calendar button, top right of the menu, once a stage is cleared): stage, bagel, twist, today's result, the streak, the last seven days as crowns, ticks and times, PLAY (or Share and Play again). One tip the first time the button is there.
+- **Score card** (`scoreCard.ts`): a 720 by 900 picture of the date, stage, bagel (with its hat and finish), twist, time, defeats and streak. Share uses the phone's share sheet; where there is none (and in the preview) the picture is shown to press and hold. It has no name or link on it.
+- **Challenges:** nine more (30 in all), listed under "Replay (M18)" in `goals.ts`. All 30 earn the Golden Bagel look and a small golden bagel on the title screen. The Challenges tab's top line counts down to it.
+- **Looks** (`looks.ts`): 10 hats, 6 trails, 4 sprinkles and the Golden Bagel, in the Bakery's third tab with a try-on bagel. 16 are bought (60 to 300 Dough), 5 are earned: Crown (beat the Stale King), Party Hat (a 7-day Daily streak), Top Hat (fill the Bakery), Stars trail (clear a Daily Run), Golden Bagel (all 30 challenges).
+- **Stats tab** on the Goals page: runs, time, defeats, bosses, coins, favourite bagel and weapon, the Daily streak, and the best Endless time on each stage.
+- **Also:** a Daily Run song (`daily`), save version 5, the What's new card.
+
+**Where the build differs from the list**
+- The Golden Bagel takes the sprinkle slot: it glazes the whole bagel, so it and a sprinkle colour can't both show.
+- A bagel wearing a hat is drawn smaller on the title screen and a little smaller on the menu shelf and the results screen, so the hat has room.
+- "Bosses beaten" on the Stats tab starts from the clears a save already has; runs, time and favourites start at zero, as the list said.
+- Rush Hour makes enemies arrive 30% faster; the caps on how many can be out at once are unchanged.
+
+**Dough check** (`bagelbench.cjs`, Plain Jane, one run per stage, 4:25 of a Full Run; the bot never dies, so its defeats run high)
+
+| Stage | Dough if the boss falls | Dough if it doesn't |
+| --- | --- | --- |
+| The Bakery | 152 | 112 |
+| The Freezer | 216 | 156 |
+| The Toaster Oven | 305 | 225 |
+| The Pantry | 370 | 270 |
+| The Bread Bin | 402 | 282 |
+
+Costs: the Bakery's 10 upgrades come to 6,510 Dough, the 16 looks for sale to 2,170, and the 30 challenges pay 2,245 in all. With six runs on each stage at halfway between the two columns (an assumption, not a measurement), reaching the ending takes about 30 runs and pays about 7,500 Dough, so the Bakery fills at about the time the Stale King falls, which is the target. The looks then cost about six more Bread Bin clears, or less with the Daily bonus (30 to 55 a day). No Bakery price, look price or stage pay was changed.
+
+**Checks:** `dailytest.cjs` (17 checks), `savetest.cjs`, `tutortest.cjs` at 760 and 640, `endtest.cjs` and `qtest.cjs` pass. Each twist was checked in a run (kit ranks, health, damage, cards, rerolls, bins, pace, seed coins). `mixtest.cjs`: the Daily song is -20.6 dB at its quietest layer and -14.9 dB at its fullest, beside -21.1 and -15.5 for the Pantry's. `fpsbench.cjs` with `LOOKS=1` (hat, sprinkles, trail) against without: 17.3 and 17.1 frames a second against 17.5 and 17.8 on the Bakery, 17.2 against 17.3 in the Bread Bin (headless numbers; compare, don't read as a phone's).
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.

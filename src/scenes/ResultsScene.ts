@@ -3,6 +3,9 @@ import { COLORS, CSS, S, fmtTime, safeInsets } from '../config';
 import { load } from '../save';
 import { button, fit, panel, pill, txt } from '../ui';
 import { Face } from '../face';
+import { Wear, makeLookTextures, worn } from '../looks';
+import { dailyResult, niceDate } from '../daily';
+import { shareScore } from '../scoreCard';
 import { sfx } from '../sfx';
 import { shake } from '../settings';
 import { bigBagel } from '../textures';
@@ -64,18 +67,25 @@ export class ResultsScene extends Phaser.Scene {
     panel(this, W / 2, cy, pw, ph);
     const top = cy - ph / 2;
     // Endless always ends in going stale, so its title is the score: time survived.
-    const title = r.endless ? `SURVIVED ${fmtTime(r.time)}` : r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE';
-    txt(this, W / 2, top + 44 * S, title, r.practice ? 24 : 30, r.victory || r.endless ? CSS.gold : CSS.red);
+    const dy = r.daily;
+    makeLookTextures(this);
+    const looks = worn(save);
+    // A hat needs headroom: the title and its line move up a little, the bagel down.
+    const hat = looks.hat ? 1 : 0;
+    const title = dy ? (r.victory ? 'DAILY CLEARED!' : 'DAILY RUN OVER') : r.endless ? `SURVIVED ${fmtTime(r.time)}` : r.practice ? (r.victory ? 'PRACTICE CLEARED!' : 'PRACTICE OVER') : r.victory ? 'STAGE CLEARED!' : 'YOU WENT STALE';
+    txt(this, W / 2, top + (44 - 5 * hat) * S, title, r.practice || dy ? 26 : 30, r.victory || r.endless ? CSS.gold : CSS.red);
     const st = stageById(r.stage);
     const tags = [r.quick ? 'Quick' : '', r.endless ? 'Endless' : '', r.crispy ? 'Extra Crispy' : ''].filter(Boolean).join(', ');
-    txt(this, W / 2, top + 72 * S, `Stage ${st.num}: ${st.name}${tags ? ` (${tags})` : ''}`, 13, r.crispy ? '#ff9a5c' : CSS.muted, { stroke: false });
+    fit(txt(this, W / 2, top + (72 - 8 * hat) * S, dy ? `${niceDate(dy.date)}: ${st.name}, ${dy.twist}` : `Stage ${st.num}: ${st.name}${tags ? ` (${tags})` : ''}`, 13, r.crispy ? '#ff9a5c' : CSS.muted, { stroke: false }), pw - 30 * S);
     // The bagel: pleased with itself after a win, flat and glum after going stale.
     const bagelDef = BAGELS.find((b) => b.id === r.bagel);
-    const hero = this.add.image(W / 2, top + 119 * S, bigBagel(this, bagelDef?.tex ?? 'bagel_plain', false)).setScale(0.44);
+    const hero = this.add.image(W / 2, top + 119 * S, bigBagel(this, bagelDef?.tex ?? 'bagel_plain', false)).setScale(hat ? 0.4 : 0.44).setY(top + (119 + 7 * hat) * S);
+    new Wear(this, hero, 62, looks.sprinkle, () => undefined);
     const face = new Face(this, hero, 62, () => undefined);
+    new Wear(this, hero, 62, looks.hat, () => undefined);
     const won = r.victory || (!!r.endless && !!r.cleared);
     face.mood = won ? 'happy' : 'sad';
-    if (!won) hero.setScale(0.5, 0.33).setY(top + 126 * S);
+    if (!won) hero.setScale(hat ? 0.46 : 0.5, hat ? 0.31 : 0.33).setY(top + (126 + 5 * hat) * S);
 
     // Everything is laid out finished. Then, the first time the screen shows, it plays in: the numbers count up,
     // the Dough flies to the purse, a new best stamps down. `finals` jump each piece to its finished state (a tap).
@@ -96,7 +106,7 @@ export class ResultsScene extends Phaser.Scene {
       [r.endless ? 'Time survived' : 'Time', r.time, (n) => fmtTime(n)],
       ['Level', r.level, (n) => `${Math.round(n)}`],
       ['Crumbs defeated', r.kills, (n) => `${Math.round(n)}`],
-      ['Dough earned', r.practice ? 0 : r.dough, (n) => (r.practice ? 'none (practice)' : `+${Math.round(n)}`)],
+      ['Dough earned', r.practice ? 0 : r.dough, (n) => (r.practice ? (dy ? 'none (replay)' : 'none (practice)') : `+${Math.round(n)}`)],
     ];
     const values = rows.map(([k, v, show], i) => {
       const y = top + 160 * S + i * 34 * S;
@@ -128,7 +138,9 @@ export class ResultsScene extends Phaser.Scene {
     if (r.goals.length === 1) notes.push(`GOAL DONE: ${r.goals[0].name}, +${r.goals[0].reward} Dough`);
     else if (r.goals.length > 1) notes.push(`${r.goals.length} GOALS DONE! +${r.goals.reduce((a, g) => a + g.reward, 0)} Dough. See the Goals page.`);
     if (r.endless && r.cleared) notes.push('The boss fell, so this run counts as a stage clear.');
-    if (r.practice) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
+    if (dy?.scored) notes.unshift(`Day ${dy.streak} of your Daily streak: +${dy.bonus} bonus Dough. Come back tomorrow!`);
+    else if (dy) notes.unshift("Today's score is already in, so this one was just for fun.");
+    if (r.practice && !dy) notes.push('Practice runs start at 2:30 with 12 level-ups and pay no Dough.');
     if (r.newStage) notes.push(`NEW STAGE: ${r.newStage}!`);
     for (const name of r.combos ?? []) notes.push(`SECRET RECIPE FOUND: ${name}!`);
     if (r.newUnlock) notes.push(`NEW BAGEL UNLOCKED: ${r.newUnlock}!`);
@@ -137,7 +149,12 @@ export class ResultsScene extends Phaser.Scene {
     if (save.cookbook.length < 6) notes.push(`Cookbook ${save.cookbook.length}/${Object.keys(WEAPONS).length}: max a weapon, own its topping, open a chest`);
     const by = Math.min(H - ins.bottom * S - 110 * S, cy + ph / 2 + 60 * S);
     const bw = Math.min(W - 60 * S, 260 * S);
-    const again = () => this.go('game', { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: r.quick, endless: r.endless, crispy: r.crispy });
+    const again = () => this.go('game', dy ? { daily: true } : { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: r.quick, endless: r.endless, crispy: r.crispy });
+    // A Daily Run's score card can be shared from here (and from the Daily card on the menu).
+    const share = () => {
+      const res = dy && dailyResult(save, dy.date);
+      if (dy && res) shareScore(this, { date: dy.date, result: res, streak: dy.streak, ...looks });
+    };
     const quiet = { color: COLORS.panelLight, textColor: CSS.cream, size: 20 };
     const noteY = top + (compact ? 335 : 375) * S;
     // A tap anywhere that isn't a button skips the count-up.
@@ -195,8 +212,16 @@ export class ResultsScene extends Phaser.Scene {
         finals.push(() => fb(1));
         fade.push(gr, ic, name, prog, bar);
       }
-      button(this, W / 2, by, bw, 62 * S, 'AGAIN', again, { size: 28 });
-      button(this, W / 2, by + 74 * S, bw, 50 * S, 'Menu', () => this.go('menu', {}), quiet);
+      if (dy) {
+        // Share is the big button; a replay (for fun) and the menu sit under it.
+        button(this, W / 2, by, bw, 62 * S, 'SHARE', share, { size: 28 });
+        const hw = (bw - 10 * S) / 2;
+        button(this, W / 2 - hw / 2 - 5 * S, by + 74 * S, hw, 50 * S, 'Again', again, { ...quiet, size: 18 });
+        button(this, W / 2 + hw / 2 + 5 * S, by + 74 * S, hw, 50 * S, 'Menu', () => this.go('menu', {}), { ...quiet, size: 18 });
+      } else {
+        button(this, W / 2, by, bw, 62 * S, 'AGAIN', again, { size: 28 });
+        button(this, W / 2, by + 74 * S, bw, 50 * S, 'Menu', () => this.go('menu', {}), quiet);
+      }
     }
     for (const o of fade) finals.push(() => o.setAlpha(1));
     // A hint takes turns along the bottom, when there's room under the buttons.

@@ -9,6 +9,11 @@ export interface RunSnapshot {
   quick?: boolean;
   endless?: boolean;
   crispy?: boolean;
+  /** A Daily Run: its date, and whether it is the day's scored run. */
+  daily?: string;
+  dailyScored?: boolean;
+  chestsOpened?: number;
+  seedN?: number;
   endlessCleared?: boolean;
   nextMini?: number;
   nextBoss?: number;

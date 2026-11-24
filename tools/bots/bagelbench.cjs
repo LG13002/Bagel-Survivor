@@ -62,7 +62,7 @@ const SPEED = Number(process.env.SPEED || 10);
     const st = await p.evaluate(() => {
       const g = window.__game.scene.getScene('game');
       const dt = g.now - g.__t0, hp = g.stats.maxHp;
-      return { secs: Math.round(dt), level: g.run.level, kills: g.run.kills, dps: Math.round(g.__dmg / dt), maxHp: Math.round(hp), hurtPerMin: Math.round((g.__hurt / dt) * 60), healPerMin: Math.round((g.__heal / dt) * 60), barsLost: +((g.__hurt - g.__heal) / hp).toFixed(2), weapons: g.weapons.map((w) => w.def.id + (w.evolved ? '*' : w.level)).join(' ') };
+      return { secs: Math.round(dt), level: g.run.level, kills: g.run.kills, dps: Math.round(g.__dmg / dt), maxHp: Math.round(hp), hurtPerMin: Math.round((g.__hurt / dt) * 60), healPerMin: Math.round((g.__heal / dt) * 60), barsLost: +((g.__hurt - g.__heal) / hp).toFixed(2), coins: g.run.coins, doughIfCleared: g.runDough(true), doughIfLost: g.runDough(false), weapons: g.weapons.map((w) => w.def.id + (w.evolved ? '*' : w.level)).join(' ') };
     });
     console.log(bagel, STAGE, JSON.stringify(st));
     await p.close();

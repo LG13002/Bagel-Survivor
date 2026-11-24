@@ -1,6 +1,7 @@
 import type { Pickup } from '../entities';
 import { S } from '../config';
 import { sfx } from '../sfx';
+import { SEEDS_PER_COIN } from '../daily';
 import type { GameScene } from '../scenes/GameScene';
 
 /** A Warm Mug keeps frost away for this long. */
@@ -139,6 +140,8 @@ export class Pickups {
       case 'xp':
         g.gainXp(it.value);
         sfx('xp');
+        // Daily twist: every 12th seed is worth a coin too.
+        if (g.twist === 'seeds' && ++run.seedN % SEEDS_PER_COIN === 0) run.coins += 1;
         break;
       case 'coin':
         run.coins += 1;

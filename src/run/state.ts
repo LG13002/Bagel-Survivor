@@ -37,6 +37,8 @@ export interface RunResult {
   combos?: string[];
   /** This was the stage's first clear (the results screen adds a line of story). */
   firstClear?: boolean;
+  /** A Daily Run: its date, twist name, whether it was the day's scored run, the streak after it and the day's bonus Dough. */
+  daily?: { date: string; twist: string; scored: boolean; streak: number; bonus: number };
 }
 
 /**
@@ -108,6 +110,13 @@ export class RunState {
   frozen = false;
   /** A Warm Mug keeps frost away until this time. */
   mugUntil = 0;
+
+  /** Chests and toasters opened (a challenge wants a clear with none). */
+  chestsOpened = 0;
+  /** Seeds picked up, for the Daily's Seeds Pay Dough twist. */
+  seedN = 0;
+  /** When the worn trail drops its next puff (run time). */
+  trailAt = 0;
 
   constructor(up: Record<string, number>) {
     this.luck = up.luck ?? 0;

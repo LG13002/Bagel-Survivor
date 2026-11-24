@@ -1,3 +1,4 @@
+import { trailBit } from '../looks';
 import Phaser from 'phaser';
 import { settings } from '../settings';
 import { S } from '../config';
@@ -118,6 +119,15 @@ export class Effects {
   }
 
   /** A little fading dot behind a projectile (weapons at level 5 and evolved). */
+  /** One puff of the trail the bagel is wearing (a look: it changes nothing). Off with Battery saver. */
+  lookTrail(id: string, x: number, y: number): void {
+    if (settings().saver || this.particles > 260) return;
+    const b = trailBit(id);
+    const im = this.fx(b.tex, x, y, 18).setAlpha(b.alpha).setScale(b.s0 / S);
+    if (b.tint) im.setTint(b.tint);
+    this.g.tweens.add({ targets: im, x: x + b.dx, y: y + b.dy, scale: b.s1 / S, rotation: b.spin, alpha: 0, duration: b.ms, onComplete: () => this.done(im) });
+  }
+
   trailDot(x: number, y: number, color: number): void {
     if (settings().saver || this.particles > 120) return;
     const im = this.fx('dot', x, y, 18).setTint(color).setAlpha(0.85);

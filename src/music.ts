@@ -27,7 +27,7 @@ interface Song {
   tracks: Track[];
 }
 
-export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss' | 'prun' | 'pboss' | 'brun' | 'king' | 'ending';
+export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss' | 'prun' | 'pboss' | 'brun' | 'king' | 'ending' | 'daily';
 
 /** Bars written as space-separated tokens, joined with "|". */
 function seq(s: string): string[] {
@@ -108,6 +108,40 @@ const SONGS: Record<SongId, Song> = {
         vol: 0.6,
         steps: seq(`F2 F3 F2 F3 F2 F3 F2 F3 | D2 D3 D2 D3 D2 D3 D2 D3 | Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 Bb1 Bb2 | C2 C3 C2 C3 C2 C3 C2 C3
                     F2 F3 F2 F3 F2 F3 F2 F3 | D2 D3 D2 D3 D2 D3 D2 D3 | Bb1 Bb2 Bb1 Bb2 C2 C3 C2 C3 | F2 F3 F2 F3 F2 F3 F2 F3`),
+      },
+    ],
+  },
+
+  // The Daily Run: a bright, bouncy tune in G with a bell on top, so the day's special run sounds like one.
+  daily: {
+    level: 1.3,
+    bpm: 138,
+    res: 2,
+    swing: 0.1,
+    loop: true,
+    layered: true,
+    tracks: [
+      {
+        inst: 'lead',
+        steps: seq(`G5 - B5 - D6 - B5 G5 | E5 - G5 - C6 - B5 A5 | D5 - F#5 - A5 - C6 A5 | B5 - A5 G5 D5 - . .
+                    G5 - B5 D6 G6 - D6 B5 | C6 - E6 - C6 - A5 C6 | B5 - D6 B5 A5 - F#5 A5 | G5 - - - . . D5 .`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.8,
+        steps: seq(`. G4+B4+D5 . G4+B4+D5 . G4+B4+D5 . G4+B4+D5 | . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 | . D4+F#4+A4 . D4+F#4+A4 . D4+F#4+A4 . D4+F#4+A4 | . G4+B4+D5 . G4+B4+D5 . D4+F#4+A4 . D4+F#4+A4
+                    . G4+B4+D5 . G4+B4+D5 . G4+B4+D5 . G4+B4+D5 | . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 . C4+E4+G4 | . G4+B4+D5 . G4+B4+D5 . D4+F#4+A4 . D4+F#4+A4 | . G4+B4+D5 . G4+B4+D5 . G4+B4+D5 . G4+B4+D5`),
+      },
+      { inst: 'bell', vol: 0.5, steps: seq(rep('. . . . D6 . . . | . . . . G6 . . .', 4)) },
+      { inst: 'kick', layer: 1, steps: seq(rep('x . . x x . . .', 8)) },
+      { inst: 'snare', layer: 1, steps: seq(rep('. . x . . . x .', 8)) },
+      { inst: 'hat', layer: 1, vol: 0.6, steps: seq(rep('x . x x x . x x', 8)) },
+      {
+        inst: 'pluck',
+        layer: 2,
+        vol: 0.6,
+        steps: seq(`G2 . D3 . G2 . B2 D3 | C2 . G2 . C3 . G2 E2 | D2 . A2 . D3 . A2 F#2 | G2 . D3 . D2 . A2 D3
+                    G2 . D3 . G2 . B2 D3 | C2 . G2 . C3 . E3 C3 | G2 . D3 . D2 . A2 D3 | G2 . D3 . G2 . D2 .`),
       },
     ],
   },

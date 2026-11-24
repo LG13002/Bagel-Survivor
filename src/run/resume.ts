@@ -19,6 +19,9 @@ export function writeSnapshot(g: GameScene): void {
     quick: g.quick,
     endless: g.endless,
     crispy: g.crispy,
+    ...(g.daily ? { daily: g.daily.date, dailyScored: g.dailyScored } : {}),
+    chestsOpened: r.chestsOpened,
+    seedN: r.seedN,
     endlessCleared: dir.endlessCleared,
     nextMini: dir.nextMini,
     nextBoss: dir.nextBoss,
@@ -88,6 +91,8 @@ export function applySnapshot(g: GameScene, s: RunSnapshot): void {
   r.banished = [...(s.banished ?? [])];
   r.banishedN = s.banishedN ?? 0;
   r.coinPickups = s.coinPickups ?? 0;
+  r.chestsOpened = s.chestsOpened ?? 0;
+  r.seedN = s.seedN ?? 0;
   dir.nextWave = s.nextWave;
   dir.nextAnts = s.nextAnts;
   dir.nextElite = s.nextElite;

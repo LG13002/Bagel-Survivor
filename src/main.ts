@@ -1,3 +1,4 @@
+import { dailyFor, dailyStreak, today } from './daily';
 import Phaser from 'phaser';
 import { COLORS, S } from './config';
 import { GameScene } from './scenes/GameScene';
@@ -24,7 +25,7 @@ function start(): void {
   });
 
   // Exposed for debugging and automated playtests (tools/bots).
-  Object.assign(window, { __game: game, __save: { load, persist, backupCode, restoreCode, resetSave, takeRecovered } });
+  Object.assign(window, { __game: game, __save: { load, persist, backupCode, restoreCode, resetSave, takeRecovered }, __daily: { dailyFor, dailyStreak, today } });
 
   let pending = 0;
   const onResize = () => {

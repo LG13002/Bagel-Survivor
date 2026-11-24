@@ -19,11 +19,13 @@ import { Player, type Enemy, type Stats } from '../entities';
 import { bestStage, load, persist, recordBest } from '../save';
 import { bodyBagel, makeRunTextures } from '../textures';
 import { Face } from '../face';
+import { TRAIL_EVERY, Wear, makeLookTextures, worn } from '../looks';
 import { COMBOS, createWeapon, type FxId, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, sfx, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
 import { claimGoals } from '../goals';
+import { BARGAIN, DAILY_KIT, RUSH, TWISTS, dailyFor, dailyResult, dailyStreak, recordDaily, today, type Daily, type TwistId } from '../daily';
 import { clearRun, loadRun, type RunSnapshot } from '../runsave';
 import { Ambient } from '../run/ambient';
 import { Director } from '../run/director';
@@ -85,6 +87,11 @@ export class GameScene extends Phaser.Scene implements World {
   quick = false;
   endless = false;
   crispy = false;
+  /** The Daily Run being played, if this is one. Only the day's first run is scored; later ones are replays for fun. */
+  daily: Daily | null = null;
+  dailyScored = false;
+  /** The trail look being worn ('' for none). */
+  trail = '';
   /** Stage-schedule speed: 1 for a full run, QUICK_PACE for a Quick Run. */
   pace = 1;
   paused: PauseReason = '';
@@ -138,12 +145,37 @@ export class GameScene extends Phaser.Scene implements World {
     return this.now * this.pace;
   }
 
-  init(data: { bagel?: string; stage?: string; practice?: boolean; quick?: boolean; endless?: boolean; crispy?: boolean; resume?: boolean }): void {
+  /** The Daily Run's twist, or '' in any other run. */
+  get twist(): TwistId | '' {
+    return this.daily?.twist ?? '';
+  }
+
+  /** The Bakery ranks this run plays with: your own, or the Daily's set kit. */
+  get kit(): Record<string, number> {
+    return this.daily ? DAILY_KIT : load().upgrades;
+  }
+
+  /** Nothing from this run is kept: a practice run, or a replay of a Daily already scored. */
+  get free(): boolean {
+    return this.practice || (!!this.daily && !this.dailyScored);
+  }
+
+  init(data: { bagel?: string; stage?: string; practice?: boolean; quick?: boolean; endless?: boolean; crispy?: boolean; resume?: boolean; daily?: boolean }): void {
     this.resume = data.resume ? loadRun() : null;
+    this.daily = null;
     if (this.resume) {
       const r = this.resume;
       data = { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: !!r.quick, endless: !!r.endless, crispy: !!r.crispy };
+      if (r.daily) {
+        this.daily = dailyFor(r.daily);
+        this.dailyScored = !!r.dailyScored;
+      }
+    } else if (data.daily) {
+      // The Daily Run: the day decides the stage, the bagel and the twist. Only the day's first run is scored.
+      this.daily = dailyFor(today());
+      this.dailyScored = !dailyResult(load(), this.daily.date);
     }
+    if (this.daily) data = { bagel: this.daily.bagel, stage: this.daily.stage, quick: this.daily.twist === 'fast' };
     this.bagel = BAGELS.find((b) => b.id === data.bagel) ?? BAGELS[0];
     const st = stageById(data.stage);
     this.stage = st.built ? st : stageById('stage1');
@@ -159,7 +191,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.paused = '';
     this.weapons = [];
     this.toppings = new Map();
-    this.run = new RunState(load().upgrades);
+    this.run = new RunState(this.kit);
+    if (this.twist === 'bargain') {
+      this.run.rerolls += BARGAIN;
+      this.run.banishes += BARGAIN;
+    }
     this.hitstop = 0;
     this.lastHitstop = 0;
     this.lastFrame = 0;
@@ -196,10 +232,16 @@ export class GameScene extends Phaser.Scene implements World {
     this.loot = new Pickups(this);
 
     this.player.sprite = this.img(bodyBagel(this, this.bagel.tex), 0, 0, 50);
+    // Looks: the finish sits under the eyes, the hat over them. The trail is dropped in `renderWorld`.
+    makeLookTextures(this);
+    const looks = worn(load());
+    this.trail = looks.trail ?? '';
+    new Wear(this, this.player.sprite, 15.5, looks.sprinkle, (o) => this.worldLayer.add(o.setDepth(50.3)));
     this.face = new Face(this, this.player.sprite, 15.5, (o) => {
       o.setDepth(50.5);
       this.worldLayer.add(o);
     });
+    new Wear(this, this.player.sprite, 15.5, looks.hat, (o) => this.worldLayer.add(o.setDepth(50.7)));
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
     this.hpFill = this.add.rectangle(0, 0, 30, 4, COLORS.red).setDepth(52).setOrigin(0, 0.5);
     this.worldLayer.add([this.hpBg, this.hpFill]);
@@ -224,6 +266,10 @@ export class GameScene extends Phaser.Scene implements World {
       this.run.xpNext = xpNeeded(this.run.level);
     }
     this.onResize();
+    if (!this.resume && this.daily) {
+      const tw = TWISTS[this.daily.twist];
+      this.time.delayedCall(400, () => this.hud.banner(`Daily Run: ${tw.name}\n${tw.blurb}`, CSS.gold, 20));
+    }
     if (!this.resume && (this.crispy || this.endless)) {
       const what = this.endless && this.crispy ? 'Endless, Extra Crispy!' : this.endless ? 'Endless: survive as long as you can!' : 'Extra Crispy: tougher enemies, more Dough!';
       this.time.delayedCall(400, () => this.hud.banner(what, this.crispy ? '#ff9a5c' : CSS.gold, 20));
@@ -386,18 +432,19 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- Stats & build
 
   recomputeStats(): void {
-    const up = load().upgrades;
+    const up = this.kit;
+    const glass = this.twist === 'glass';
     const b = this.bagel;
     const t = (id: ToppingId) => this.toppings.get(id) ?? 0;
     const prevMax = this.stats.maxHp;
     this.stats = {
-      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven') + 0.04 * t('honey')) * (1 + this.run.agedPct / 100),
+      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven') + 0.04 * t('honey')) * (1 + this.run.agedPct / 100) * (glass ? 2 : 1),
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
       magnet: 62 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
       // Every level reached adds a little max health (LEVEL_HP), and the gain heals by the same amount.
-      maxHp: Math.round((b.hp + 10 * (up.hp ?? 0) + LEVEL_HP * (this.run.level - 1)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
+      maxHp: Math.round((b.hp + 10 * (up.hp ?? 0) + LEVEL_HP * (this.run.level - 1)) * (1 + b.allStats) * (1 + 0.15 * t('dough')) * (glass ? 0.5 : 1)),
       proj: (t('honey') >= 1 ? 1 : 0) + (t('honey') >= 4 ? 1 : 0),
       dur: 1 + 0.15 * t('jam'),
       shot: 1 + 0.1 * t('oil'),
@@ -462,7 +509,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.toppings.size < MAX_SLOTS)
       for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon)) && !out0.has(`t:${id}`)) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
     const out: Choice[] = [];
-    const n = this.bagel.choices;
+    const n = Math.max(this.bagel.choices, this.twist === 'lucky' ? 4 : 0);
     while (out.length < n && pool.length) {
       const total = pool.reduce((a, p) => a + p.w, 0);
       let r = Math.random() * total;
@@ -507,7 +554,7 @@ export class GameScene extends Phaser.Scene implements World {
 
   gainXp(v: number): void {
     const r = this.run;
-    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1) * this.stats.xp;
+    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1) * this.stats.xp * (this.twist === 'rush' ? RUSH : 1);
     let levelled = false;
     while (r.xp >= r.xpNext) {
       r.xp -= r.xpNext;
@@ -557,7 +604,7 @@ export class GameScene extends Phaser.Scene implements World {
   private updateAudio(): void {
     if (this.paused === 'over') return;
     const st = this.stage;
-    playMusic(this.foes.bossOut() ? st.music.boss : st.music.run);
+    playMusic(this.foes.bossOut() ? st.music.boss : this.daily ? 'daily' : st.music.run);
     // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
     // Endless: a little faster every minute after 5:00.
     const extra = this.endless && this.stageT > 300 ? Math.min(0.2, ((this.stageT - 300) / 60) * 0.03) : 0;
@@ -841,6 +888,10 @@ export class GameScene extends Phaser.Scene implements World {
     }
     p.sprite.setPosition(p.x, p.y).setScale(base * sx, base * sy);
     this.face.look(p.moveX, p.moveY);
+    if (this.trail && moving && this.now >= r.trailAt) {
+      r.trailAt = this.now + TRAIL_EVERY[this.trail];
+      this.effects.lookTrail(this.trail, p.x - p.moveX * 10, p.y + 7 - p.moveY * 10);
+    }
     p.sprite.setRotation(moving ? p.moveX * 0.12 : 0);
     p.sprite.setAlpha(this.now < p.invulnUntil ? (Math.floor(this.now * 20) % 2 ? 0.45 : 1) : 1);
     this.hpBg.setPosition(p.x, p.y + 22);
@@ -1070,12 +1121,15 @@ export class GameScene extends Phaser.Scene implements World {
     const save = load();
     const openBefore = playableStages(save);
     let dough = this.runDough(victory);
-    // Practice runs are for testing builds and bosses: no rewards or unlocks.
-    if (this.practice) dough = 0;
+    // Practice runs are for testing builds and bosses: no rewards or unlocks. A replayed Daily is the same.
+    const practice = this.free;
+    // A Daily Run counts for Dough, defeats, coins and challenges, never for stages, bagels or stage bests.
+    const daily = this.daily;
+    if (practice) dough = 0;
     save.dough += dough;
-    if (!this.practice) save.totalKills += r.kills;
+    if (!practice) save.totalKills += r.kills;
     // A Quick Run clear counts as surviving 3:00 for unlock goals.
-    if (!this.practice) {
+    if (!practice && !daily) {
       const t = Math.max(Math.floor(this.now), this.quick && victory ? 180 : 0);
       save.bestTime = Math.max(save.bestTime, t);
       save.stageTime = { ...(save.stageTime ?? {}), [this.stage.id]: Math.max(save.stageTime?.[this.stage.id] ?? 0, t) };
@@ -1083,13 +1137,13 @@ export class GameScene extends Phaser.Scene implements World {
     clearRun();
     // An Endless run whose boss fell counts as a clear too.
     const cleared = victory || this.director.endlessCleared;
-    if (cleared && !this.practice) {
+    if (cleared && !practice && !daily) {
       save.clears++;
       save.stageClears = { ...(save.stageClears ?? {}), [this.stage.id]: (save.stageClears?.[this.stage.id] ?? 0) + 1 };
       if (this.crispy) save.crispyClears = { ...(save.crispyClears ?? {}), [this.stage.id]: (save.crispyClears?.[this.stage.id] ?? 0) + 1 };
       if (r.healsTaken === 0) save.noHealClear = true;
     }
-    if (!this.practice) {
+    if (!practice) {
       const rec = { ...(save.records ?? {}) };
       rec.kills = Math.max(rec.kills ?? 0, r.kills);
       rec.level = Math.max(rec.level ?? 1, r.level);
@@ -1104,33 +1158,55 @@ export class GameScene extends Phaser.Scene implements World {
       save.records = rec;
       if (r.noHitBoss) save.noHitBoss = true;
     }
-    if (!this.practice) {
+    if (!practice) {
       const beaten = new Set(save.beaten ?? []);
-      if (r.miniKilled) beaten.add(this.stage.mini.kind);
-      if (cleared) beaten.add(this.stage.boss.kind);
+      if (r.miniKilled && !daily) beaten.add(this.stage.mini.kind);
+      if (cleared && !daily) beaten.add(this.stage.boss.kind);
       save.beaten = [...beaten];
       save.mugs = (save.mugs ?? 0) + r.runMugs;
       save.coinsTotal = (save.coinsTotal ?? 0) + r.coinPickups;
     }
-    const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
-    const newWeapon = this.practice ? '' : checkWeaponUnlocks(save).join(', ');
-    const newBest = !this.practice && recordBest(
+    const newUnlock = practice ? '' : checkUnlocks(save).join(', ');
+    const newWeapon = practice ? '' : checkWeaponUnlocks(save).join(', ');
+    const newBest = !practice && !daily && recordBest(
         save,
         this.bagel.id,
         { time: Math.floor(this.now), kills: r.kills, cleared, ...(this.endless ? { endless: true } : {}) },
         bestStage(this.stage.id, this.endless ? 'endless' : this.quick ? 'quick' : 'full', this.crispy),
       );
+    // The day's scored run: its result, the streak and the day's bonus.
+    let dailyOut: RunResult['daily'];
+    if (daily) {
+      const res = { t: Math.floor(this.now), k: r.kills, c: cleared };
+      const paid = practice ? null : recordDaily(save, daily.date, res);
+      dailyOut = { date: daily.date, twist: TWISTS[daily.twist].name, scored: !practice, streak: paid?.streak ?? dailyStreak(save, daily.date), bonus: paid?.bonus ?? 0 };
+      if (paid) dough += paid.bonus;
+    }
+    // Lifetime numbers for the Stats tab.
+    if (!practice) {
+      const st = save.stats ?? { runs: 0, secs: 0, bosses: 0, bagels: {}, weapons: {} };
+      st.runs++;
+      st.bosses = (st.bosses ?? 0) + (this.endless ? this.director.bossRound : victory ? 1 : 0);
+      st.secs += Math.floor(this.now);
+      st.bagels[this.bagel.id] = (st.bagels[this.bagel.id] ?? 0) + 1;
+      for (const w of this.weapons) st.weapons[w.def.id] = (st.weapons[w.def.id] ?? 0) + 1;
+      save.stats = st;
+      const rec = { ...(save.records ?? {}) };
+      if (cleared && this.weapons.length === 1) rec.oneWeapon = true;
+      if (cleared && r.chestsOpened === 0) rec.noChest = true;
+      save.records = rec;
+    }
     // Challenges pay their Dough as soon as they're done.
-    const goals = this.practice ? [] : claimGoals(save).map((g) => ({ name: g.name, reward: g.reward }));
+    const goals = practice ? [] : claimGoals(save).map((g) => ({ name: g.name, reward: g.reward }));
     // A new save's menu opens as you go: the Bakery and Goals once the first real run is over.
-    if (!this.practice) openMenu(save, 'bakery', 'goals');
-    const firstClear = cleared && !this.practice && save.stageClears?.[this.stage.id] === 1;
+    if (!practice) openMenu(save, 'bakery', 'goals');
+    const firstClear = cleared && !practice && !daily && save.stageClears?.[this.stage.id] === 1;
     const opened = playableStages(save).filter((id) => !openBefore.includes(id));
     if (opened.length) save.stage = opened[0];
     persist();
     const result: RunResult = {
       victory,
-      practice: this.practice,
+      practice: practice,
       quick: this.quick,
       endless: this.endless,
       cleared,
@@ -1149,6 +1225,7 @@ export class GameScene extends Phaser.Scene implements World {
       goals,
       combos: r.foundCombos,
       firstClear,
+      daily: dailyOut,
     };
     const p = this.player.sprite;
     const base = 1 / S;
@@ -1170,7 +1247,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.cameras.main.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       this.uiCam.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       // The first time the Stale King falls, the ending comic and the credits come before the results.
-      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !load().ending;
+      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !this.daily && !load().ending;
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => (ending ? this.scene.start('intro', { ending: true, result }) : this.scene.start('results', result)));
     };
     if (victory && !quit) this.time.delayedCall(600, fade);
