@@ -646,7 +646,7 @@ export class Enemies {
     }
     const r = Math.random();
     if (r < 0.01) loot.drop('coin', e.x + 6, e.y, 1);
-    else if (r < 0.015) loot.drop('heal', e.x, e.y + 6, 30);
+    else if (r < 0.0175) loot.drop('heal', e.x, e.y + 6, 30);
     if (e === this.mini) {
       this.mini = null;
       run.miniKilled = true;

@@ -165,7 +165,7 @@ export interface ToppingDef {
 
 export const TOPPINGS: Record<ToppingId, ToppingDef> = {
   butter: { id: 'butter', name: 'Extra Butter', icon: 'ic_butter', blurb: '+10% area' },
-  dough: { id: 'dough', name: 'Fresh Dough', icon: 'ic_dough', blurb: '+15% max health, heal 15' },
+  dough: { id: 'dough', name: 'Fresh Dough', icon: 'ic_dough', blurb: '+15% max health, heal 25' },
   caffeine: { id: 'caffeine', name: 'Caffeine', icon: 'ic_caffeine', blurb: '+8% attack speed' },
   oven: { id: 'oven', name: 'Hot Oven', icon: 'ic_oven', blurb: '+10% damage' },
   salt: { id: 'salt', name: 'Salt Crystals', icon: 'ic_salt', blurb: '+25% pickup range' },

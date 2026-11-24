@@ -10,6 +10,8 @@ export interface World {
   now: number;
   nearest(x: number, y: number, maxR: number): Enemy | null;
   query(x: number, y: number, r: number, cb: (e: Enemy) => void): void;
+  /** Like `query`, for picking targets: it looks without touching anything (no creep burned). */
+  scan(x: number, y: number, r: number, cb: (e: Enemy) => void): void;
   hit(e: Enemy, dmg: number, kx: number, ky: number, key: string, cd: number, fx?: FxId): boolean;
   /** A small fading dot behind a projectile (level 5 and evolved looks). */
   trailDot(x: number, y: number, color: number): void;
@@ -332,7 +334,7 @@ class CreamPuddle extends PoolWeapon {
   private randomTarget(): { x: number; y: number } {
     const p = this.w.player;
     const cands: Enemy[] = [];
-    this.w.query(p.x, p.y, 230, (e) => {
+    this.w.scan(p.x, p.y, 230, (e) => {
       if (cands.length < 30) cands.push(e);
     });
     if (cands.length) {
@@ -585,7 +587,7 @@ class RollingPinW extends Weapon {
 function pickTargets(w: World, n: number, r: number): { x: number; y: number }[] {
   const p = w.player;
   const cands: Enemy[] = [];
-  w.query(p.x, p.y, r, (e) => {
+  w.scan(p.x, p.y, r, (e) => {
     if (cands.length < 60) cands.push(e);
   });
   for (let i = cands.length - 1; i > 0; i--) {

@@ -47,3 +47,6 @@ export const HIT_GRACE = 1.1;
 export const WAVE_GAP = 1.9;
 /** How long a charger's dash lasts, in seconds (its lane is drawn this long). */
 export const CHARGE_TIME = 0.5;
+
+/** Max health gained for every level reached in a run (the owner's ask after M17: surviving shouldn't hang on Fresh Dough). The gain heals too. */
+export const LEVEL_HP = 2;

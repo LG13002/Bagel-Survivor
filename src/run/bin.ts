@@ -14,6 +14,8 @@ const CREEP_MAX_VAR = 16;
 const CREEP_CAP = 8;
 /** A patch shrunk below this is gone. */
 const CREEP_GONE = 13;
+/** How much a patch shrinks each time a weapon sears it (ten times a second at most, against CREEP_GROW a second). */
+const SEAR = 3;
 /** How much of your speed is left inside a patch. */
 export const CREEP_SLOW = 0.7;
 /** The creep picture's stain is this many units across at full size. */
@@ -36,6 +38,8 @@ interface Patch {
   warn: number;
   /** Burning away with the King (seconds until it starts). */
   dying: number;
+  /** When a weapon last seared it directly. */
+  seared: number;
 }
 
 interface Crumb {
@@ -131,6 +135,36 @@ export class Bin {
     }
   }
 
+  /**
+   * A weapon's own reach (a shot, a pool, a whirl) is touching the floor here: patches under it shrink a little, ten
+   * times a second at most, with a spark, so creep burns even when no enemy is standing on it.
+   */
+  sear(x: number, y: number, r: number): void {
+    const g = this.g;
+    for (let i = this.patches.length - 1; i >= 0; i--) {
+      const c = this.patches[i];
+      if (c.warn > 0 || c.dying || g.now - c.seared < 0.1) continue;
+      const dx = x - c.x;
+      const dy = y - c.y;
+      const reach = c.r + r;
+      if (dx * dx + dy * dy > reach * reach) continue;
+      c.seared = g.now;
+      c.r -= SEAR;
+      if (g.effects.particles < 110 && Math.random() < 0.5) {
+        // The spark shows on the patch's side nearest the weapon.
+        const d = Math.hypot(dx, dy) || 1;
+        const k = Math.min(1, (c.r * 0.8) / d);
+        g.effects.burst(c.x + dx * k, c.y + dy * k, 0xffc27a, 1, 20);
+      }
+      if (c.r < CREEP_GONE) {
+        this.burnOff(c);
+        this.patches.splice(i, 1);
+        g.run.creepBurned++;
+        if (g.run.creepBurned === 25 && !g.practice) g.hud.banner('25 patches of creep burned away!', '#ffc27a', 18);
+      }
+    }
+  }
+
   private burnOff(c: Patch): void {
     const g = this.g;
     sfx('burnoff');
@@ -166,7 +200,7 @@ export class Bin {
       }
       const img = g.img('creep', cx, cy, 1.9);
       img.setRotation(Math.random() * Math.PI * 2).setScale(CREEP_START / CREEP_TEX_R / S).setAlpha(0);
-      this.patches.push({ img, x: cx, y: cy, r: CREEP_START, max, warn: CREEP_WARN, dying: 0 });
+      this.patches.push({ img, x: cx, y: cy, r: CREEP_START, max, warn: CREEP_WARN, dying: 0, seared: 0 });
       this.creepSeen = true;
       return true;
     }
@@ -245,7 +279,8 @@ export class Bin {
         if (c.warn <= 0) g.tweens.add({ targets: c.img, alpha: 1, duration: 260 });
         continue;
       }
-      if (c.r < c.max) c.r = Math.min(c.max, c.r + CREEP_GROW * dt);
+      // A patch a weapon has just seared holds still for a moment before it spreads again.
+      if (c.r < c.max && g.now - c.seared > 2) c.r = Math.min(c.max, c.r + CREEP_GROW * dt);
       c.img.setScale(c.r / CREEP_TEX_R / S);
       // It never sits still: a pale edge that breathes and a few glints crawling around it, so it can't be taken
       // for a crumb pile or a puddle of schmear.

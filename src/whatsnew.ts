@@ -6,6 +6,6 @@ export const WHATS_NEW: { title: string; lines: string[] } = {
     'Pizza Cutter: a wheel that bounces around the screen. Beat Mother Dough to get it.',
     'Whisk Whirl: a whirlwind that wanders out and back. Pick up 500 Dough coins to get it.',
     'The Bakery has Proofing (more XP) and the Day-Old Bin (throw a card out for the rest of the run).',
-    'There is a second secret recipe to find.',
+    'Every level-up adds a little max health, and there is a second secret recipe to find.',
   ],
 };

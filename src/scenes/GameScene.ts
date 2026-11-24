@@ -33,7 +33,7 @@ import { Floor, POST_R } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { CREEP_SLOW } from '../run/bin';
 import { Hud } from '../run/hud';
-import { CROWD_XP, HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
+import { CROWD_XP, HIT_GRACE, LEVEL_HP, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -324,7 +324,13 @@ export class GameScene extends Phaser.Scene implements World {
     return this.foes.nearest(x, y, maxR);
   }
 
+  /** The weapons' way to find enemies. In the Bread Bin, whatever a weapon reaches also sears the creep under it. */
   query(x: number, y: number, r: number, cb: (e: Enemy) => void): void {
+    if (this.stage.creep) this.hz.bin.sear(x, y, r);
+    this.foes.query(x, y, r, cb);
+  }
+
+  scan(x: number, y: number, r: number, cb: (e: Enemy) => void): void {
     this.foes.query(x, y, r, cb);
   }
 
@@ -390,7 +396,8 @@ export class GameScene extends Phaser.Scene implements World {
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
       magnet: 62 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
-      maxHp: Math.round((b.hp + 10 * (up.hp ?? 0)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
+      // Every level reached adds a little max health (LEVEL_HP), and the gain heals by the same amount.
+      maxHp: Math.round((b.hp + 10 * (up.hp ?? 0) + LEVEL_HP * (this.run.level - 1)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
       proj: (t('honey') >= 1 ? 1 : 0) + (t('honey') >= 4 ? 1 : 0),
       dur: 1 + 0.15 * t('jam'),
       shot: 1 + 0.1 * t('oil'),
@@ -481,11 +488,11 @@ export class GameScene extends Phaser.Scene implements World {
         break;
       case 'tnew':
         this.toppings.set(c.id as ToppingId, 1);
-        if (c.id === 'dough') this.player.hp += 15;
+        if (c.id === 'dough') this.player.hp += 25;
         break;
       case 'tup':
         this.toppings.set(c.id as ToppingId, (this.toppings.get(c.id as ToppingId) ?? 0) + 1);
-        if (c.id === 'dough') this.player.hp += 15;
+        if (c.id === 'dough') this.player.hp += 25;
         break;
       case 'heal':
         this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 30);
@@ -501,12 +508,15 @@ export class GameScene extends Phaser.Scene implements World {
   gainXp(v: number): void {
     const r = this.run;
     r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1) * this.stats.xp;
+    let levelled = false;
     while (r.xp >= r.xpNext) {
       r.xp -= r.xpNext;
       r.level++;
       r.xpNext = xpNeeded(r.level);
       r.pendingLevels++;
+      levelled = true;
     }
+    if (levelled) this.recomputeStats();
   }
 
   // ---------------------------------------------------------------- Main loop
@@ -621,7 +631,7 @@ export class GameScene extends Phaser.Scene implements World {
         const m = r.mines[i];
         m.life -= dt;
         if (m.life < 0.5) m.img.setAlpha(m.life / 0.5);
-        this.query(m.x, m.y, 11 * this.stats.area, (e) => {
+        this.foes.query(m.x, m.y, 11 * this.stats.area, (e) => {
           this.hit(e, dmg, 0, 0, 'trail', 0.5);
         });
         if (m.life <= 0) {
@@ -640,7 +650,7 @@ export class GameScene extends Phaser.Scene implements World {
       const tick = r.auraT <= 0;
       if (tick) r.auraT = 0.5;
       const dmg = 6 * this.stats.damage;
-      this.query(p.x, p.y, rad, (e) => {
+      this.foes.query(p.x, p.y, rad, (e) => {
         e.slowUntil = this.now + 0.3;
         if (tick) this.hit(e, dmg, 0, 0, '', 0);
       });
@@ -764,7 +774,7 @@ export class GameScene extends Phaser.Scene implements World {
     r.hurtAt = this.now;
     this.face.wince(0.4);
     // Shove nearby enemies away so there is room to escape.
-    this.query(p.x, p.y, 70, (e) => {
+    this.foes.query(p.x, p.y, 70, (e) => {
       if (e.boss) return;
       const dx = e.x - p.x;
       const dy = e.y - p.y;
@@ -791,7 +801,7 @@ export class GameScene extends Phaser.Scene implements World {
     r.revived = true;
     p.hp = Math.round(this.stats.maxHp * (0.2 + 0.1 * r.reviveRank));
     p.invulnUntil = this.now + 2;
-    this.query(p.x, p.y, 170, (e) => {
+    this.foes.query(p.x, p.y, 170, (e) => {
       if (e.boss) return;
       const dx = e.x - p.x;
       const dy = e.y - p.y;

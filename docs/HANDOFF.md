@@ -409,6 +409,8 @@ Change list: https://claude.ai/artifact/22ikfbSGgbRAPgEAFGNWDD (approved by the 
 
 Pizza Cutter at level 3 matches the best older weapon on the Bakery (Cream Cheese Puddle, 167) and the Freezer (Jam Jar Lob, 248); its oven figure was taken before the last trim and scaled. Toast and Jam against its two evolutions side by side, two runs each: 250 against 248 damage a second, 210 against 214 damage taken a minute, so the merge is worth the freed slot and no more. Lox and Schmear on the same bench: 252 against 232. XP: with the level curve, a run that would end at level 20 ends at 21 with Proofing at rank 5, 21 with Vanilla at level 5, and 23 with both.
 
+**After the owner's M17 playtest:** weapons now burn Stale creep directly wherever they reach (a spark shows it), where before only a hit on an enemy standing on the patch did; every level reached adds 2 max health and heals by it; health packs drop 0.75% of the time instead of 0.5%; Fresh Dough heals 25 instead of 15. `bagelbench.cjs`, Plain Jane, one run each, before and after: healing a minute 49 to 88 (Bakery) and 28 to 66 (Bread Bin); health bars lost over the run 3.1 to 1.9 and 6.1 to 4.5. Everything Ed, same order: bars lost 11.9 to 8.9 and 8.2 to 5.9. The bot's card picks differ between runs, so treat these as rough.
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.
