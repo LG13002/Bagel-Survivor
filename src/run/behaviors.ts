@@ -1,6 +1,7 @@
 // How each enemy moves and attacks. Regular enemies share the `ai` patterns on their def (line, charge, shoot);
 // elites, mini-bosses and bosses have their own case, keyed by kind.
 import { ENEMIES } from '../data';
+import { CHARGE_TIME, MAX_CHARGING } from './modes';
 import { reducedFlash, shake } from '../settings';
 import type { Enemy } from '../entities';
 import { sfx } from '../sfx';
@@ -45,13 +46,15 @@ export function behave(g: GameScene, e: Enemy, m: Move, dt: number): void {
           if (Math.abs(m.mvx) > 1) e.sprite.setFlipX(m.mvx < 0);
           e.sprite.setRotation(Math.sin(t * 9 + e.phase) * 0.08);
         }
-        if (dist < 190) {
+        if (dist < 190 && Math.max(g.foes.charging, g.foes.chargingNow) < MAX_CHARGING) {
+          g.foes.chargingNow++;
           e.state = 1;
           e.stateT = knife ? 0.55 : 0.6;
           e.vx = (dx / dist) * dash;
           e.vy = (dy / dist) * dash;
         }
       } else if (e.state === 1) {
+        g.foes.chargingNow++;
         m.mvx = m.mvy = 0;
         if (knife) e.sprite.setRotation(Math.atan2(e.vy, e.vx) + Math.sin(t * 60) * 0.12);
         else e.sprite.setRotation(Math.sin(t * 60) * 0.14);
@@ -59,10 +62,11 @@ export function behave(g: GameScene, e: Enemy, m: Move, dt: number): void {
         if (!knife && windupFlash(t)) e.sprite.setTintFill(0xffffff);
         if (e.stateT <= 0) {
           e.state = 2;
-          e.stateT = 0.5;
+          e.stateT = CHARGE_TIME;
           e.sprite.clearTint();
         }
       } else if (e.state === 2) {
+        g.foes.chargingNow++;
         m.mvx = e.vx * slow;
         m.mvy = e.vy * slow;
         // Burnt Toast flips end over end as it charges.
@@ -480,7 +484,7 @@ function tangle(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
     m.mvy *= 0.3;
   }
   if (e.attackT <= 0 && m.dist < 560) {
-    e.attackT = 2.7;
+    e.attackT = 3.3;
     e.state = (e.state + 1) % 2;
     const a = Math.atan2(m.dy, m.dx);
     // Three strands in a fan, then a cross of four.

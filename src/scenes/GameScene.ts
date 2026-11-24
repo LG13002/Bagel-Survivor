@@ -32,7 +32,7 @@ import { Enemies } from '../run/enemies';
 import { Floor } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { Hud } from '../run/hud';
-import { CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
+import { HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -675,7 +675,7 @@ export class GameScene extends Phaser.Scene implements World {
     const armor = r.armor + (this.toppings.get('frosting') ?? 0);
     if (armor) d = Math.max(d * 0.5, d - armor);
     p.hp -= d;
-    p.invulnUntil = this.now + 0.9;
+    p.invulnUntil = this.now + HIT_GRACE;
     if (this.foes.boss) r.bossClean = false;
     shake(this, 110, 0.005);
     sfx('hurt');

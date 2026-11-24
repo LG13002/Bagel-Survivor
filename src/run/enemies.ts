@@ -1,13 +1,13 @@
 import { CSS, S } from '../config';
 import { flash, reducedFlash, shake } from '../settings';
-import { ENEMIES, RUN, type EnemyKind } from '../data';
+import { ENEMIES, RUN, type EnemyDef, type EnemyKind } from '../data';
 import { Enemy } from '../entities';
 import { load, persist } from '../save';
 import { sfx, type Sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { behave, type Move } from './behaviors';
 import type { DeathStyle } from './effects';
-import { CRISPY_HP, ENDLESS_BOSS_EVERY, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, SLOWMO_TIME } from './modes';
+import { CROWD_HP, CHARGE_TIME, WAVE_GAP, CRISPY_HP, ENDLESS_BOSS_EVERY, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, SLOWMO_TIME } from './modes';
 
 /** Spatial grid cell size for hit checks and crowd separation. */
 const CELL = 48;
@@ -53,18 +53,84 @@ export class Enemies {
   private move: Move = { dx: 0, dy: 0, dist: 1, mvx: 0, mvy: 0, slow: 1 };
   private steerOut = { x: 0, y: 0 };
 
+  /** Chargers winding up or dashing: counted as the frame goes, and last frame's total (`MAX_CHARGING`). */
+  charging = 0;
+  chargingNow = 0;
+
+  /** The red strips that show where chargers will dash (floor level, under everything that moves). */
+  private laneGfx?: Phaser.GameObjects.Graphics;
+
   constructor(private g: GameScene) {}
+
+  /**
+   * A charge lane: a red strip from a charger along its dash, so the dash can be sidestepped. It brightens through
+   * the wind-up and shortens as the dash is used up. A Rolling Pea Can's lane bends where it will bounce off a wall.
+   */
+  private lane(e: Enemy, def: EnemyDef): void {
+    const gfx = this.laneGfx;
+    if (!gfx) return;
+    const dash = Math.hypot(e.vx, e.vy);
+    if (dash < 1) return;
+    const windup = e.state === 1;
+    let left = windup ? dash * CHARGE_TIME : dash * Math.max(0, e.stateT);
+    const hw = e.radius + 3;
+    // Wind-up: fades in. Dash: steady, then gone.
+    const k = windup ? 1 - Math.min(1, e.stateT / 0.6) : 1;
+    gfx.fillStyle(0xe0533d, 0.14 + 0.16 * k);
+    gfx.lineStyle(1.5, 0xff8a7a, 0.35 + 0.4 * k);
+    let x = e.x;
+    let y = e.y;
+    let ux = e.vx / dash;
+    let uy = e.vy / dash;
+    const floor = this.g.floor;
+    const bends = def.bounce && floor.walls.length > 0;
+    for (let seg = 0; seg < 3 && left > 4; seg++) {
+      // Walk the lane until it runs out or meets a wall.
+      let len = left;
+      let hitX = false;
+      let hit = false;
+      if (bends) {
+        for (let d = 6; d <= left; d += 6) {
+          if (floor.inWall(x + ux * d, y + uy * d, e.radius)) {
+            len = d - 6;
+            hit = true;
+            // Which side was met: the one that is still blocked when only x moves.
+            hitX = floor.inWall(x + ux * d, y + uy * len, e.radius);
+            break;
+          }
+        }
+      }
+      const ex = x + ux * len;
+      const ey = y + uy * len;
+      const px = -uy * hw;
+      const py = ux * hw;
+      gfx.beginPath();
+      gfx.moveTo(x + px, y + py);
+      gfx.lineTo(ex + px, ey + py);
+      gfx.lineTo(ex - px, ey - py);
+      gfx.lineTo(x - px, y - py);
+      gfx.closePath();
+      gfx.fillPath();
+      gfx.strokePath();
+      if (!hit) break;
+      left -= len;
+      x = ex;
+      y = ey;
+      if (hitX) ux = -ux;
+      else uy = -uy;
+    }
+  }
 
   /** Health multiplier for regular enemies at stage time t. */
   hpMult(t: number): number {
-    return this.g.stage.hpBonus * (1 + t / this.g.stage.hpGrowth);
+    return CROWD_HP * this.g.stage.hpBonus * (1 + t / this.g.stage.hpGrowth);
   }
 
   /**
    * A point just off-screen. While the player is moving, most spawns land in the direction
    * of travel (within ±75°), so running away never leaves an empty lane ahead.
    */
-  spawnPoint(aheadBias = 0.7, off = 40): { x: number; y: number } {
+  spawnPoint(aheadBias = 0.4, off = 40): { x: number; y: number } {
     const g = this.g;
     const p = g.player;
     const moving = Math.hypot(p.moveX, p.moveY) > 0.3;
@@ -101,8 +167,10 @@ export class Enemies {
     const list = typeof kinds === 'string' ? [kinds] : kinds;
     const hp = this.hpMult(this.g.stageT);
     const d = Math.hypot(this.g.viewW(), this.g.viewH()) / 2 + 30;
+    // The ring has an opening somewhere, so a wave can always be slipped.
+    const a0 = Math.random() * Math.PI * 2;
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
+      const a = a0 + (i / (n - 1)) * (Math.PI * 2 - WAVE_GAP);
       this.spawn(list[i % list.length], p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, hp);
     }
   }
@@ -223,6 +291,13 @@ export class Enemies {
     const p = g.player;
     const t = g.now;
     const m = this.move;
+    this.charging = this.chargingNow;
+    this.chargingNow = 0;
+    if (!this.laneGfx) {
+      this.laneGfx = g.add.graphics().setDepth(8);
+      g.worldLayer.add(this.laneGfx);
+    }
+    this.laneGfx.clear();
     const decay = Math.exp(-8 * dt);
     const farX = g.viewW() / 2 + 170;
     const farY = g.viewH() / 2 + 170;
@@ -246,6 +321,7 @@ export class Enemies {
       // The Pantry: walk around shelves instead of into them. The biggest (mini-bosses and bosses) climb over.
       const def = ENEMIES[e.kind];
       const walled = solid && !e.boss && def.radius < 30 && def.ai !== 'line';
+      if (def.ai === 'charge' && (e.state === 1 || e.state === 2)) this.lane(e, def);
       if (shelves && walled && floor.steer(e.x, e.y, e.radius, steer)) {
         m.mvx = steer.x * e.speed * slow;
         m.mvy = steer.y * e.speed * slow;

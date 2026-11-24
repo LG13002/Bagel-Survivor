@@ -363,8 +363,9 @@ export const STAGES: StageDef[] = [
       { until: 45, table: [['dustbunny', 1]] },
       { until: 90, table: [['dustbunny', 62], ['sugarcube', 38]] },
       // Molten Muffins wait until 2:00, so the first two minutes teach shelves and cans with the simpler enemies.
-      { until: 120, table: [['dustbunny', 44], ['sugarcube', 24], ['peacan', 18], ['pepper', 14]] },
-      { until: Infinity, table: [['dustbunny', 32], ['sugarcube', 20], ['peacan', 16], ['pepper', 13], ['pmuffin', 10], ['spore', 9]] },
+      { until: 120, table: [['dustbunny', 44], ['sugarcube', 24], ['peacan', 14], ['pepper', 14]] },
+      { until: 165, table: [['dustbunny', 36], ['sugarcube', 24], ['peacan', 12], ['pepper', 13], ['spore', 9]] },
+      { until: Infinity, table: [['dustbunny', 32], ['sugarcube', 20], ['peacan', 12], ['pepper', 13], ['pmuffin', 10], ['spore', 9]] },
     ],
     wave: { kinds: ['sugarcube', 'dustbunny'], banner: 'The dust closes in!' },
     lines: 'wafflebit',
@@ -678,7 +679,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   broiler: { tex: 'en_broiler', hp: 7000, speed: 32, dmg: 26, radius: 46, xp: 0, mass: 40, burst: 0xff6a2a, flat: true },
   // The Pantry
   dustbunny: { tex: 'en_dustbunny', hp: 8, speed: 80, dmg: 5, radius: 9, xp: 1, mass: 0.8, burst: 0xb9b2aa },
-  peacan: { tex: 'en_peacan', hp: 42, speed: 46, dmg: 14, radius: 13, xp: 3, mass: 2.4, ai: 'charge', dash: 370, bounce: true, burst: 0x9fb2bd },
+  peacan: { tex: 'en_peacan', hp: 42, speed: 46, dmg: 11, radius: 13, xp: 3, mass: 2.4, ai: 'charge', dash: 370, bounce: true, burst: 0x9fb2bd },
   pepper: { tex: 'en_pepper', hp: 24, speed: 50, dmg: 6, radius: 11, xp: 3, mass: 1.2, ai: 'shoot', burst: 0x3a3632, shot: { tex: 'peppershot', n: 5, spread: 0.15, speed: 165, dmg: 6, r: 5, every: 3, life: 1.1 } },
   sugarcube: { tex: 'en_sugarcube', hp: 26, speed: 47, dmg: 8, radius: 11.5, xp: 2, mass: 1.4, split: { kind: 'crystal', n: 3 }, burst: 0xffffff },
   crystal: { tex: 'en_crystal', hp: 8, speed: 84, dmg: 4, radius: 7.5, xp: 1, mass: 0.8, burst: 0xeaf6ff },
@@ -686,7 +687,7 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   spore: { tex: 'en_spore', hp: 10, speed: 66, dmg: 5, radius: 8, xp: 1, mass: 0.7, burst: 0x9fc85a },
   loaf: { tex: 'en_loaf', hp: 420, speed: 40, dmg: 15, radius: 25, xp: 15, mass: 6, burst: 0x8fb04e, flat: true },
   broilerjr: { tex: 'en_broilerjr', hp: 1100, speed: 38, dmg: 18, radius: 26, xp: 20, mass: 10, burst: 0xff6a2a, flat: true },
-  tangle: { tex: 'en_tangle', hp: 2000, speed: 52, dmg: 16, radius: 30, xp: 30, mass: 12, burst: 0xf0d27a, flat: true },
+  tangle: { tex: 'en_tangle', hp: 1700, speed: 52, dmg: 16, radius: 30, xp: 30, mass: 12, burst: 0xf0d27a, flat: true },
   mdough: { tex: 'en_mdough', hp: 8200, speed: 30, dmg: 27, radius: 46, xp: 0, mass: 40, burst: 0xf3e3c0, flat: true },
   doughball: { tex: 'en_doughball', hp: 26, speed: 62, dmg: 8, radius: 10, xp: 2, mass: 1.4, burst: 0xf3e3c0 },
 };

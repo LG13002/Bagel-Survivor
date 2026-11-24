@@ -6,5 +6,6 @@ export const WHATS_NEW: { title: string; lines: string[] } = {
     'Stage 4: the Pantry. Shelves make aisles, cans roll down them and flour sacks burst. Beat the Broiler to get in.',
     'A new cast, the Spaghetti Tangle, and Mother Dough, who has been rising for a hundred years.',
     'Clear it to unlock Garlic, the first boss hunter bagel. Three new challenges on the Goals page.',
+    'Every stage: charging enemies now show a red lane before they dash, and crowds leave more room to dodge.',
   ],
 };

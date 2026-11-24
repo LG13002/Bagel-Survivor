@@ -19,6 +19,7 @@ export const TIPS = {
   grease: 'Grease pops leave a slippery slick. Knobs block enemy shots.',
   shelves: 'Shelves block you and enemies. Your shots fly over them.',
   cans: 'A red strip with arrows means a can is about to roll. Step out of it!',
+  lane: 'A red strip shows where an enemy will dash. Step out of it!',
   dash: 'Flick to dash.',
   // Menu, the first time each mode is picked
   quick: 'Quick Run: the whole stage in about 3 minutes. More XP, a little less Dough.',

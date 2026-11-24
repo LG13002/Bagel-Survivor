@@ -72,6 +72,7 @@ export class Tutor {
       { id: 'grease', when: () => !!g.stage.grease && g.now > 14 },
       { id: 'shelves', when: () => !!g.stage.shelves && g.now > 3 },
       { id: 'cans', when: () => g.hz.canSeen },
+      { id: 'lane', when: () => g.foes.charging > 0 },
       { id: 'evolve', when: () => g.weapons.some((w) => w.level >= MAX_LEVEL && !w.evolved) },
       { id: 'bun', when: () => g.loot.has('bun') },
     ];

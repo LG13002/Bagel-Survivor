@@ -20,6 +20,7 @@ This is the history and the decisions behind the current game. The working rules
 | M13 change list (Onboarding and story) | https://claude.ai/artifact/37yxZCzAQyad9XnGEEwz44 |
 | M14 change list (Animation and feel) | https://claude.ai/artifact/8pTuU4yF2wZXVk12NhvaUL |
 | M15 change list (the Pantry) | https://claude.ai/artifact/Ue8289z2E3gN9o1oY9ppJs |
+| Dodging and crowd tuning (after the Pantry playtest) | https://claude.ai/artifact/R2g7G4kYhdQsr8QpJZp6xo |
 
 ## The owner's standing decisions
 
@@ -330,6 +331,33 @@ How it was checked:
 - Garlic (`bagelbench.cjs`, Stage 1 to 4:25): 428 damage a second, against Plain Jane 469 and Onion Olly 452 with the same card policy. Warding only touches elites and bosses, so it does not speed up ordinary waves.
 - Stages 1 to 3 against the live game, alternating: Rolling Pin level 3 at 279, 415 and 452 damage a second on Stages 1, 2 and 3 (live game: 280, 342, 414), Sesame Shot level 3 at 104, 128 and 185 (live: 109, 129, 175): the usual run-to-run spread. `bosstime.cjs`: every boss arrives at 4:30 and first attacks 1.45 to 1.51s later on both builds.
 - A Pantry win was played by bot in Full, Quick, Endless, Extra Crispy and Practice; the clear, the Garlic unlock, the bests and the challenge pay all landed, and a run resumed in the Pantry with its shelves and boss. `savetest.cjs`, `tutortest.cjs` at 390x760 and 390x640, `qtest.cjs` and `buntest.cjs` pass. Every new screen was looked at by hand at both sizes.
+
+### Dodging and crowd tuning, every stage (after the owner's Pantry playtest, still version 0.15)
+
+The owner played the Pantry, could not get past the Spaghetti Tangle, and said damage arrives from too many angles at once to survive by skill: enemies should be more manageable in every stage (kept in line with each other), and good movement should be rewarded. Built from the approved [tuning list](https://claude.ai/artifact/R2g7G4kYhdQsr8QpJZp6xo).
+
+What the new bot (`dodgebench.cjs`) found: charging enemies were the largest source of damage in every stage unless their wind-up was read, and the wind-up was only a colour flash on a small enemy in a crowd. The game also spawned 70% of enemies in the direction of travel and sent waves as a closed ring, so there was rarely a gap. In the Pantry the Pea Can's bounce could not be read at all.
+
+- **Charge lanes:** a red strip shows where each charger will dash, from the start of its wind-up. A Pea Can's lane bends where it will bounce.
+- **At most three chargers** wind up or dash at once.
+- **Spawns:** 40% in the direction of travel (was 70%). Ring waves leave an opening of about 110 degrees in a random place.
+- **Regular enemies: 15% less health in every stage.** Elites and bosses unchanged.
+- **Safe time after a hit:** 1.1s (was 0.9s).
+- **Pantry:** Spaghetti Tangle health 2,000 to 1,700 and 3.3s between noodle volleys (was 2.7s); Molten Muffins join at 2:45 (was 2:00, the same moment as the Tangle); Pea Can damage 14 to 11 and about a quarter fewer.
+- **One addition not on the list:** a one-time tip the first time a lane shows ("A red strip shows where an enemy will dash. Step out of it!").
+
+Measured (`dodgebench.cjs`, 2:00 to about 3:15, damage taken a minute, old and new builds alternating, two runs each, hits counted 1.1s apart on both builds so the longer safe time is not part of the comparison):
+
+| Stage | Careless: before | Careless: after | Careful: before | Careful: after |
+| --- | --- | --- | --- | --- |
+| 1 | 236 | 259 | 92 | 38 |
+| 2 | 273 | 255 | 160 | 130 |
+| 3 | 272 | 254 | 161 | 117 |
+| 4 | 265 | 245 | 162 | 138 |
+
+Careful play takes 26% less damage; careless play about the same (3% less). So the gap between the two grew from 1.8 times to 2.4 times: dodging pays more, which was the aim. The careful bot reads lanes perfectly on both builds, so the lanes' benefit to a person is not in these numbers. If the owner still finds crowds too thick, `CROWD_HP` is the dial (he was offered 20%).
+
+`savetest.cjs`, `tutortest.cjs` (both sizes) and `qtest.cjs` pass.
 
 ## Weapon benchmark (bot, M11 part 3)
 

@@ -28,3 +28,14 @@ export const ENDLESS_DOUGH_MIN = 10;
 /** When a stage boss falls, the next SLOWMO_TIME seconds (real time) play at SLOWMO speed. */
 export const SLOWMO = 0.3;
 export const SLOWMO_TIME = 0.5;
+
+/** Regular enemies' health in every stage, against the numbers in `ENEMIES` (the owner asked for a more manageable crowd). */
+export const CROWD_HP = 0.85;
+/** How many chargers may be winding up or dashing at once; the rest keep walking until one finishes. */
+export const MAX_CHARGING = 3;
+/** Seconds of safety after a hit. */
+export const HIT_GRACE = 1.1;
+/** The opening left in a ring wave, in radians, so there is always a way out. */
+export const WAVE_GAP = 1.9;
+/** How long a charger's dash lasts, in seconds (its lane is drawn this long). */
+export const CHARGE_TIME = 0.5;
