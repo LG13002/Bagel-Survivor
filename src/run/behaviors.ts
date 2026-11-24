@@ -213,6 +213,7 @@ export function behave(g: GameScene, e: Enemy, m: Move, dt: number): void {
         hz.addSpark(e.x - (m.mvx / (e.speed || 1)) * 12, e.y + e.radius * 0.5, 1.5, 3, 0.9, false);
       }
       break;
+    case 'bspore':
     case 'spore':
       // Mold Spores float: they bob as they drift in.
       e.sprite.setRotation(Math.sin(t * 3 + e.phase) * 0.3);
@@ -257,6 +258,15 @@ export function behave(g: GameScene, e: Enemy, m: Move, dt: number): void {
       break;
     case 'mdough':
       motherDough(g, e, m, dt, t);
+      break;
+    case 'tanglejr':
+      tangle(g, e, m, dt, t, true);
+      break;
+    case 'mdoughjr':
+      motherDough(g, e, m, dt, t, true);
+      break;
+    case 'king':
+      staleKing(g, e, m, dt, t);
       break;
     default:
       if (Math.abs(m.mvx) > 1) e.sprite.setFlipX(m.mvx < 0);
@@ -475,7 +485,7 @@ function wallSpot(g: GameScene, hw: number, hh: number, ahead: boolean): { x: nu
  * Spaghetti Tangle: lashes out noodle lines, each warned first, and every so often knots the way ahead of you shut
  * for a few seconds. One knot at a time, and the corridors between shelf blocks mean there is always another way.
  */
-function tangle(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
+function tangle(g: GameScene, e: Enemy, m: Move, dt: number, t: number, jr = false): void {
   const hz = g.hz;
   e.sprite.setRotation(Math.sin(t * 3 + e.phase) * 0.1);
   e.attackT -= dt;
@@ -492,6 +502,8 @@ function tangle(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
     else for (let i = 0; i < 4; i++) hz.addBeam(e.x, e.y, a + 0.4 + (i * Math.PI) / 2, 1, true);
     sfx('hiss');
   }
+  // Back in the Bread Bin as an elite: noodle lines only.
+  if (jr) return;
   // The first knot waits a few seconds after it arrives.
   if (e.attack2T === 0) e.attack2T = 5;
   e.attack2T -= dt;
@@ -515,9 +527,31 @@ function tangle(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
  * Phase 2 (half health): she rises (bigger and quicker), pushes dough walls into the aisles around you, and calls
  * rings of Dough Balls.
  */
-function motherDough(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
+function motherDough(g: GameScene, e: Enemy, m: Move, dt: number, t: number, jr = false): void {
   const p = g.player;
   const hz = g.hz;
+  if (jr) {
+    // Back in the Bread Bin as the mini-boss: smaller, bubbles and dough blobs, and she never rises.
+    e.sprite.setRotation(Math.sin(t * 1.8) * 0.04);
+    e.attackT -= dt;
+    if (e.attackT <= 0) {
+      e.attackT = 2.9;
+      e.state = (e.state + 1) % 3;
+      if (e.state === 2) {
+        sfx('sauce');
+        hz.fan('doughshot', e.x, e.y, Math.atan2(m.dy, m.dx), 5, 0.2, 170, 11, 8);
+      } else {
+        hz.addRing(p.x, p.y, 34, 13, 1.05, 'bubble');
+        for (let i = 0; i < 3; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = 60 + Math.random() * 110;
+          hz.addRing(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, 34, 13, 1.05 + i * 0.08, 'bubble');
+        }
+        sfx('bubble');
+      }
+    }
+    return;
+  }
   if (!e.enraged && e.hp < e.maxHp * 0.5) {
     e.enraged = true;
     e.attack2T = 2;
@@ -580,4 +614,166 @@ function motherDough(g: GameScene, e: Enemy, m: Move, dt: number, t: number): vo
       g.hud.banner('Dough Balls!', '#f3e3c0', 16);
     }
   }
+}
+
+/** The Stale King's charges: wind-up, dash and the pause between, and how fast and how many. */
+const KING_GATHER = 1.2;
+const KING_WIND = 1;
+const KING_DASH = 0.55;
+const KING_PAUSE = 0.5;
+const KING_SPEED = 520;
+const KING_CHARGES = 3;
+const KING_REST = 4.5;
+
+/**
+ * The Stale King, in three phases by health (so a resumed run comes back in the right one).
+ * Phase 1 (above two thirds): fans and rings of crumbs, and now and then two Crouton Knights as guards (four at most).
+ * Phase 2 (down to one third): he cracks, throws crust shards along three warned lines, and creep spreads around him.
+ * Phase 3: the bin goes dark around each set of three charges, each with a lane that glows through the dark, then
+ * the light comes back while he rests.
+ */
+function staleKing(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
+  const hz = g.hz;
+  const bin = hz.bin;
+  const frac = e.hp / e.maxHp;
+  const phase = frac > 2 / 3 ? 1 : frac > 1 / 3 ? 2 : 3;
+  // Charging is never cut short by a phase change: the dash in hand finishes first.
+  const charging = e.state >= 10;
+  if (phase !== e.phaseN && !charging) {
+    const first = e.phaseN === 0;
+    e.phaseN = phase;
+    e.enraged = phase > 1;
+    e.sprite.setTexture(phase === 1 ? 'en_king' : phase === 2 ? 'en_king2' : 'en_king3');
+    if (phase > 1) {
+      e.attackT = 1.6;
+      e.attack2T = 2.5;
+      // Arriving already cracked (a resumed run) is quiet.
+      if (!first) {
+        g.hud.banner(phase === 2 ? 'The Stale King cracks!' : 'The bin goes dark!', '#d9d2c6', 20);
+        e.roarT = 0.8;
+        sfx(phase === 2 ? 'kingcrack' : 'roar');
+        shake(g, 400, 0.007);
+      }
+    }
+    if (phase === 3) {
+      e.state = 10;
+      e.stateT = KING_GATHER;
+      e.attack2T = 0;
+    }
+  }
+  e.sprite.setDepth(bin.isDark ? 39 : 35);
+  if (e.state < 10) e.sprite.setRotation(Math.sin(t * 1.6) * 0.04 + (phase > 1 ? Math.sin(t * 24) * 0.015 : 0));
+
+  if (phase === 3 || charging) {
+    // state 10: the dark comes down. 11: wind-up (the lane shows). 12: dash. 13: pause. 14: rest in the light.
+    e.stateT -= dt;
+    if (e.state === 10) {
+      bin.setDark(true);
+      m.mvx *= 0.4;
+      m.mvy *= 0.4;
+      if (e.stateT <= 0) kingAim(e, m);
+    } else if (e.state === 11) {
+      m.mvx = m.mvy = 0;
+      e.sprite.setRotation(Math.sin(t * 50) * 0.05);
+      const k = 1 - Math.max(0, e.stateT) / KING_WIND;
+      bin.lane(e.x, e.y, e.vx / KING_SPEED, e.vy / KING_SPEED, KING_SPEED * KING_DASH + e.radius, e.radius + 4, k);
+      if (e.stateT <= 0) {
+        e.state = 12;
+        e.stateT = KING_DASH;
+        sfx('charge');
+      }
+    } else if (e.state === 12) {
+      m.mvx = e.vx;
+      m.mvy = e.vy;
+      bin.lane(e.x, e.y, e.vx / KING_SPEED, e.vy / KING_SPEED, KING_SPEED * Math.max(0, e.stateT) + e.radius, e.radius + 4, 1);
+      if (e.stateT <= 0) {
+        e.state = 13;
+        e.stateT = KING_PAUSE;
+        e.attack2T += 1;
+        shake(g, 160, 0.005);
+      }
+    } else if (e.state === 13) {
+      m.mvx = m.mvy = 0;
+      if (e.stateT <= 0) {
+        if (e.attack2T >= KING_CHARGES) {
+          e.attack2T = 0;
+          e.state = 14;
+          e.stateT = KING_REST;
+          bin.setDark(false);
+        } else kingAim(e, m);
+      }
+    } else {
+      // Resting in the light: slow, and open to be hit.
+      m.mvx *= 0.35;
+      m.mvy *= 0.35;
+      if (e.stateT <= 0) {
+        e.state = 10;
+        e.stateT = KING_GATHER;
+      }
+    }
+    return;
+  }
+
+  e.attackT -= dt;
+  if (e.attackT < 0.4) {
+    m.mvx *= 0.3;
+    m.mvy *= 0.3;
+  }
+  if (e.attackT <= 0) {
+    e.state = (e.state + 1) % 2;
+    const a = Math.atan2(m.dy, m.dx);
+    if (phase === 1) {
+      e.attackT = 2.6;
+      sfx('flakes');
+      // A fan aimed at you, then a wide ring with gaps to step through.
+      if (e.state === 0) hz.fan('crumbshot', e.x, e.y, a, 7, 0.19, 185, 12, 6);
+      else hz.ring('crumbshot', e.x, e.y, 12, 140, 12, 6);
+    } else {
+      e.attackT = 2.9;
+      if (e.state === 0) {
+        for (let i = -1; i <= 1; i++) hz.addWarn(e.x, e.y, a + i * 0.36, 0.85, 3, true);
+        sfx('hiss');
+      } else {
+        sfx('flakes');
+        hz.fan('crumbshot', e.x, e.y, a, 5, 0.22, 185, 12, 6);
+      }
+    }
+  }
+  e.attack2T -= dt;
+  if (e.attack2T <= 0) {
+    if (phase === 1) {
+      e.attack2T = 9;
+      // Two Crouton Knights step out beside him, never more than four guards at once.
+      let guards = 0;
+      for (const o of g.foes.list) if (o.alive && o.guard) guards++;
+      if (guards <= 2) {
+        const side = Math.atan2(m.dy, m.dx) + Math.PI / 2;
+        const hp = g.foes.hpMult(g.stageT);
+        for (const sgn of [-1, 1]) {
+          const k = g.foes.spawn('knight', e.x + Math.cos(side) * sgn * (e.radius + 18), e.y + Math.sin(side) * sgn * (e.radius + 18), hp);
+          if (k) {
+            k.guard = true;
+            k.kx = Math.cos(side) * sgn * 120;
+            k.ky = Math.sin(side) * sgn * 120;
+          }
+        }
+        g.hud.banner('Guards!', '#d9a85c', 16);
+        sfx('clang');
+      }
+    } else {
+      e.attack2T = 5;
+      // Creep spreads from him, a step toward you.
+      const a = Math.atan2(m.dy, m.dx) + (Math.random() - 0.5) * 1.6;
+      const d = e.radius + 40 + Math.random() * 50;
+      if (bin.addCreep(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d)) sfx('creep');
+    }
+  }
+}
+
+/** The King fixes the line of his next charge: straight at where you stand now. */
+function kingAim(e: Enemy, m: Move): void {
+  e.state = 11;
+  e.stateT = KING_WIND;
+  e.vx = (m.dx / m.dist) * KING_SPEED;
+  e.vy = (m.dy / m.dist) * KING_SPEED;
 }

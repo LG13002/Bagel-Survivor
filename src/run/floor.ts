@@ -3,10 +3,11 @@ import { S } from '../config';
 import { rng } from '../art';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, type PropDef } from '../floors';
 import { PANTRY_PROPS } from '../pantry';
+import { BIN_PROPS } from '../breadbin';
 import type { StageDef } from '../data';
 import type { GameScene } from '../scenes/GameScene';
 
-const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS, freezer: FREEZER_PROPS, oven: OVEN_PROPS, pantry: PANTRY_PROPS };
+const PROP_SETS: Record<StageDef['props'], PropDef[]> = { counter: COUNTER_PROPS, freezer: FREEZER_PROPS, oven: OVEN_PROPS, pantry: PANTRY_PROPS, bin: BIN_PROPS };
 /** Floor chunk size: props, ice patches and rack posts are seeded per chunk. */
 const CHUNK = 384;
 /** Rack post (oven knob) radius. */

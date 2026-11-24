@@ -31,6 +31,7 @@ import { Effects } from '../run/effects';
 import { Enemies } from '../run/enemies';
 import { Floor } from '../run/floor';
 import { Hazards } from '../run/hazards';
+import { CREEP_SLOW } from '../run/bin';
 import { Hud } from '../run/hud';
 import { CROWD_XP, HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
@@ -288,6 +289,15 @@ export class GameScene extends Phaser.Scene implements World {
     }
     // Garlic's Warding: elites, mini-bosses and bosses take more from everything this bagel does.
     if (this.bagel.quirkId === 'ward' && ENEMIES[e.kind].flat) dmg *= WARD;
+    // The Bread Bin: weapon hits burn back the creep they land on or beside.
+    if (this.stage.creep && key !== 'burn' && key !== 'crumb') this.hz.bin.burnAt(e.x, e.y, dmg);
+    if (e.shield > 0) {
+      // A Crouton Knight's shield takes half of every hit until it has soaked up enough, then cracks off.
+      const soak = dmg * 0.5;
+      dmg -= soak;
+      e.shield -= soak;
+      if (e.shield <= 0) this.foes.shieldBreak(e);
+    }
     e.hp -= dmg;
     if (key === 'burn') {
       // Burn ticks are quiet: no flash, no sound, so the orange glow stays visible.
@@ -475,7 +485,11 @@ export class GameScene extends Phaser.Scene implements World {
     // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
     // Endless: a little faster every minute after 5:00.
     const extra = this.endless && this.stageT > 300 ? Math.min(0.2, ((this.stageT - 300) / 60) * 0.03) : 0;
-    setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, (this.stageT >= 180 ? 1.08 : 1) + extra);
+    const boss = this.foes.boss;
+    // The Stale King's theme steps up with his phases instead of with the clock.
+    if (boss?.kind === 'king') setRunIntensity(Math.max(0, boss.phaseN - 1), 1 + 0.04 * Math.max(0, boss.phaseN - 1));
+    else if (st.music.boss === 'king' && this.foes.bossOut()) setRunIntensity(0, 1);
+    else setRunIntensity(this.stageT >= 120 ? 2 : this.stageT >= 60 ? 1 : 0, (this.stageT >= 180 ? 1.08 : 1) + extra);
     if (this.player.hp > 0 && this.player.hp / this.stats.maxHp < 0.25) sfx('heart');
   }
 
@@ -612,8 +626,10 @@ export class GameScene extends Phaser.Scene implements World {
     }
     const st = this.stage;
     if (!st.ice && !st.frost && !st.grease) {
-      p.x += mx * this.stats.speed * dt;
-      p.y += my * this.stats.speed * dt;
+      // The Bread Bin: creep slows the bagel while it stands in it.
+      const sp = this.stats.speed * (st.creep && this.hz.bin.creepAt(p.x, p.y) ? CREEP_SLOW : 1);
+      p.x += mx * sp * dt;
+      p.y += my * sp * dt;
       return;
     }
     // Freezer: frost slows you, and on ice you keep sliding for a moment when you change direction.
@@ -1003,6 +1019,7 @@ export class GameScene extends Phaser.Scene implements World {
       rec.level = Math.max(rec.level ?? 1, r.level);
       rec.evos = Math.max(rec.evos ?? 0, r.evolutionsThisRun.length);
       if (r.canBest) rec.strike = Math.max(rec.strike ?? 0, r.canBest);
+      if (r.creepBurned) rec.creep = Math.max(rec.creep ?? 0, r.creepBurned);
       if (this.endless) {
         rec.endless = Math.max(rec.endless ?? 0, Math.floor(this.now));
         rec.endlessBosses = Math.max(rec.endlessBosses ?? 0, this.director.bossRound);
@@ -1074,7 +1091,9 @@ export class GameScene extends Phaser.Scene implements World {
     const fade = () => {
       this.cameras.main.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       this.uiCam.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('results', result));
+      // The first time the Stale King falls, the ending comic and the credits come before the results.
+      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !quit && !load().ending;
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => (ending ? this.scene.start('intro', { ending: true, result }) : this.scene.start('results', result)));
     };
     if (victory && !quit) this.time.delayedCall(600, fade);
     else fade();

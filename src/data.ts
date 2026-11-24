@@ -179,7 +179,7 @@ export interface StageDef {
   /** False until the stage's content exists: shown as "Coming soon" and can't be picked. */
   built: boolean;
   floor: string; // tiling texture, 256 × 256
-  props: 'counter' | 'freezer' | 'oven' | 'pantry';
+  props: 'counter' | 'freezer' | 'oven' | 'pantry' | 'bin';
   /** Freezer hazards: slippery ice patches on the floor, frost when standing still, Warm Mug drops. */
   ice?: boolean;
   frost?: boolean;
@@ -192,6 +192,10 @@ export interface StageDef {
   shelves?: boolean;
   cans?: boolean;
   flour?: boolean;
+  /** The Bread Bin: Stale creep (grey patches that slow you and that weapons burn back), falling crumbs, and a dim bin lit around the bagel. */
+  creep?: boolean;
+  crumbs?: boolean;
+  dark?: boolean;
   /** Dough multiplier for runs on this stage. */
   dough: number;
   /** XP multiplier for every seed picked up on this stage (default 1). */
@@ -218,8 +222,8 @@ export interface StageDef {
   /** `line`: what the mini-boss says under its name when it arrives. */
   mini: { kind: EnemyKind; name: string; banner: string; line: string };
   /** `card`: the boss's line on the big announcement card when it arrives. */
-  /** `phase2`: it changes at half health (the boss bar marks the spot). */
-  boss: { kind: EnemyKind; name: string; banner: string; card: string; phase2?: boolean };
+  /** `phase2`: it changes at half health (the boss bar marks the spot). `marks`: other shares of health where it changes. */
+  boss: { kind: EnemyKind; name: string; banner: string; card: string; phase2?: boolean; marks?: number[] };
   /** One line of story on the results screen the first time the stage is cleared. */
   outro: string;
   music: { run: SongId; boss: SongId };
@@ -386,8 +390,37 @@ export const STAGES: StageDef[] = [
     pips: 5,
     unlockAfter: 'stage4',
     unlockText: 'Beat Mother Dough',
-    built: false,
+    built: true,
+    floor: 'floor_stage5',
+    props: 'bin',
+    creep: true,
+    crumbs: true,
+    dark: true,
     dough: 3,
+    xp: 0.9,
+    hpGrowth: 125,
+    dmg: 1,
+    spawnRate: 1.06,
+    mix: [
+      { until: 45, table: [['stalecrumb', 1]] },
+      { until: 90, table: [['stalecrumb', 66], ['bspore', 34]] },
+      { until: 120, table: [['stalecrumb', 58], ['bspore', 26], ['knight', 16]] },
+      // From 2:00 one regular from each earlier stage joins in: the whole kitchen has turned.
+      { until: Infinity, table: [['stalecrumb', 34], ['bspore', 18], ['knight', 10], ['tot', 9], ['fcrumb', 10], ['ember', 9], ['dustbunny', 10]] },
+    ],
+    wave: { kinds: ['bspore', 'stalecrumb'], banner: 'The Stale closes in!' },
+    lines: 'crumbmarch',
+    // The gauntlet: each elite slot brings back an old boss, smaller, with one of its attacks.
+    elites: [
+      { kind: 'tyrantjr', banner: 'The Toaster Tyrant is back!', color: '#ffb36b' },
+      { kind: 'fburnt', banner: 'The Freezer Burn is back!', color: '#ff7a5c' },
+      { kind: 'broilerjr', banner: 'The Broiler is back!', color: '#ff9a3c' },
+      { kind: 'tanglejr', banner: 'The Spaghetti Tangle is back!', color: '#f0d27a' },
+    ],
+    mini: { kind: 'mdoughjr', name: 'Mother Dough', banner: 'Mother Dough returns!', line: 'I rise again!' },
+    boss: { kind: 'king', name: 'The Stale King', banner: 'THE STALE KING', card: 'Everything goes stale in the end.', marks: [2 / 3, 1 / 3] },
+    outro: 'The Stale King has crumbled. The bakery is warm again.',
+    music: { run: 'brun', boss: 'king' },
   },
 ];
 
@@ -398,7 +431,7 @@ export function stageById(id: string | undefined): StageDef {
 export const MAX_LEVEL = 5;
 export const MAX_SLOTS = 4;
 
-export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy' | 'mixin' | 'ward';
+export type Quirk = 'none' | 'trail' | 'raisin' | 'tank' | 'aura' | 'dash' | 'aged' | 'spicy' | 'mixin' | 'ward' | 'twist';
 
 /** stageclear / stagetime: clear, or survive `target` seconds in, the goal's `stage`. */
 export type GoalKind = 'clear' | 'time' | 'kills' | 'noheal' | 'cookbook' | 'stageclear' | 'stagetime' | 'rainbow';
@@ -561,6 +594,20 @@ export const BAGELS: BagelDef[] = [
     choices: 3,
     allStats: 0,
   },
+  // Phase 3: the Bread Bin bagel
+  {
+    id: 'pretzel',
+    name: 'Pretzel',
+    tex: 'bagel_pretzel',
+    weapon: 'storm',
+    quirk: 'Twisted: every 5th level-up, pick two cards. Starts with Seed Storm.',
+    quirkId: 'twist',
+    goal: { kind: 'stageclear', target: 1, stage: 'stage5', text: 'Clear the Bread Bin' },
+    hp: 100,
+    speed: 140,
+    choices: 3,
+    allStats: 0,
+  },
   // M11: the secret bagel
   {
     id: 'rainbow',
@@ -610,7 +657,9 @@ export type EnemyKind =
   | 'muffin' | 'fburnt' | 'flapjack' | 'broiler'
   // The Pantry
   | 'dustbunny' | 'peacan' | 'pepper' | 'sugarcube' | 'crystal' | 'pmuffin' | 'spore'
-  | 'loaf' | 'broilerjr' | 'tangle' | 'mdough' | 'doughball';
+  | 'loaf' | 'broilerjr' | 'tangle' | 'mdough' | 'doughball'
+  // The Bread Bin
+  | 'stalecrumb' | 'crumbmarch' | 'knight' | 'bspore' | 'tanglejr' | 'mdoughjr' | 'king';
 
 export interface EnemyDef {
   tex: string;
@@ -638,6 +687,10 @@ export interface EnemyDef {
   ember?: boolean;
   /** Drips small melt puddles as it walks. */
   drip?: boolean;
+  /** Carries a shield that halves damage until it has soaked up this much (grows with the stage like health), then breaks off. */
+  shield?: number;
+  /** Pops into a ring of this many short-lived shots when beaten (never one straight at you). */
+  pop?: number;
 }
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
@@ -690,6 +743,14 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   tangle: { tex: 'en_tangle', hp: 1700, speed: 52, dmg: 16, radius: 30, xp: 30, mass: 12, burst: 0xf0d27a, flat: true },
   mdough: { tex: 'en_mdough', hp: 8200, speed: 30, dmg: 27, radius: 46, xp: 0, mass: 40, burst: 0xf3e3c0, flat: true },
   doughball: { tex: 'en_doughball', hp: 26, speed: 62, dmg: 8, radius: 10, xp: 2, mass: 1.4, burst: 0xf3e3c0 },
+  // The Bread Bin
+  stalecrumb: { tex: 'en_stalecrumb', hp: 9, speed: 76, dmg: 5, radius: 9, xp: 1, mass: 0.9, burst: 0xa7a199 },
+  crumbmarch: { tex: 'en_stalecrumb', hp: 12, speed: 100, dmg: 6, radius: 9, xp: 1, mass: 0.9, ai: 'line', burst: 0xa7a199 },
+  knight: { tex: 'en_knight_s', hp: 52, speed: 40, dmg: 11, radius: 13, xp: 4, mass: 3, burst: 0xd9a85c, shield: 34 },
+  bspore: { tex: 'en_bspore', hp: 12, speed: 60, dmg: 5, radius: 9, xp: 2, mass: 0.8, burst: 0x9fc85a, pop: 5 },
+  tanglejr: { tex: 'en_tanglejr', hp: 1100, speed: 46, dmg: 16, radius: 26, xp: 20, mass: 10, burst: 0xf0d27a, flat: true },
+  mdoughjr: { tex: 'en_mdoughjr', hp: 2300, speed: 32, dmg: 18, radius: 34, xp: 30, mass: 14, burst: 0xf3e3c0, flat: true },
+  king: { tex: 'en_king', hp: 9500, speed: 30, dmg: 28, radius: 46, xp: 0, mass: 40, burst: 0xa7a199, flat: true },
 };
 
 // Run pacing (seconds)
@@ -776,5 +837,19 @@ export const ENEMY_BOOK: Record<StageId, BookEnemy[]> = {
     { kind: 'mdough', name: 'Mother Dough', blurb: 'Popping bubbles, then dough walls. She has been rising for a hundred years.', role: 'boss' },
     { kind: 'doughball', name: 'Dough Ball', blurb: 'A little piece of Mother Dough, sent to fetch you.' },
   ],
-  stage5: [],
+  stage5: [
+    { kind: 'stalecrumb', name: 'Stone Crumb', blurb: 'Stale all the way through. Grey, hard and quick.' },
+    { kind: 'bspore', name: 'Puff Spore', blurb: 'Pops into a ring of spores. The gap always faces you.' },
+    { kind: 'knight', name: 'Crouton Knight', blurb: 'Its crust shield halves every hit until it cracks off.' },
+    { kind: 'tot', name: 'Toaster Tot', blurb: 'Back from the oven for the last stand.' },
+    { kind: 'fcrumb', name: 'Frost Crumb', blurb: 'Back from the Freezer for the last stand.' },
+    { kind: 'ember', name: 'Ember Crumb', blurb: 'Back from the oven. Still leaves a little flame.' },
+    { kind: 'dustbunny', name: 'Dust Bunny', blurb: 'Back from the Pantry, and still never alone.' },
+    { kind: 'tyrantjr', name: 'The Toaster Tyrant, Again', blurb: 'First of the old bosses to return. A fan of toast.', role: 'elite' },
+    { kind: 'fburnt', name: 'The Freezer Burn, Again', blurb: 'Second to return. One warned icicle fan at a time.', role: 'elite' },
+    { kind: 'broilerjr', name: 'The Broiler, Again', blurb: 'Third to return. One flame line at a time.', role: 'elite' },
+    { kind: 'tanglejr', name: 'The Spaghetti Tangle, Again', blurb: 'Last to return. Noodle lines, but no knots.', role: 'elite' },
+    { kind: 'mdoughjr', name: 'Mother Dough, Again', blurb: 'Smaller, with her bubbles and dough blobs. No walls.', role: 'mini' },
+    { kind: 'king', name: 'The Stale King', blurb: 'Crumbs and knights, then shards, then the dark. Everything goes stale in the end.', role: 'boss' },
+  ],
 };

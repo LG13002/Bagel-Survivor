@@ -146,6 +146,8 @@ export class MenuScene extends Phaser.Scene {
       tab,
       onClose: () => this.closePopup(false),
       onIntro: () => wipeTo(this, 'intro'),
+      onEnding: () => wipeTo(this, 'intro', { ending: true }),
+      onCredits: () => wipeTo(this, 'credits'),
       // A pasted or reset save changes everything the menu shows: start the menu again from it.
       onSaveReplaced: () => this.scene.restart(),
     });
@@ -656,6 +658,18 @@ export class MenuScene extends Phaser.Scene {
       g.fillStyle(COLORS.red, 1).fillRoundedRect(-rw / 2, -13 * S, rw, 26 * S, 7 * S);
       rib.add([g, txt(this, 0, 0, 'COMING SOON', 15, CSS.cream, { stroke: false })]);
       rib.setAngle(-4);
+      card.add(rib);
+    }
+
+    if (st.boss.kind === 'king' && (save.stageClears?.[st.id] ?? 0) > 0) {
+      // The last stage wears a gold stamp once the Stale King has fallen.
+      const rib = this.add.container(pic.displayWidth / 2 - 46 * S, picY + pic.displayHeight / 2 - 10 * S);
+      const g = this.add.graphics();
+      const rw = 104 * S;
+      g.fillStyle(0x24160d, 1).fillRoundedRect(-rw / 2 - 2 * S, -15 * S, rw + 4 * S, 30 * S, 8 * S);
+      g.fillStyle(COLORS.gold, 1).fillRoundedRect(-rw / 2, -13 * S, rw, 26 * S, 7 * S);
+      rib.add([g, txt(this, 0, 0, 'CLEARED', 15, CSS.dark, { stroke: false })]);
+      rib.setAngle(-6);
       card.add(rib);
     }
 

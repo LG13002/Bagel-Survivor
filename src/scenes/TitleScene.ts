@@ -46,11 +46,14 @@ export class TitleScene extends Phaser.Scene {
     // Warm glow behind the bagel, fading to the bakery's dark brown at the edges.
     const cy = top + (bottom - top) * 0.6;
     // One small picture stretched over the screen: far cheaper for a phone than layers of big circles.
+    // Once the Stale King has fallen, dawn becomes a bright morning: a clear sky around the glow.
+    const morning = !!save.ending;
     ctex(this, 'title_bg', 128, 128, (c) => {
       const g = c.createRadialGradient(64, 64, 4, 64, 64, 64);
-      g.addColorStop(0, '#f2b84b');
-      g.addColorStop(0.45, '#b9652a');
-      g.addColorStop(1, '#2b2118');
+      g.addColorStop(0, morning ? '#fff3c4' : '#f2b84b');
+      g.addColorStop(0.45, morning ? '#f7c463' : '#b9652a');
+      g.addColorStop(morning ? 0.8 : 1, morning ? '#6cb6e6' : '#2b2118');
+      if (morning) g.addColorStop(1, '#3f8fd0');
       c.fillStyle = g;
       c.fillRect(0, 0, 128, 128);
     });
@@ -61,7 +64,7 @@ export class TitleScene extends Phaser.Scene {
     ctex(this, 'title_rays', R0, R0, (c) => {
       c.translate(R0 / 2, R0 / 2);
       const g = c.createRadialGradient(0, 0, 20, 0, 0, R0 / 2);
-      g.addColorStop(0, 'rgba(255,243,220,0.16)');
+      g.addColorStop(0, morning ? 'rgba(255,255,240,0.3)' : 'rgba(255,243,220,0.16)');
       g.addColorStop(1, 'rgba(255,243,220,0)');
       c.fillStyle = g;
       for (let i = 0; i < 12; i++) {
@@ -101,20 +104,24 @@ export class TitleScene extends Phaser.Scene {
       this.tweens.add({ targets: t, y: y0, duration: 650, delay: 80 + i * 110, ease: 'Bounce.Out' });
     });
 
-    // The Stale closing in along the bottom.
-    const crumb = staleCrumb(this);
+    // The Stale closing in along the bottom. After the ending, friends from the shelf are there instead.
+    const crumb = morning ? '' : staleCrumb(this);
+    const friends = BAGELS.filter((b) => b.id !== bagel.id && save.unlocked.includes(b.id) && !b.secret);
     const spots: [number, number, number][] = [[0.09, 26, 2.0], [0.24, 12, 1.4], [0.5, 16, 1.2], [0.76, 12, 1.4], [0.9, 30, 2.2]];
-    for (const [fx, up, sc] of spots) {
+    for (const [i, [fx, up, sc]] of spots.entries()) {
       const cx = W * fx;
       const y = bottom - up * S;
+      if (morning && !friends.length) break;
       this.add.ellipse(cx, y + 10 * sc * S, 20 * sc * S, 5 * sc * S, 0x120c08, 0.35);
-      const im = this.add.image(cx, y, crumb).setScale(sc);
+      const im = morning ? this.add.image(cx, y - 4 * sc * S, friends[i % friends.length].tex).setScale(sc * 0.62) : this.add.image(cx, y, crumb).setScale(sc);
       this.tweens.add({ targets: im, y: y - 5 * S, angle: fx < 0.5 ? 6 : -6, duration: 380 + fx * 300, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     }
 
     const tap = txt(this, W / 2, Math.min(bottom - 62 * S, by + R + 58 * S), 'Tap to play', 26, CSS.cream);
     this.tweens.add({ targets: tap, alpha: 0.45, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
-    txt(this, W - 14 * S, top + 18 * S, `v${VERSION.replace(/\.0$/, '')}`, 12, 'rgba(255,243,220,0.6)', { stroke: false }).setOrigin(1, 0.5);
+    const ver = txt(this, W - 14 * S, top + 18 * S, `v${VERSION.replace(/\.0$/, '')}`, 12, morning ? 'rgba(36,22,13,0.7)' : 'rgba(255,243,220,0.6)', { stroke: false }).setOrigin(1, 0.5);
+    // A small crown beside the version: the game has been finished.
+    if (morning) this.add.image(ver.x - ver.width - 12 * S, ver.y, 'ic_crown').setScale(0.42);
 
     const zone = this.add.zone(0, 0, W, H).setOrigin(0).setInteractive();
     zone.once('pointerup', () => {

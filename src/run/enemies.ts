@@ -7,7 +7,7 @@ import { sfx, type Sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { behave, type Move } from './behaviors';
 import type { DeathStyle } from './effects';
-import { CROWD_HP, CHARGE_TIME, WAVE_GAP, CRISPY_HP, ENDLESS_BOSS_EVERY, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, SLOWMO_TIME } from './modes';
+import { CROWD_HP, CHARGE_TIME, WAVE_GAP, CRISPY_HP, ENDLESS_BOSS_EVERY, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, KING_SLOWMO_TIME, SLOWMO_TIME } from './modes';
 
 /** Spatial grid cell size for hit checks and crowd separation. */
 const CELL = 48;
@@ -24,12 +24,13 @@ const KILL_SFX: Record<EnemyKind, Sfx> = {
   muffin: 'pop', fburnt: 'shatter', flapjack: 'pop', broiler: 'pop',
   dustbunny: 'pop', peacan: 'clatter', pepper: 'shatter', sugarcube: 'shatter', crystal: 'crunch', pmuffin: 'crunch', spore: 'splat',
   loaf: 'pop', broilerjr: 'pop', tangle: 'pop', mdough: 'pop', doughball: 'splat',
+  stalecrumb: 'crunch', crumbmarch: 'crunch', knight: 'crunch', bspore: 'splat', tanglejr: 'pop', mdoughjr: 'pop', king: 'pop',
 };
 
 /** How an enemy comes apart: a pop (soft things, elites), a crumble (dry and hard things) or a splat (wet things). */
 const DEATH: Partial<Record<Sfx, DeathStyle>> = { crunch: 'crumble', clatter: 'crumble', shatter: 'crumble', splat: 'splat' };
 /** Big enemies that rear up just before a timed attack (the attack's own timing is untouched). */
-const WINDUP = new Set<EnemyKind>(['croissant', 'toaster', 'fcroissant', 'tyrantjr', 'fburn', 'fburnt', 'flapjack', 'broiler', 'loaf', 'broilerjr', 'tangle', 'mdough']);
+const WINDUP = new Set<EnemyKind>(['croissant', 'toaster', 'fcroissant', 'tyrantjr', 'fburn', 'fburnt', 'flapjack', 'broiler', 'loaf', 'broilerjr', 'tangle', 'mdough', 'tanglejr', 'mdoughjr']);
 const WIND = 0.4;
 /** A boss's drop onto the field. */
 export const DROP_TIME = 0.7;
@@ -219,6 +220,10 @@ export class Enemies {
     e.big = isBig;
     e.faint = false;
     e.sq = e.dropT = e.roarT = 0;
+    // A shield soaks up more as the run goes on, like health.
+    e.shield = def.shield ? def.shield * hpMult * (g.crispy ? CRISPY_HP : 1) : 0;
+    e.phaseN = 0;
+    e.guard = false;
     e.prevAtk = e.attackT;
     e.hitCd.clear();
     this.list.push(e);
@@ -563,6 +568,17 @@ export class Enemies {
     if (burning && e.alive && e.flashUntil <= now) e.sprite.setTint(0xffa070);
   }
 
+  /** A Crouton Knight's shield has soaked up all it can: it cracks off, and the knight takes full damage from now on. */
+  shieldBreak(e: Enemy): void {
+    const g = this.g;
+    e.shield = 0;
+    if (!e.alive) return;
+    e.sprite.setTexture('en_knight');
+    sfx('shieldbreak');
+    g.effects.burst(e.x, e.y + e.radius * 0.4, 0xc9c3b8, 7, 44);
+    e.sq = 0.16;
+  }
+
   // ---------------------------------------------------------------- Deaths
 
   private remove(e: Enemy): void {
@@ -603,6 +619,12 @@ export class Enemies {
       }
     }
     if (def.ember) g.hz.addSpark(e.x, e.y);
+    if (def.pop) {
+      // A Puff Spore pops into a ring of short-lived spores. The ring is turned so its widest gap faces the bagel:
+      // a spore popped right beside you never hits you.
+      const toYou = Math.atan2(g.player.y - e.y, g.player.x - e.x);
+      for (let i = 0; i < def.pop; i++) g.hz.fireShot('peppershot', e.x, e.y, toYou + ((i + 0.5) / def.pop) * Math.PI * 2, 105, 5, 4.5, false, 0.75);
+    }
     if (e.kind === 'muffin') {
       // The Molten Muffin bursts into a ring of embers.
       sfx('flare');
@@ -642,8 +664,20 @@ export class Enemies {
     shake(g, 600, 0.012);
     flash(g, 300, 255, 240, 200);
     g.effects.bossBurst(e);
-    // Half a second of slow motion to take it in.
-    g.run.slowT = SLOWMO_TIME;
+    // Half a second of slow motion to take it in. The Stale King gets longer, and takes the creep and the dark with him.
+    const king = e.kind === 'king';
+    g.run.slowT = king ? KING_SLOWMO_TIME : SLOWMO_TIME;
+    if (king) {
+      sfx('kingcrack');
+      g.hz.bin.setDark(false);
+      g.hz.bin.burnAll(e.x, e.y);
+      // He cracks apart into croutons.
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        g.effects.burst(e.x + Math.cos(a) * 26, e.y + Math.sin(a) * 26, i % 2 ? 0xd9a85c : 0xa7a199, 8, 90);
+      }
+      for (const o of this.list) if (o.alive && o.guard) o.guard = false;
+    }
     if (!g.endless) {
       // The win follows the slow motion (see `GameScene.update`). Nothing can hurt the bagel in between.
       g.run.pendingWin = true;

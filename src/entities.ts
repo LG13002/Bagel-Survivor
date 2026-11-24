@@ -53,6 +53,11 @@ export class Enemy {
   roarT = 0;
   /** Last frame's attack timer, to spot the moment an attack goes off. */
   prevAtk = 0;
+  /** Crouton Knight: how much more its shield can soak up (0 = no shield). */
+  shield = 0;
+  /** The Stale King: the phase he has announced (1 to 3), and one of the guards he called. */
+  phaseN = 0;
+  guard = false;
 }
 
 export class Player {

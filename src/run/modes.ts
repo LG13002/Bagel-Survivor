@@ -28,6 +28,8 @@ export const ENDLESS_DOUGH_MIN = 10;
 /** When a stage boss falls, the next SLOWMO_TIME seconds (real time) play at SLOWMO speed. */
 export const SLOWMO = 0.3;
 export const SLOWMO_TIME = 0.5;
+/** The Stale King's fall is the end of the story: a longer moment. */
+export const KING_SLOWMO_TIME = 1.1;
 
 /** Regular enemies' health in every stage, against the numbers in `ENEMIES` (the owner asked for a more manageable crowd). */
 export const CROWD_HP = 0.8;

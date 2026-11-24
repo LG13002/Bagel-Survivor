@@ -27,7 +27,7 @@ interface Song {
   tracks: Track[];
 }
 
-export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss' | 'prun' | 'pboss';
+export type SongId = 'menu' | 'run' | 'boss' | 'win' | 'stale' | 'frun' | 'fboss' | 'orun' | 'oboss' | 'prun' | 'pboss' | 'brun' | 'king' | 'ending';
 
 /** Bars written as space-separated tokens, joined with "|". */
 function seq(s: string): string[] {
@@ -330,6 +330,105 @@ const SONGS: Record<SongId, Song> = {
       { inst: 'kick', steps: seq(rep('x . . x x . x .', 8)) },
       { inst: 'snare', steps: seq(rep('. . x . . . x .', 7) + ' | . . x . x x x x') },
       { inst: 'wood', vol: 0.9, steps: seq(rep('A5 E5 . E5 A5 E5 . E5', 8)) },
+    ],
+  },
+
+  // The Bread Bin: a slow, regal march in C minor. A snare march joins at 1:00, the bass at 2:00.
+  brun: {
+    level: 1.35,
+    bpm: 108,
+    res: 2,
+    loop: true,
+    layered: true,
+    tracks: [
+      {
+        inst: 'lead',
+        steps: seq(`C5 - - Eb5 G5 - - F5 | Eb5 - D5 - C5 - - - | Ab4 - - C5 Eb5 - - D5 | G4 - - - B4 - D5 -
+                    C5 - - Eb5 G5 - Ab5 G5 | F5 - Eb5 - D5 - F5 - | Eb5 - D5 C5 B4 - D5 - | C5 - - - . . G4 .`),
+      },
+      {
+        inst: 'pad',
+        vol: 0.8,
+        steps: seq(`C4+Eb4+G4 - - - - - - - | C4+Eb4+G4 - - - - - - - | Ab3+C4+Eb4 - - - - - - - | G3+B3+D4 - - - - - - -
+                    C4+Eb4+G4 - - - - - - - | F3+Ab3+C4 - - - Bb3+D4+F4 - - - | G3+C4+Eb4 - - - G3+B3+D4 - - - | C4+Eb4+G4 - - - - - - -`),
+      },
+      { inst: 'bell', vol: 0.5, steps: seq(rep('. . . . . . . . | . . . . G5 . . .', 4)) },
+      { inst: 'kick', layer: 1, steps: seq(rep('x . . . x . . .', 8)) },
+      { inst: 'snare', layer: 1, vol: 0.8, steps: seq(rep('. . x . . x x .', 7) + ' | . . x . x x x x') },
+      {
+        inst: 'bass',
+        layer: 2,
+        vol: 0.6,
+        steps: seq(`C2 - G2 - C3 - G2 - | C2 - G2 - C3 - G2 - | Ab1 - Eb2 - Ab2 - Eb2 - | G1 - D2 - G2 - D2 -
+                    C2 - G2 - C3 - G2 - | F2 - C3 - Bb1 - F2 - | G1 - Eb2 - G1 - D2 - | C2 - G2 - C2 - - -`),
+      },
+    ],
+  },
+
+  // The Stale King: the last boss, in C minor. It steps up with him: drums crash in when he cracks, bells when the dark falls.
+  king: {
+    level: 1.5,
+    bpm: 156,
+    res: 2,
+    loop: true,
+    layered: true,
+    tracks: [
+      {
+        inst: 'lead',
+        vol: 0.9,
+        steps: seq(`C5 - Eb5 - G5 - F5 Eb5 | D5 - - - B4 - D5 - | Eb5 - G5 - C6 - Bb5 G5 | Ab5 - - - G5 - - -
+                    C6 - G5 - Eb5 - G5 C6 | Ab5 - Eb5 - C5 - Eb5 Ab5 | G5 - D5 - B4 - D5 G5 | C6 - - - G5 - Eb5 -`),
+      },
+      {
+        inst: 'chord',
+        vol: 0.9,
+        steps: seq(`C4+Eb4+G4 . . C4+Eb4+G4 . . C4+Eb4+G4 . | G3+B3+D4 . . G3+B3+D4 . . G3+B3+D4 . | C4+Eb4+G4 . . C4+Eb4+G4 . . C4+Eb4+G4 . | Ab3+C4+Eb4 . . Ab3+C4+Eb4 . . G3+B3+D4 .
+                    C4+Eb4+G4 . . C4+Eb4+G4 . . C4+Eb4+G4 . | Ab3+C4+Eb4 . . Ab3+C4+Eb4 . . Ab3+C4+Eb4 . | G3+B3+D4 . . G3+B3+D4 . . G3+B3+D4 . | C4+Eb4+G4 . . C4+Eb4+G4 . . C4+Eb4+G4 .`),
+      },
+      {
+        inst: 'grit',
+        vol: 1.1,
+        steps: seq(`C2 C2 C3 C2 C2 C2 Db2 C2 | G1 G1 G2 G1 G1 G1 Ab1 G1 | C2 C2 C3 C2 C2 C2 Db2 C2 | Ab1 Ab1 Ab2 Ab1 G1 G1 G2 G1
+                    C2 C2 C3 C2 C2 C2 Db2 C2 | Ab1 Ab1 Ab2 Ab1 Ab1 Ab1 A1 Ab1 | G1 G1 G2 G1 G1 G1 Ab1 G1 | C2 C2 C3 C2 C2 C2 B1 C2`),
+      },
+      { inst: 'kick', steps: seq(rep('x . . x x . x .', 8)) },
+      { inst: 'snare', layer: 1, steps: seq(rep('. . x . . . x .', 7) + ' | . . x . x x x x') },
+      { inst: 'sizzle', layer: 1, vol: 0.8, steps: seq(rep('x x x x x x x x', 8)) },
+      {
+        inst: 'bell',
+        layer: 2,
+        vol: 0.7,
+        steps: seq(`C6 . G5 . Eb6 . G5 . | B5 . G5 . D6 . G5 . | C6 . G5 . Eb6 . G5 . | C6 . Ab5 . D6 . G5 .
+                    C6 . G5 . Eb6 . G5 . | C6 . Ab5 . Eb6 . Ab5 . | B5 . G5 . D6 . G5 . | C6 . G5 . Eb6 . C6 .`),
+      },
+    ],
+  },
+
+  // The ending: the menu's tune, slowed down and warmed up, for the last comic and the credits.
+  ending: {
+    level: 1.3,
+    bpm: 84,
+    res: 2,
+    loop: true,
+    tracks: [
+      {
+        inst: 'soft',
+        steps: seq(`E5 - G5 - B5 - A5 G5 | E5 - - - C5 - D5 E5 | F5 - A5 - C6 - B5 A5 | G5 - - - - - . .
+                    E5 - G5 - B5 - D6 C6 | A5 - - - G5 - E5 - | F5 - E5 - D5 - B4 D5 | C5 - - - - - - -`),
+      },
+      {
+        inst: 'pad',
+        vol: 0.9,
+        steps: seq(`C4+E4+G4 - - - - - - - | A3+C4+E4 - - - - - - - | F3+A3+C4 - - - - - - - | G3+B3+D4 - - - - - - -
+                    C4+E4+G4 - - - - - - - | A3+C4+E4 - - - - - - - | F3+A3+C4 - - - G3+B3+D4 - - - | C4+E4+G4 - - - - - - -`),
+      },
+      { inst: 'bell', vol: 0.5, steps: seq(rep('. . . . . . . . | . . . . G6 . . . | . . . . . . . . | . . D6 . G6 . . .', 2)) },
+      {
+        inst: 'bass',
+        vol: 0.5,
+        steps: seq(`C3 - - - G3 - - - | A2 - - - E3 - - - | F2 - - - C3 - - - | G2 - - - D3 - - -
+                    C3 - - - G3 - - - | A2 - - - E3 - - - | F2 - - - G2 - - - | C3 - - - - - - -`),
+      },
     ],
   },
 

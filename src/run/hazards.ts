@@ -6,6 +6,7 @@ import type { EnemyShot, Hazard } from '../entities';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { inPatch, POST_R, SHELF_CELL, type IcePatch } from './floor';
+import { Bin } from './bin';
 
 /** Toaster Oven coil flare-ups: warning time, strip size, damage to you and to enemies on it. */
 const COIL_WARN = 1.5;
@@ -68,7 +69,7 @@ export class Hazards {
   tempIce: (IcePatch & { life: number })[] = [];
   private rings: Hazard[] = [];
   private melts: { img: Phaser.GameObjects.Image; x: number; y: number; r: number; life: number }[] = [];
-  private warns: { x: number; y: number; a: number; t: number; n: number }[] = [];
+  private warns: { x: number; y: number; a: number; t: number; n: number; shard?: boolean }[] = [];
   private freezes: { img: Phaser.GameObjects.Image; x: number; y: number; r: number; t: number }[] = [];
   private coils: Coil[] = [];
   private greases: { img: Phaser.GameObjects.Image; x: number; y: number; t: number }[] = [];
@@ -90,6 +91,8 @@ export class Hazards {
   private bossGfx: Phaser.GameObjects.Graphics;
   private ovenGfx: Phaser.GameObjects.Graphics;
   private beamGfx: Phaser.GameObjects.Graphics;
+  /** The Bread Bin's creep, falling crumbs and darkness. */
+  bin: Bin;
 
   constructor(private g: GameScene) {
     this.bossGfx = g.add.graphics().setDepth(3);
@@ -106,6 +109,7 @@ export class Hazards {
     g.worldLayer.add(this.pantryGfx);
     this.canNext = g.now + 14;
     this.flourNext = g.now + 22;
+    this.bin = new Bin(g);
   }
 
   update(dt: number): void {
@@ -115,6 +119,7 @@ export class Hazards {
     this.updateOven(dt);
     this.updateBeams(dt);
     this.updatePantry(dt);
+    this.bin.update(dt);
   }
 
   // ---------------------------------------------------------------- Enemy shots
@@ -259,9 +264,9 @@ export class Hazards {
     this.freezes.push({ img, x, y, r, t: 1.2 });
   }
 
-  /** An icicle volley: a warning line from (x, y) at angle a for t seconds, then n icicles fly along it. */
-  addWarn(x: number, y: number, a: number, t: number, n: number): void {
-    this.warns.push({ x, y, a, t, n });
+  /** An icicle volley: a warning line from (x, y) at angle a for t seconds, then n icicles fly along it. `shard`: the Stale King's crust shards, with a pale line. */
+  addWarn(x: number, y: number, a: number, t: number, n: number, shard = false): void {
+    this.warns.push({ x, y, a, t, n, shard });
   }
 
   /** Is this point in a melt puddle? */
@@ -333,12 +338,12 @@ export class Hazards {
         const ex = w.x + Math.cos(w.a) * len;
         const ey = w.y + Math.sin(w.a) * len;
         const blink = blinkAt(g.now, 12, 0.55, 0.3);
-        gfx.lineStyle(16, 0x6cc7f0, blink).lineBetween(w.x, w.y, ex, ey);
+        gfx.lineStyle(16, w.shard ? 0xd9d2c6 : 0x6cc7f0, blink).lineBetween(w.x, w.y, ex, ey);
         gfx.lineStyle(3, 0xffffff, 0.9).lineBetween(w.x, w.y, ex, ey);
         continue;
       }
-      sfx('icicle');
-      for (let k = 0; k < w.n; k++) this.fireShot('icicle', w.x, w.y, w.a, 300 - k * 35, 14, 6, true);
+      sfx(w.shard ? 'flakes' : 'icicle');
+      for (let k = 0; k < w.n; k++) this.fireShot(w.shard ? 'shard' : 'icicle', w.x, w.y, w.a, 300 - k * 35, 14, 6, true);
       this.warns.splice(i, 1);
     }
   }

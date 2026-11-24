@@ -78,12 +78,16 @@ export interface SaveData {
   fresh?: string[];
   /** The intro comic has been watched or skipped. */
   intro?: boolean;
+  /** The ending and its credits have been seen (the Stale King fell): the title screen turns to morning. */
+  ending?: boolean;
 }
 
 /** Best single-run numbers (practice runs never count). */
 export interface RunRecords {
   /** Most enemies flattened by one rolling can. */
   strike?: number;
+  /** Most patches of Stale creep burned away in one run. */
+  creep?: number;
   kills?: number;
   level?: number;
   /** Evolutions in one run. */

@@ -62,6 +62,8 @@ export class RunState {
   noHitBoss = false;
   /** Most enemies one rolling can has flattened this run. */
   canBest = 0;
+  /** Patches of Stale creep burned away this run (the Bread Bin). */
+  creepBurned = 0;
   /** Lox and Schmear was made this run (shown on the results screen). */
   foundCombo = false;
   /** Bakery ranks read once per run: luck, Second Bake and Hard Crust. */

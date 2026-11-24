@@ -40,6 +40,7 @@ export interface RunSnapshot {
   noHitBoss?: boolean;
   /** Most enemies one rolling can has flattened so far. */
   canBest?: number;
+  creepBurned?: number;
   /** Second Bake already used this run. */
   revived?: boolean;
   mugs?: number;
