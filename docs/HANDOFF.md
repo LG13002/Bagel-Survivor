@@ -445,7 +445,7 @@ Costs: the Bakery's 10 upgrades come to 6,510 Dough, the 16 looks for sale to 2,
 
 ### Skip on the level-up screen (after the owner's M18 playtest, still version 0.18)
 
-The owner pointed out that "Clear a stage with only one weapon" could not be done on purpose: with no way to pass on a hand, the cards run down to new weapons only (about 24 picks with one weapon). The level-up screen now has a small Skip button beside the title. It asks twice, then spends the level with no card and no reward, so it never beats taking a card. Checked by bot on 760 and 640 tall screens, with the Bin and Reroll buttons showing, and with two levels waiting.
+The owner pointed out that "Clear a stage with only one weapon" could not be done on purpose: with no way to pass on a hand, the cards run down to new weapons only (about 24 picks with one weapon). The level-up screen now has a small Skip button beside the title. It asks twice, then spends the level with no card and heals 10 (the owner asked for a small heal so a skip can be a choice; it counts as healing taken). Checked by bot on 760 and 640 tall screens, with the Bin and Reroll buttons showing, and with two levels waiting.
 
 ## Weapon benchmark (bot, M11 part 3)
 

@@ -50,3 +50,6 @@ export const CHARGE_TIME = 0.5;
 
 /** Max health gained for every level reached in a run (the owner's ask after M17: surviving shouldn't hang on Fresh Dough). The gain heals too. */
 export const LEVEL_HP = 2;
+
+/** Health given back by Skip on the level-up screen. Small on purpose: a card should nearly always be worth more. */
+export const SKIP_HEAL = 10;

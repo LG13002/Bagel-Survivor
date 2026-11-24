@@ -9,6 +9,7 @@ import { button, drawPips, panel, pill, txt } from '../ui';
 import { COMBOS } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
 import type { Choice } from './state';
+import { SKIP_HEAL } from './modes';
 import { TIPS, markTip, nextHint, openMenu, tipDue } from '../tips';
 import { tipBox, tipIn } from './tutor';
 
@@ -365,6 +366,12 @@ export class Panels {
           return;
         }
         commit();
+        // A small heal, so passing on a hand is worth something (the owner's pick). It counts as healing taken.
+        if (g.player.hp < g.stats.maxHp) {
+          g.player.hp = Math.min(g.stats.maxHp, g.player.hp + SKIP_HEAL);
+          run.healsTaken++;
+          sfx('sip');
+        }
         run.pendingLevels--;
         this.close();
         if (run.pendingLevels > 0) this.openLevelUp();
@@ -379,7 +386,7 @@ export class Panels {
       title.x -= over;
       sub.x -= Math.min(over, Math.max(0, sub.x + sub.width / 2 + 8 * S - (sx - 32 * S)));
     }
-    c.add(skip);
+    c.add([skip, txt(g, sx, sy + 28 * S, `+${SKIP_HEAL} health`, 11, CSS.muted)]);
   }
 
   // ---------------------------------------------------------------- Chests
