@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Enemy, Player, Stats } from './entities';
-import { WEAPONS, type WeaponDef, type WeaponId } from './data';
+import { ENEMIES, WEAPONS, type WeaponDef, type WeaponId } from './data';
 import type { Sfx } from './sfx';
 
 /** What weapons need from the game scene. */
@@ -995,7 +995,7 @@ class WhiskWhirl extends Weapon {
         const dy = e.y - y;
         const ed = Math.hypot(dx, dy) || 1;
         // Pull toward the tornado: never bosses or heavy elites.
-        if (!e.boss && e.mass < 5 && ed > 10) {
+        if (!e.boss && !ENEMIES[e.kind].flat && e.mass < 5 && ed > 10) {
           e.kx -= ((dx / ed) * 620 * dt) / e.mass;
           e.ky -= ((dy / ed) * 620 * dt) / e.mass;
         }
