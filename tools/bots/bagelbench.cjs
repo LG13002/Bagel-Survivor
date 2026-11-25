@@ -4,7 +4,7 @@
 // Usage: node tools/bots/bagelbench.cjs [bagels] [stage] [endSecs]
 //   e.g. node tools/bots/bagelbench.cjs plain,blueberry stage1 265   (PORT= for another server, CRISPY=1)
 const { chromium } = require('playwright');
-const ALL = 'plain,everything,poppy,cinnamon,pumpernickel,onion,blueberry,asiago,jalapeno,rainbow';
+const ALL = 'plain,everything,poppy,cinnamon,pumpernickel,onion,blueberry,asiago,jalapeno,rainbow,garlic,pretzel';
 const BAGELS = (process.argv[2] || ALL).split(',');
 const STAGE = process.argv[3] || 'stage1';
 const END = Number(process.argv[4] || 265);
@@ -14,9 +14,13 @@ const SPEED = Number(process.env.SPEED || 10);
   const b = await chromium.launch();
   for (const bagel of BAGELS) {
     const p = await b.newPage({ viewport: { width: 390, height: 760 }, deviceScaleFactor: 1 });
-    await p.goto(`http://localhost:${PORT}/?speed=${SPEED}`, { waitUntil: 'domcontentloaded' });
+    // KIT=1: every Bakery upgrade at rank 2, the Daily Run's set kit, for a fair comparison with a Daily.
+    if (process.env.KIT === '1') await p.addInitScript(() => localStorage.setItem('everything-bagel-save-v1', JSON.stringify({ v: 5, dough: 0, upgrades: { hp: 2, dmg: 2, speed: 2, magnet: 2, proof: 2, luck: 2, reroll: 2, revive: 2, armor: 2, bin: 2 }, unlocked: ['plain'], selected: 'plain', cookbook: [], bestTime: 0, totalKills: 0, clears: 1, intro: true, stageClears: { stage1: 1 }, settings: { music: 0, sound: 0, tips: false } })));
+    // DAY=YYYY-MM-DD plays that day's Daily Run instead (its stage, bagel and twist; the bagel and stage arguments are ignored).
+    const DAY = process.env.DAY || '';
+    await p.goto(`http://localhost:${PORT}/?speed=${SPEED}${DAY ? `&day=${DAY}` : ''}`, { waitUntil: 'domcontentloaded' });
     await p.waitForTimeout(1500);
-    await p.evaluate(([bagel, stage, crispy]) => window.__game.scene.getScene('title').scene.start('game', { bagel, practice: false, stage, crispy }), [bagel, STAGE, process.env.CRISPY === '1']);
+    await p.evaluate(([bagel, stage, crispy, day]) => window.__game.scene.getScene('title').scene.start('game', day ? { daily: true } : { bagel, practice: false, stage, crispy }), [bagel, STAGE, process.env.CRISPY === '1', DAY]);
     await p.waitForTimeout(600);
     await p.evaluate(() => {
       const g = window.__game.scene.getScene('game');
@@ -62,9 +66,9 @@ const SPEED = Number(process.env.SPEED || 10);
     const st = await p.evaluate(() => {
       const g = window.__game.scene.getScene('game');
       const dt = g.now - g.__t0, hp = g.stats.maxHp;
-      return { secs: Math.round(dt), level: g.run.level, kills: g.run.kills, dps: Math.round(g.__dmg / dt), maxHp: Math.round(hp), hurtPerMin: Math.round((g.__hurt / dt) * 60), healPerMin: Math.round((g.__heal / dt) * 60), barsLost: +((g.__hurt - g.__heal) / hp).toFixed(2), weapons: g.weapons.map((w) => w.def.id + (w.evolved ? '*' : w.level)).join(' ') };
+      return { twist: g.twist, bagel: g.bagel.id, stage: g.stage.id, secs: Math.round(dt), level: g.run.level, kills: g.run.kills, dps: Math.round(g.__dmg / dt), maxHp: Math.round(hp), hurtPerMin: Math.round((g.__hurt / dt) * 60), healPerMin: Math.round((g.__heal / dt) * 60), barsLost: +((g.__hurt - g.__heal) / hp).toFixed(2), coins: g.run.coins, doughIfCleared: g.runDough(true), doughIfLost: g.runDough(false), weapons: g.weapons.map((w) => w.def.id + (w.evolved ? '*' : w.level)).join(' ') };
     });
-    console.log(bagel, STAGE, JSON.stringify(st));
+    console.log(DAY ? `daily ${DAY} ${st.twist} ${st.bagel} ${st.stage}` : `${bagel} ${STAGE}`, JSON.stringify(st));
     await p.close();
   }
   await b.close();

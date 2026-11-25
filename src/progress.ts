@@ -160,6 +160,10 @@ export function weaponGoalStatus(save: SaveData, w: WeaponDef): GoalStatus {
       const n = save.cookbook.length;
       return { done: n >= g.target, frac: Math.min(1, n / g.target), progress: `${Math.min(n, g.target)} of ${g.target}` };
     }
+    case 'coins': {
+      const n = save.coinsTotal ?? 0;
+      return { done: n >= g.target, frac: Math.min(1, n / g.target), progress: `${Math.min(n, g.target)} of ${g.target}` };
+    }
   }
 }
 

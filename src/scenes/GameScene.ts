@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { flash, shake } from '../settings';
+import { blink, flash, shake } from '../settings';
 import { COLORS, CSS, DEBUG, S, ZOOM } from '../config';
 import {
   BAGELS,
@@ -19,21 +19,23 @@ import { Player, type Enemy, type Stats } from '../entities';
 import { bestStage, load, persist, recordBest } from '../save';
 import { bodyBagel, makeRunTextures } from '../textures';
 import { Face } from '../face';
-import { createWeapon, type FxId, type Weapon, type World } from '../weapons';
+import { TRAIL_EVERY, Wear, makeLookTextures, worn } from '../looks';
+import { COMBOS, createWeapon, type FxId, type Weapon, type World } from '../weapons';
 import { hitSfx, muffleMusic, sfx, unlockAudio, type Sfx } from '../sfx';
 import { playJingle, playMusic, setRunIntensity, stopMusic } from '../music';
 import { checkUnlocks, checkWeaponUnlocks, playableStages, weaponOpen } from '../progress';
 import { claimGoals } from '../goals';
+import { BARGAIN, DAILY_KIT, RUSH, TWISTS, dailyFor, dailyResult, dailyStreak, recordDaily, today, type Daily, type TwistId } from '../daily';
 import { clearRun, loadRun, type RunSnapshot } from '../runsave';
 import { Ambient } from '../run/ambient';
 import { Director } from '../run/director';
 import { Effects } from '../run/effects';
 import { Enemies } from '../run/enemies';
-import { Floor } from '../run/floor';
+import { Floor, POST_R } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { CREEP_SLOW } from '../run/bin';
 import { Hud } from '../run/hud';
-import { CROWD_XP, HIT_GRACE, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
+import { CROWD_XP, HIT_GRACE, LEVEL_HP, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, ENDLESS_PAY_BASE, ENDLESS_PAY_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -85,6 +87,11 @@ export class GameScene extends Phaser.Scene implements World {
   quick = false;
   endless = false;
   crispy = false;
+  /** The Daily Run being played, if this is one. Only the day's first run is scored; later ones are replays for fun. */
+  daily: Daily | null = null;
+  dailyScored = false;
+  /** The trail look being worn ('' for none). */
+  trail = '';
   /** Stage-schedule speed: 1 for a full run, QUICK_PACE for a Quick Run. */
   pace = 1;
   paused: PauseReason = '';
@@ -138,12 +145,37 @@ export class GameScene extends Phaser.Scene implements World {
     return this.now * this.pace;
   }
 
-  init(data: { bagel?: string; stage?: string; practice?: boolean; quick?: boolean; endless?: boolean; crispy?: boolean; resume?: boolean }): void {
+  /** The Daily Run's twist, or '' in any other run. */
+  get twist(): TwistId | '' {
+    return this.daily?.twist ?? '';
+  }
+
+  /** The Bakery ranks this run plays with: your own, or the Daily's set kit. */
+  get kit(): Record<string, number> {
+    return this.daily ? DAILY_KIT : load().upgrades;
+  }
+
+  /** Nothing from this run is kept: a practice run, or a replay of a Daily already scored. */
+  get free(): boolean {
+    return this.practice || (!!this.daily && !this.dailyScored);
+  }
+
+  init(data: { bagel?: string; stage?: string; practice?: boolean; quick?: boolean; endless?: boolean; crispy?: boolean; resume?: boolean; daily?: boolean }): void {
     this.resume = data.resume ? loadRun() : null;
+    this.daily = null;
     if (this.resume) {
       const r = this.resume;
       data = { bagel: r.bagel, stage: r.stage, practice: r.practice, quick: !!r.quick, endless: !!r.endless, crispy: !!r.crispy };
+      if (r.daily) {
+        this.daily = dailyFor(r.daily);
+        this.dailyScored = !!r.dailyScored;
+      }
+    } else if (data.daily) {
+      // The Daily Run: the day decides the stage, the bagel and the twist. Only the day's first run is scored.
+      this.daily = dailyFor(today());
+      this.dailyScored = !dailyResult(load(), this.daily.date);
     }
+    if (this.daily) data = { bagel: this.daily.bagel, stage: this.daily.stage, quick: this.daily.twist === 'fast' };
     this.bagel = BAGELS.find((b) => b.id === data.bagel) ?? BAGELS[0];
     const st = stageById(data.stage);
     this.stage = st.built ? st : stageById('stage1');
@@ -159,7 +191,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.paused = '';
     this.weapons = [];
     this.toppings = new Map();
-    this.run = new RunState(load().upgrades);
+    this.run = new RunState(this.kit);
+    if (this.twist === 'bargain') {
+      this.run.rerolls += BARGAIN;
+      this.run.banishes += BARGAIN;
+    }
     this.hitstop = 0;
     this.lastHitstop = 0;
     this.lastFrame = 0;
@@ -196,10 +232,16 @@ export class GameScene extends Phaser.Scene implements World {
     this.loot = new Pickups(this);
 
     this.player.sprite = this.img(bodyBagel(this, this.bagel.tex), 0, 0, 50);
+    // Looks: the finish sits under the eyes, the hat over them. The trail is dropped in `renderWorld`.
+    makeLookTextures(this);
+    const looks = worn(load());
+    this.trail = looks.trail ?? '';
+    new Wear(this, this.player.sprite, 15.5, looks.sprinkle, (o) => this.worldLayer.add(o.setDepth(50.3)));
     this.face = new Face(this, this.player.sprite, 15.5, (o) => {
       o.setDepth(50.5);
       this.worldLayer.add(o);
     });
+    new Wear(this, this.player.sprite, 15.5, looks.hat, (o) => this.worldLayer.add(o.setDepth(50.7)));
     this.hpBg = this.add.rectangle(0, 0, 30, 4, 0x1d140d).setDepth(51);
     this.hpFill = this.add.rectangle(0, 0, 30, 4, COLORS.red).setDepth(52).setOrigin(0, 0.5);
     this.worldLayer.add([this.hpBg, this.hpFill]);
@@ -224,6 +266,10 @@ export class GameScene extends Phaser.Scene implements World {
       this.run.xpNext = xpNeeded(this.run.level);
     }
     this.onResize();
+    if (!this.resume && this.daily) {
+      const tw = TWISTS[this.daily.twist];
+      this.time.delayedCall(400, () => this.hud.banner(`Daily Run: ${tw.name}\n${tw.blurb}`, CSS.gold, 20));
+    }
     if (!this.resume && (this.crispy || this.endless)) {
       const what = this.endless && this.crispy ? 'Endless, Extra Crispy!' : this.endless ? 'Endless: survive as long as you can!' : 'Extra Crispy: tougher enemies, more Dough!';
       this.time.delayedCall(400, () => this.hud.banner(what, this.crispy ? '#ff9a5c' : CSS.gold, 20));
@@ -267,6 +313,55 @@ export class GameScene extends Phaser.Scene implements World {
     sfx(name);
   }
 
+  /** Bounces a moving thing off the screen's edges, shelves, short-lived walls and oven knobs. True if it bounced. */
+  bounce(o: { x: number; y: number; vx: number; vy: number }, r: number): boolean {
+    let hit = false;
+    const hw = this.viewW() / 2 - r;
+    const hh = this.viewH() / 2 - r;
+    const c = this.cameras.main.midPoint;
+    if (o.x > c.x + hw && o.vx > 0) (o.vx = -o.vx), (hit = true);
+    else if (o.x < c.x - hw && o.vx < 0) (o.vx = -o.vx), (hit = true);
+    if (o.y > c.y + hh && o.vy > 0) (o.vy = -o.vy), (hit = true);
+    else if (o.y < c.y - hh && o.vy < 0) (o.vy = -o.vy), (hit = true);
+    for (const w of this.floor.walls) {
+      const dx = o.x - w.x;
+      const dy = o.y - w.y;
+      const px = w.hw + r - Math.abs(dx);
+      if (px <= 0) continue;
+      const py = w.hh + r - Math.abs(dy);
+      if (py <= 0) continue;
+      // Out through the nearer side, and away from it.
+      if (px < py) {
+        const sx = Math.sign(dx || 1);
+        o.x += sx * px;
+        if (o.vx * sx < 0) (o.vx = -o.vx), (hit = true);
+      } else {
+        const sy = Math.sign(dy || 1);
+        o.y += sy * py;
+        if (o.vy * sy < 0) (o.vy = -o.vy), (hit = true);
+      }
+    }
+    for (const po of this.floor.posts) {
+      const dx = o.x - po.x;
+      const dy = o.y - po.y;
+      const rr = r + POST_R;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr) continue;
+      const d = Math.sqrt(d2) || 0.01;
+      const nx = dx / d;
+      const ny = dy / d;
+      o.x = po.x + nx * rr;
+      o.y = po.y + ny * rr;
+      const dot = o.vx * nx + o.vy * ny;
+      if (dot < 0) {
+        o.vx -= 2 * dot * nx;
+        o.vy -= 2 * dot * ny;
+        hit = true;
+      }
+    }
+    return hit;
+  }
+
   trailDot(x: number, y: number, color: number): void {
     this.effects.trailDot(x, y, color);
   }
@@ -275,7 +370,13 @@ export class GameScene extends Phaser.Scene implements World {
     return this.foes.nearest(x, y, maxR);
   }
 
+  /** The weapons' way to find enemies. In the Bread Bin, whatever a weapon reaches also sears the creep under it. */
   query(x: number, y: number, r: number, cb: (e: Enemy) => void): void {
+    if (this.stage.creep) this.hz.bin.sear(x, y, r);
+    this.foes.query(x, y, r, cb);
+  }
+
+  scan(x: number, y: number, r: number, cb: (e: Enemy) => void): void {
     this.foes.query(x, y, r, cb);
   }
 
@@ -331,19 +432,23 @@ export class GameScene extends Phaser.Scene implements World {
   // ---------------------------------------------------------------- Stats & build
 
   recomputeStats(): void {
-    const up = load().upgrades;
+    const up = this.kit;
+    const glass = this.twist === 'glass';
     const b = this.bagel;
     const t = (id: ToppingId) => this.toppings.get(id) ?? 0;
     const prevMax = this.stats.maxHp;
     this.stats = {
-      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven') + 0.04 * t('honey')) * (1 + this.run.agedPct / 100),
+      damage: 1.3 * (1 + b.allStats + 0.06 * (up.dmg ?? 0) + 0.1 * t('oven') + 0.04 * t('honey')) * (1 + this.run.agedPct / 100) * (glass ? 2 : 1),
       area: 1 + b.allStats + 0.1 * t('butter'),
       cooldown: 1 / (1 + 0.08 * t('caffeine')),
       speed: b.speed * (1 + b.allStats * 0.5 + 0.04 * (up.speed ?? 0) + 0.07 * t('glaze')),
       magnet: 62 * (1 + 0.15 * (up.magnet ?? 0) + 0.25 * t('salt')),
-      maxHp: Math.round((b.hp + 10 * (up.hp ?? 0)) * (1 + b.allStats) * (1 + 0.15 * t('dough'))),
+      // Every level reached adds a little max health (LEVEL_HP), and the gain heals by the same amount.
+      maxHp: Math.round((b.hp + 10 * (up.hp ?? 0) + LEVEL_HP * (this.run.level - 1)) * (1 + b.allStats) * (1 + 0.15 * t('dough')) * (glass ? 0.5 : 1)),
       proj: (t('honey') >= 1 ? 1 : 0) + (t('honey') >= 4 ? 1 : 0),
       dur: 1 + 0.15 * t('jam'),
+      shot: 1 + 0.1 * t('oil'),
+      xp: 1 + 0.05 * t('vanilla') + 0.03 * (up.proof ?? 0),
     };
     if (this.stats.maxHp > prevMax && this.player.hp > 0) this.player.hp += this.stats.maxHp - prevMax;
     this.player.maxHp = this.stats.maxHp;
@@ -363,9 +468,22 @@ export class GameScene extends Phaser.Scene implements World {
     return open[Math.floor(Math.random() * open.length)] ?? this.bagel.weapon;
   }
 
-  /** Lox and Schmear is in the build (Schmear Flood merged into the Lox). */
-  private get comboDone(): boolean {
-    return this.weapons.some((w) => w.combo);
+  /** A weapon that was merged away into a secret combo this run: it never comes back on cards. */
+  private merged(id: WeaponId): boolean {
+    return COMBOS.some((c) => c.drop === id && !!this.weaponOf(c.keep)?.combo);
+  }
+
+  /** Day-Old Bin: this card is binned for the rest of the run. Binning a weapon you don't own also bins its topping. */
+  banish(c: Choice): void {
+    const r = this.run;
+    if (c.kind === 'wnew' || c.kind === 'wup') {
+      r.banished.push(`w:${c.id}`);
+      const top = WEAPONS[c.id as WeaponId].evolveWith;
+      if (c.kind === 'wnew' && !this.toppings.has(top)) r.banished.push(`t:${top}`);
+    } else if (c.kind === 'tnew' || c.kind === 'tup') r.banished.push(`t:${c.id}`);
+    else return;
+    r.banishes--;
+    r.banishedN++;
   }
 
   addWeapon(id: WeaponId): void {
@@ -382,14 +500,16 @@ export class GameScene extends Phaser.Scene implements World {
     const save = load();
     // Lucky Seed: cards for what you already own (the road to evolutions) come up more often.
     const own = 1 + 0.1 * this.luckNow;
-    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
+    // Day-Old Bin: binned cards are gone for the rest of the run.
+    const out0 = new Set(this.run.banished);
+    for (const w of this.weapons) if (w.level < MAX_LEVEL && !w.evolved && !out0.has(`w:${w.def.id}`)) pool.push({ c: { kind: 'wup', id: w.def.id }, w: 1.4 * own });
     if (this.weapons.length < MAX_SLOTS)
-      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id) && !(id === 'puddle' && this.comboDone)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
-    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL) pool.push({ c: { kind: 'tup', id }, w: own });
+      for (const id of Object.keys(WEAPONS) as WeaponId[]) if (!this.weaponOf(id) && weaponOpen(save, id) && !this.merged(id) && !out0.has(`w:${id}`)) pool.push({ c: { kind: 'wnew', id }, w: 1 });
+    for (const [id, lv] of this.toppings) if (lv < MAX_LEVEL && !out0.has(`t:${id}`)) pool.push({ c: { kind: 'tup', id }, w: own });
     if (this.toppings.size < MAX_SLOTS)
-      for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon))) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
+      for (const [id, td] of Object.entries(TOPPINGS)) if (!this.toppings.has(id as ToppingId) && (!td.weapon || weaponOpen(save, td.weapon)) && !out0.has(`t:${id}`)) pool.push({ c: { kind: 'tnew', id }, w: 0.9 });
     const out: Choice[] = [];
-    const n = this.bagel.choices;
+    const n = Math.max(this.bagel.choices, this.twist === 'lucky' ? 4 : 0);
     while (out.length < n && pool.length) {
       const total = pool.reduce((a, p) => a + p.w, 0);
       let r = Math.random() * total;
@@ -415,11 +535,11 @@ export class GameScene extends Phaser.Scene implements World {
         break;
       case 'tnew':
         this.toppings.set(c.id as ToppingId, 1);
-        if (c.id === 'dough') this.player.hp += 15;
+        if (c.id === 'dough') this.player.hp += 25;
         break;
       case 'tup':
         this.toppings.set(c.id as ToppingId, (this.toppings.get(c.id as ToppingId) ?? 0) + 1);
-        if (c.id === 'dough') this.player.hp += 15;
+        if (c.id === 'dough') this.player.hp += 25;
         break;
       case 'heal':
         this.player.hp = Math.min(this.stats.maxHp, this.player.hp + 30);
@@ -434,13 +554,16 @@ export class GameScene extends Phaser.Scene implements World {
 
   gainXp(v: number): void {
     const r = this.run;
-    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1);
+    r.xp += v * CROWD_XP * (this.quick ? QUICK_XP : 1) * (this.stage.xp ?? 1) * this.stats.xp * (this.twist === 'rush' ? RUSH : 1);
+    let levelled = false;
     while (r.xp >= r.xpNext) {
       r.xp -= r.xpNext;
       r.level++;
       r.xpNext = xpNeeded(r.level);
       r.pendingLevels++;
+      levelled = true;
     }
+    if (levelled) this.recomputeStats();
   }
 
   // ---------------------------------------------------------------- Main loop
@@ -481,7 +604,7 @@ export class GameScene extends Phaser.Scene implements World {
   private updateAudio(): void {
     if (this.paused === 'over') return;
     const st = this.stage;
-    playMusic(this.foes.bossOut() ? st.music.boss : st.music.run);
+    playMusic(this.foes.bossOut() ? st.music.boss : this.daily ? 'daily' : st.music.run);
     // The run theme builds: drums at 1:00, bass at 2:00, a little faster after 3:00.
     // Endless: a little faster every minute after 5:00.
     const extra = this.endless && this.stageT > 300 ? Math.min(0.2, ((this.stageT - 300) / 60) * 0.03) : 0;
@@ -555,7 +678,7 @@ export class GameScene extends Phaser.Scene implements World {
         const m = r.mines[i];
         m.life -= dt;
         if (m.life < 0.5) m.img.setAlpha(m.life / 0.5);
-        this.query(m.x, m.y, 11 * this.stats.area, (e) => {
+        this.foes.query(m.x, m.y, 11 * this.stats.area, (e) => {
           this.hit(e, dmg, 0, 0, 'trail', 0.5);
         });
         if (m.life <= 0) {
@@ -574,7 +697,7 @@ export class GameScene extends Phaser.Scene implements World {
       const tick = r.auraT <= 0;
       if (tick) r.auraT = 0.5;
       const dmg = 6 * this.stats.damage;
-      this.query(p.x, p.y, rad, (e) => {
+      this.foes.query(p.x, p.y, rad, (e) => {
         e.slowUntil = this.now + 0.3;
         if (tick) this.hit(e, dmg, 0, 0, '', 0);
       });
@@ -698,7 +821,7 @@ export class GameScene extends Phaser.Scene implements World {
     r.hurtAt = this.now;
     this.face.wince(0.4);
     // Shove nearby enemies away so there is room to escape.
-    this.query(p.x, p.y, 70, (e) => {
+    this.foes.query(p.x, p.y, 70, (e) => {
       if (e.boss) return;
       const dx = e.x - p.x;
       const dy = e.y - p.y;
@@ -725,7 +848,7 @@ export class GameScene extends Phaser.Scene implements World {
     r.revived = true;
     p.hp = Math.round(this.stats.maxHp * (0.2 + 0.1 * r.reviveRank));
     p.invulnUntil = this.now + 2;
-    this.query(p.x, p.y, 170, (e) => {
+    this.foes.query(p.x, p.y, 170, (e) => {
       if (e.boss) return;
       const dx = e.x - p.x;
       const dy = e.y - p.y;
@@ -765,8 +888,13 @@ export class GameScene extends Phaser.Scene implements World {
     }
     p.sprite.setPosition(p.x, p.y).setScale(base * sx, base * sy);
     this.face.look(p.moveX, p.moveY);
+    if (this.trail && moving && this.now >= r.trailAt) {
+      r.trailAt = this.now + TRAIL_EVERY[this.trail];
+      this.effects.lookTrail(this.trail, p.x - p.moveX * 10, p.y + 7 - p.moveY * 10);
+    }
     p.sprite.setRotation(moving ? p.moveX * 0.12 : 0);
-    p.sprite.setAlpha(this.now < p.invulnUntil ? (Math.floor(this.now * 20) % 2 ? 0.45 : 1) : 1);
+    // Safe after a hit: the bagel blinks, or with flashing Reduced stays see-through.
+    p.sprite.setAlpha(this.now < p.invulnUntil ? blink(this.now, 20, 0.45, 1) : 1);
     this.hpBg.setPosition(p.x, p.y + 22);
     this.hpFill.setPosition(p.x - 15, p.y + 22).setSize(30 * Math.max(0, p.hp / p.maxHp), 4);
     this.cameras.main.centerOn(p.x, p.y);
@@ -980,7 +1108,12 @@ export class GameScene extends Phaser.Scene implements World {
     if (r.miniKilled) dough += 10;
     if (victory || cleared) dough += 40;
     // Endless: a bonus for every full minute after 5:00.
-    if (this.endless && this.stageT > 300) dough += Math.floor((this.stageT - 300) / 60) * ENDLESS_DOUGH_MIN;
+    if (this.endless && this.stageT > 300) {
+      dough += Math.floor((this.stageT - 300) / 60) * ENDLESS_DOUGH_MIN;
+      // A ceiling on a long Endless run: a strong build defeats tens of thousands and levels far past a full build
+      // (every level then is a coin card), and without this one run paid as much as thirty clears.
+      dough = Math.min(dough, ENDLESS_PAY_BASE + ((this.stageT - 300) / 60) * ENDLESS_PAY_MIN);
+    }
     return Math.round(dough * this.stage.dough * (this.quick ? QUICK_DOUGH : 1) * (this.crispy ? CRISPY_DOUGH : 1));
   }
 
@@ -994,12 +1127,15 @@ export class GameScene extends Phaser.Scene implements World {
     const save = load();
     const openBefore = playableStages(save);
     let dough = this.runDough(victory);
-    // Practice runs are for testing builds and bosses: no rewards or unlocks.
-    if (this.practice) dough = 0;
+    // Practice runs are for testing builds and bosses: no rewards or unlocks. A replayed Daily is the same.
+    const practice = this.free;
+    // A Daily Run counts for Dough, defeats, coins and challenges, never for stages, bagels or stage bests.
+    const daily = this.daily;
+    if (practice) dough = 0;
     save.dough += dough;
-    if (!this.practice) save.totalKills += r.kills;
+    if (!practice) save.totalKills += r.kills;
     // A Quick Run clear counts as surviving 3:00 for unlock goals.
-    if (!this.practice) {
+    if (!practice && !daily) {
       const t = Math.max(Math.floor(this.now), this.quick && victory ? 180 : 0);
       save.bestTime = Math.max(save.bestTime, t);
       save.stageTime = { ...(save.stageTime ?? {}), [this.stage.id]: Math.max(save.stageTime?.[this.stage.id] ?? 0, t) };
@@ -1007,19 +1143,20 @@ export class GameScene extends Phaser.Scene implements World {
     clearRun();
     // An Endless run whose boss fell counts as a clear too.
     const cleared = victory || this.director.endlessCleared;
-    if (cleared && !this.practice) {
+    if (cleared && !practice && !daily) {
       save.clears++;
       save.stageClears = { ...(save.stageClears ?? {}), [this.stage.id]: (save.stageClears?.[this.stage.id] ?? 0) + 1 };
       if (this.crispy) save.crispyClears = { ...(save.crispyClears ?? {}), [this.stage.id]: (save.crispyClears?.[this.stage.id] ?? 0) + 1 };
       if (r.healsTaken === 0) save.noHealClear = true;
     }
-    if (!this.practice) {
+    if (!practice) {
       const rec = { ...(save.records ?? {}) };
       rec.kills = Math.max(rec.kills ?? 0, r.kills);
       rec.level = Math.max(rec.level ?? 1, r.level);
       rec.evos = Math.max(rec.evos ?? 0, r.evolutionsThisRun.length);
       if (r.canBest) rec.strike = Math.max(rec.strike ?? 0, r.canBest);
       if (r.creepBurned) rec.creep = Math.max(rec.creep ?? 0, r.creepBurned);
+      if (r.banishedN) rec.banish = Math.max(rec.banish ?? 0, r.banishedN);
       if (this.endless) {
         rec.endless = Math.max(rec.endless ?? 0, Math.floor(this.now));
         rec.endlessBosses = Math.max(rec.endlessBosses ?? 0, this.director.bossRound);
@@ -1027,32 +1164,55 @@ export class GameScene extends Phaser.Scene implements World {
       save.records = rec;
       if (r.noHitBoss) save.noHitBoss = true;
     }
-    if (!this.practice) {
+    if (!practice) {
       const beaten = new Set(save.beaten ?? []);
-      if (r.miniKilled) beaten.add(this.stage.mini.kind);
-      if (cleared) beaten.add(this.stage.boss.kind);
+      if (r.miniKilled && !daily) beaten.add(this.stage.mini.kind);
+      if (cleared && !daily) beaten.add(this.stage.boss.kind);
       save.beaten = [...beaten];
       save.mugs = (save.mugs ?? 0) + r.runMugs;
+      save.coinsTotal = (save.coinsTotal ?? 0) + r.coinPickups;
     }
-    const newUnlock = this.practice ? '' : checkUnlocks(save).join(', ');
-    const newWeapon = this.practice ? '' : checkWeaponUnlocks(save).join(', ');
-    const newBest = !this.practice && recordBest(
+    const newUnlock = practice ? '' : checkUnlocks(save).join(', ');
+    const newWeapon = practice ? '' : checkWeaponUnlocks(save).join(', ');
+    const newBest = !practice && !daily && recordBest(
         save,
         this.bagel.id,
         { time: Math.floor(this.now), kills: r.kills, cleared, ...(this.endless ? { endless: true } : {}) },
         bestStage(this.stage.id, this.endless ? 'endless' : this.quick ? 'quick' : 'full', this.crispy),
       );
+    // The day's scored run: its result, the streak and the day's bonus.
+    let dailyOut: RunResult['daily'];
+    if (daily) {
+      const res = { t: Math.floor(this.now), k: r.kills, c: cleared };
+      const paid = practice ? null : recordDaily(save, daily.date, res);
+      dailyOut = { date: daily.date, twist: TWISTS[daily.twist].name, scored: !practice, streak: paid?.streak ?? dailyStreak(save, daily.date), bonus: paid?.bonus ?? 0 };
+      if (paid) dough += paid.bonus;
+    }
+    // Lifetime numbers for the Stats tab.
+    if (!practice) {
+      const st = save.stats ?? { runs: 0, secs: 0, bosses: 0, bagels: {}, weapons: {} };
+      st.runs++;
+      st.bosses = (st.bosses ?? 0) + (this.endless ? this.director.bossRound : victory ? 1 : 0);
+      st.secs += Math.floor(this.now);
+      st.bagels[this.bagel.id] = (st.bagels[this.bagel.id] ?? 0) + 1;
+      for (const w of this.weapons) st.weapons[w.def.id] = (st.weapons[w.def.id] ?? 0) + 1;
+      save.stats = st;
+      const rec = { ...(save.records ?? {}) };
+      if (cleared && this.weapons.length === 1) rec.oneWeapon = true;
+      if (cleared && r.chestsOpened === 0) rec.noChest = true;
+      save.records = rec;
+    }
     // Challenges pay their Dough as soon as they're done.
-    const goals = this.practice ? [] : claimGoals(save).map((g) => ({ name: g.name, reward: g.reward }));
+    const goals = practice ? [] : claimGoals(save).map((g) => ({ name: g.name, reward: g.reward }));
     // A new save's menu opens as you go: the Bakery and Goals once the first real run is over.
-    if (!this.practice) openMenu(save, 'bakery', 'goals');
-    const firstClear = cleared && !this.practice && save.stageClears?.[this.stage.id] === 1;
+    if (!practice) openMenu(save, 'bakery', 'goals');
+    const firstClear = cleared && !practice && !daily && save.stageClears?.[this.stage.id] === 1;
     const opened = playableStages(save).filter((id) => !openBefore.includes(id));
     if (opened.length) save.stage = opened[0];
     persist();
     const result: RunResult = {
       victory,
-      practice: this.practice,
+      practice: practice,
       quick: this.quick,
       endless: this.endless,
       cleared,
@@ -1069,8 +1229,9 @@ export class GameScene extends Phaser.Scene implements World {
       newBest,
       evolutions: r.evolutionsThisRun.map((id) => WEAPONS[id as WeaponId].evoName),
       goals,
-      combo: r.foundCombo,
+      combos: r.foundCombos,
       firstClear,
+      daily: dailyOut,
     };
     const p = this.player.sprite;
     const base = 1 / S;
@@ -1092,7 +1253,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.cameras.main.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       this.uiCam.fadeOut(quit ? 200 : victory ? 650 : 900, 18, 12, 8);
       // The first time the Stale King falls, the ending comic and the credits come before the results.
-      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !load().ending;
+      const ending = cleared && this.stage.boss.kind === 'king' && !this.practice && !this.daily && !load().ending;
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => (ending ? this.scene.start('intro', { ending: true, result }) : this.scene.start('results', result)));
     };
     if (victory && !quit) this.time.delayedCall(600, fade);
@@ -1101,5 +1262,5 @@ export class GameScene extends Phaser.Scene implements World {
 }
 
 function defaultStats(): Stats {
-  return { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100, proj: 0, dur: 1 };
+  return { damage: 1, area: 1, cooldown: 1, speed: 140, magnet: 62, maxHp: 100, proj: 0, dur: 1, shot: 1, xp: 1 };
 }

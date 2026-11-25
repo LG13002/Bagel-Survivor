@@ -6,9 +6,10 @@ import { weaponOpen } from '../progress';
 import { sfx } from '../sfx';
 import { buildSettings } from '../settingsPanel';
 import { button, drawPips, panel, pill, txt } from '../ui';
-import { COMBO } from '../weapons';
+import { COMBOS } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
 import type { Choice } from './state';
+import { SKIP_HEAL } from './modes';
 import { TIPS, markTip, nextHint, openMenu, tipDue } from '../tips';
 import { tipBox, tipIn } from './tutor';
 
@@ -121,6 +122,8 @@ export class Panels {
   openLevelUp(second?: Choice[]): void {
     const g = this.g;
     const run = g.run;
+    // Closing the app on this screen keeps the level-up: the run is saved with it waiting.
+    if (!second) g.writeSnapshot();
     g.setPaused('levelup');
     sfx('level');
     const W = g.scale.width;
@@ -130,6 +133,11 @@ export class Panels {
     const { c } = this.open(0.65);
 
     const choices = second ?? g.choices();
+    // Day-Old Bin: cards marked for the bin. Nothing is binned until a card is picked, so a slip can be undone.
+    const marked = new Set<Choice>();
+    const canBin = (o: Choice) => o.kind !== 'heal' && o.kind !== 'coin';
+    const binning = run.banishes > 0 && choices.filter(canBin).length > 0 && choices.length > 1;
+    const commit = () => marked.forEach((o) => g.banish(o));
     // Pretzel: every 5th level reached lets you take two cards from the hand.
     const reached = run.level - run.pendingLevels + 1;
     const twist = !second && g.bagel.quirkId === 'twist' && reached % 5 === 0 && choices.length > 1;
@@ -184,7 +192,8 @@ export class Panels {
       const name = txt(g, tx, -18 * S, info.name, 18, CSS.cream).setOrigin(0, 0.5);
       const maxName = cw - 100 * S;
       if (name.width > maxName) name.setScale(maxName / name.width);
-      const desc = txt(g, tx, 0, info.desc, 13, '#e8d8c0', { wrap: (cw - 100 * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0).setLineSpacing(-2 * S);
+      const hasBin = binning && canBin(choice);
+      const desc = txt(g, tx, 0, info.desc, 13, '#e8d8c0', { wrap: (cw - (hasBin ? 138 : 100) * S) / S, align: 'left', bold: false, stroke: false }).setOrigin(0, 0).setLineSpacing(-2 * S);
       card.add([gr, icon, name, desc, rib, tag]);
       // Level pips: current level filled, the level you'd get glowing.
       const lvl = kind === 'wup' ? g.weaponOf(choice.id!)!.level : kind === 'tup' ? (g.toppings.get(choice.id as ToppingId) ?? 0) : kind === 'wnew' || kind === 'tnew' ? 0 : -1;
@@ -198,7 +207,7 @@ export class Panels {
       const partner = this.partner(choice);
       if (partner) {
         const pi = g.add.image(cw / 2 - 20 * S, 29 * S, partner.icon).setScale(0.6).setAlpha(partner.owned ? 1 : 0.8);
-        const pl = txt(g, pi.x - 14 * S, 30 * S, kind === 'wnew' || kind === 'wup' ? 'EVOLVES WITH' : 'EVOLVES', 9, partner.owned ? CSS.gold : CSS.muted, { stroke: false }).setOrigin(1, 0.5);
+        const pl = txt(g, pi.x - 14 * S, 30 * S, kind === 'wnew' || kind === 'wup' ? 'EVOLVES WITH' : 'EVOLVES', 11, partner.owned ? CSS.gold : CSS.muted, { stroke: false }).setOrigin(1, 0.5);
         card.add([pl, pi]);
       }
       // The note sits between the name and the level pips (or the card's bottom edge when there are none),
@@ -227,10 +236,18 @@ export class Panels {
       });
       card.on('pointerup', () => {
         if (!armed) return;
+        armed = false;
+        // A card marked for the bin can't be picked: tapping it takes it back out.
+        if (marked.has(choice)) {
+          draw(false);
+          toggleBin();
+          return;
+        }
+        commit();
         g.applyChoice(choice);
         if (twist) {
           // The rest of the hand comes back for a second pick (cards the first pick made pointless are dropped).
-          const rest = choices.filter((o) => o !== choice && this.stillGood(o));
+          const rest = choices.filter((o) => o !== choice && !marked.has(o) && this.stillGood(o));
           if (rest.length) {
             this.close();
             this.openLevelUp(rest);
@@ -258,18 +275,69 @@ export class Panels {
       } });
       g.tweens.add({ targets: card, scaleY: 1, delay: 60 * i + 210, duration: 150, ease: 'Back.Out' });
       c.add([back, card]);
+      // The bin button on the card's right edge. It sits outside the card so its tap never picks the card.
+      let toggleBin = () => {};
+      if (hasBin) {
+        const bx = W / 2 + cw / 2 - 26 * S;
+        const by = y - 6 * S;
+        const ring = g.add.graphics();
+        const bi = g.add.image(bx, by, 'ic_bin').setScale(0.62);
+        const undo = txt(g, W / 2, y, 'IN THE BIN  ·  tap to undo', 14, CSS.cream).setVisible(false);
+        const paint = () => {
+          const on = marked.has(choice);
+          ring.clear();
+          ring.fillStyle(on ? COLORS.red : 0x1d140d, 1).fillCircle(bx, by, 17 * S);
+          ring.lineStyle(2 * S, on ? 0xfff3dc : 0x6b563f, 1).strokeCircle(bx, by, 17 * S);
+          card.setAlpha(on ? 0.16 : 1);
+          undo.setVisible(on);
+        };
+        paint();
+        toggleBin = () => {
+          if (performance.now() - openedAt < 350) return;
+          if (marked.has(choice)) marked.delete(choice);
+          // One card always stays to pick, and no more bins than you have left.
+          else if (marked.size < run.banishes && marked.size < choices.length - 1) {
+            marked.add(choice);
+            sfx('bin');
+          } else return;
+          paint();
+          binLeft?.setText(binText());
+        };
+        const zone = g.add.zone(bx, by, 44 * S, 44 * S).setInteractive();
+        zone.on('pointerup', toggleBin);
+        [ring, bi, zone].forEach((o) => (o as Phaser.GameObjects.Image).setAlpha(0));
+        g.tweens.add({ targets: [ring, bi], alpha: 1, delay: 60 * i + 330, duration: 120 });
+        c.add([ring, bi, undo, zone]);
+      }
     });
+    // How many bins are left, under the cards.
+    const binText = () => {
+      const n = run.banishes - marked.size;
+      return n === 1 ? '1 bin left' : `${n} bins left`;
+    };
+    let binLeft: Phaser.GameObjects.Text | null = null;
+    if (binning) {
+      const both = run.rerolls > 0 && !second;
+      binLeft = txt(g, both ? W / 2 + 96 * S : W / 2, bottom + 40 * S, binText(), 14, CSS.muted).setOrigin(both ? 0 : 0.5, 0.5);
+      c.add([g.add.image(binLeft.x - (both ? 16 * S : binLeft.width / 2 + 16 * S), bottom + 39 * S, 'ic_bin').setScale(0.5), binLeft]);
+      // The first time a bin is on offer, say what it does.
+      if (!g.practice && tipDue('banish') && !tipDue('cards')) {
+        markTip('banish');
+        c.add(tipIn(g, tipBox(g, W / 2, Math.max(ins.top * S + 40 * S, title.y - 62 * S), TIPS.banish, 14)));
+      }
+    }
 
     if (run.rerolls > 0 && !second) {
       const rb = button(
         g,
-        W / 2,
+        binning ? W / 2 - 22 * S : W / 2,
         bottom + 40 * S,
         170 * S,
         46 * S,
         `Reroll (${run.rerolls})`,
         () => {
           if (performance.now() - openedAt < 350) return;
+          commit();
           run.rerolls--;
           this.close();
           this.openLevelUp();
@@ -278,6 +346,49 @@ export class Panels {
       );
       c.add(rb);
     }
+
+    // Skip: take no card at all (the owner's ask: a one-weapon run must be possible when every card is a new weapon).
+    // It sits up beside the title, away from the thumb, and asks twice so a slip never costs a level.
+    let sure = false;
+    const sx = W - 44 * S;
+    const sy = title.y;
+    const skip = button(
+      g,
+      sx,
+      sy,
+      64 * S,
+      30 * S,
+      'Skip',
+      () => {
+        if (performance.now() - openedAt < 350) return;
+        if (!sure) {
+          sure = true;
+          skipText.setText('Sure?');
+          skipText.setColor(CSS.gold);
+          return;
+        }
+        commit();
+        // A small heal, so passing on a hand is worth something (the owner's pick). It counts as healing taken.
+        if (g.player.hp < g.stats.maxHp) {
+          g.player.hp = Math.min(g.stats.maxHp, g.player.hp + SKIP_HEAL);
+          run.healsTaken++;
+          sfx('sip');
+        }
+        run.pendingLevels--;
+        this.close();
+        if (run.pendingLevels > 0) this.openLevelUp();
+        else g.setPaused('');
+      },
+      { color: COLORS.panelLight, textColor: CSS.muted, size: 13 },
+    );
+    const skipText = skip.list.find((o) => o instanceof Phaser.GameObjects.Text) as Phaser.GameObjects.Text;
+    // The title is centred: when it would run under the button, it moves left to make room.
+    const over = title.x + title.width / 2 + 8 * S - (sx - 32 * S);
+    if (over > 0) {
+      title.x -= over;
+      sub.x -= Math.min(over, Math.max(0, sub.x + sub.width / 2 + 8 * S - (sx - 32 * S)));
+    }
+    c.add([skip, txt(g, sx, sy - 25 * S, `+${SKIP_HEAL} health`, 11, CSS.muted)]);
   }
 
   // ---------------------------------------------------------------- Chests
@@ -295,29 +406,38 @@ export class Panels {
     const g = this.g;
     const run = g.run;
     g.setPaused('chest');
-    // The secret recipe: the first gold toaster after Schmear Flood and Lox Cyclone are both evolved merges them.
-    // It goes ahead of any normal evolution that's waiting (that one comes from the next chest).
-    const lox = g.weaponOf('lox');
-    const flood = g.weaponOf('puddle');
-    const merge = gold && !!lox?.evolved && !!flood?.evolved && !lox.combo;
+    run.chestsOpened++;
+    // A secret recipe: the first gold toaster after both weapons of a combo are evolved merges them. It goes ahead
+    // of any normal evolution that's waiting (that one comes from the next chest). With two combos ready, the pair
+    // that was finished first merges first.
+    const ready = !gold
+      ? []
+      : COMBOS.map((def) => ({ def, keep: g.weaponOf(def.keep), drop: g.weaponOf(def.drop) }))
+          .filter((m) => !!m.keep?.evolved && !!m.drop?.evolved && !m.keep.combo)
+          .sort((a, b) => Math.max(a.keep!.evolvedAt, a.drop!.evolvedAt) - Math.max(b.keep!.evolvedAt, b.drop!.evolvedAt));
+    const merge = ready[0];
     const evo = merge ? undefined : g.weapons.find((w) => w.level >= MAX_LEVEL && !w.evolved && g.toppings.has(w.def.evolveWith));
     sfx(evo || merge ? 'evolve' : gold ? 'gold' : 'basket');
     let title: string;
     const lines: string[] = [];
     let icon = 'ic_heal';
     if (merge) {
-      flood!.destroy();
-      g.weapons.splice(g.weapons.indexOf(flood!), 1);
-      lox!.combo = true;
+      const { def, keep, drop } = merge;
+      drop!.destroy();
+      g.weapons.splice(g.weapons.indexOf(drop!), 1);
+      // The kept weapon starts over, so nothing of the old evolution is left on the floor.
+      keep!.destroy();
+      keep!.combo = true;
       title = 'SECRET RECIPE!';
-      lines.push(`Schmear Flood + Lox Cyclone\nbecame ${COMBO.name}!`, 'A weapon slot is free again.');
-      icon = COMBO.icon;
-      run.foundCombo = true;
+      lines.push(`${drop!.def.evoName} + ${keep!.def.evoName}\nbecame ${def.name}!`, 'A weapon slot is free again.');
+      icon = def.icon;
+      run.foundCombos.push(def.name);
       const save = load();
-      if (!(save.secrets ?? []).includes('combo')) save.secrets = [...(save.secrets ?? []), 'combo'];
+      if (!(save.secrets ?? []).includes(def.id)) save.secrets = [...(save.secrets ?? []), def.id];
       persist();
     } else if (evo) {
       evo.evolved = true;
+      evo.evolvedAt = g.now;
       title = 'EVOLUTION!';
       lines.push(`${evo.def.name} became ${evo.def.evoName}`);
       if (!gold) lines.push(evo.def.evoBlurb);
@@ -508,11 +628,18 @@ export class Panels {
       pill(g, 0, top + 74 * S, 'en_crumb', `${run.kills}`, { size: 14, h: 28 }),
       pill(g, 0, top + 74 * S, 'coin', `+${g.practice ? 0 : g.runDough(false)}`, { size: 14, h: 28, color: CSS.gold }),
     ];
-    const gap = 8 * S;
-    let x = W / 2 - (stats.reduce((a, p) => a + p.width, 0) + gap * 2) / 2;
+    // Rerolls and bins left, for anyone who has bought them.
+    const ranks = load().upgrades;
+    if (ranks.reroll || ranks.bin) stats.push(pill(g, 0, top + 74 * S, 'ic_bk_reroll', `${run.rerolls}`, { size: 14, h: 28 }));
+    if (ranks.bin) stats.push(pill(g, 0, top + 74 * S, 'ic_bin', `${run.banishes}`, { size: 14, h: 28 }));
+    const gap = (stats.length > 3 ? 5 : 8) * S;
+    const sw = stats.reduce((a, p) => a + p.width, 0) + gap * (stats.length - 1);
+    const sk = Math.min(1, (pw - 16 * S) / sw);
+    let x = W / 2 - (sw * sk) / 2;
     for (const p of stats) {
-      p.x = x + p.width / 2;
-      x += p.width + gap;
+      p.setScale(sk);
+      p.x = x + (p.width * sk) / 2;
+      x += (p.width + gap) * sk;
       c.add(p);
     }
 

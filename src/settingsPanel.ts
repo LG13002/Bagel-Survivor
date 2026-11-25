@@ -1,12 +1,12 @@
 // The Settings screen. The menu opens it with every tab; the pause screen opens just the Game tab.
 import Phaser from 'phaser';
 import { COLORS, CSS, S, VERSION } from './config';
-import { askBackupCode, showBackupCode } from './backupDialog';
+import { askBackupCode, showBackupCode, showGameInfo } from './backupDialog';
 import { clearRun } from './runsave';
 import { load, resetSave, type Settings } from './save';
 import { setSetting, settings } from './settings';
 import { setMusicVolume, setSoundVolume, sfx } from './sfx';
-import { HEADER, button, popupFrame, txt } from './ui';
+import { HEADER, TAP, button, popupFrame, txt } from './ui';
 import { WHATS_NEW } from './whatsnew';
 import { replayTutorial } from './tips';
 
@@ -31,7 +31,7 @@ export function segmented(scene: Phaser.Scene, x: number, y: number, w: number, 
   };
   draw();
   labels.forEach((_, i) => {
-    const z = scene.add.zone(-w / 2 + seg * (i + 0.5), 0, seg, h + 8 * S).setInteractive();
+    const z = scene.add.zone(-w / 2 + seg * (i + 0.5), 0, seg, Math.max(h + 8 * S, TAP * S)).setInteractive();
     z.on('pointerup', () => {
       if (i === sel) return;
       sel = i;
@@ -64,7 +64,7 @@ function slider(scene: Phaser.Scene, x: number, y: number, w: number, value: num
     label.setText(value === 0 ? 'Off' : `${value}`);
   };
   draw();
-  const zone = scene.add.zone(0, 0, w + 30 * S, 40 * S).setInteractive();
+  const zone = scene.add.zone(0, 0, w + 30 * S, TAP * S).setInteractive();
   c.add(zone);
   let drag = false;
   const set = (p: Phaser.Input.Pointer) => {
@@ -244,7 +244,12 @@ export function buildSettings(scene: Phaser.Scene, c: Phaser.GameObjects.Contain
     y += 42 * S + lines.height + 26 * S;
     add(txt(scene, W / 2, y, 'No data leaves your phone.', 15, CSS.cream));
     add(txt(scene, W / 2, y + 26 * S, 'No accounts, no ads, no tracking. Your save stays in this browser.', 12, CSS.muted, { bold: false, stroke: false, wrap: cw / S }));
-    const by = Math.min(y + 84 * S, top + ph - 40 * S);
+    // The story buttons, and under them "Copy game info" for testers.
+    const by = Math.min(y + 84 * S, top + ph - 90 * S);
+    add(button(scene, W / 2, by + 50 * S, Math.min(cw, 220 * S), 40 * S, 'Copy game info', () => {
+      scene.input.enabled = false;
+      showGameInfo(() => (scene.input.enabled = true));
+    }, { size: 15, color: COLORS.panelLight, textColor: CSS.cream }));
     const quiet = { size: 15, color: COLORS.panelLight, textColor: CSS.cream };
     if (opts.onIntro && opts.onEnding && opts.onCredits && load().ending) {
       // Once the story is finished, all three of its pieces can be watched again.

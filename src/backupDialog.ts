@@ -1,6 +1,7 @@
 // The backup code boxes. These are real page elements, not canvas drawings, because copying and pasting
 // only work reliably on phones from a real text box and a real button tap.
 import { FONT } from './config';
+import { gameInfo } from './gameInfo';
 import { backupCode, load, persist, restoreCode } from './save';
 
 function shell(title: string, note: string): { root: HTMLDivElement; box: HTMLDivElement; area: HTMLTextAreaElement; row: HTMLDivElement; status: HTMLDivElement } {
@@ -54,21 +55,40 @@ export function showBackupCode(onClose: () => void): void {
   };
   row.append(
     btn('Close', false, done),
-    btn('Copy', true, () => {
-      area.focus();
-      area.select();
-      area.setSelectionRange(0, area.value.length);
-      const fallback = () => {
-        try {
-          if (document.execCommand('copy')) copied();
-          else status.textContent = 'Press and hold the code to copy it.';
-        } catch {
-          status.textContent = 'Press and hold the code to copy it.';
-        }
-      };
-      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(area.value).then(copied, fallback);
-      else fallback();
+    btn('Copy', true, () => copyBox(area, status, copied, 'Press and hold the code to copy it.')),
+  );
+}
+
+/** Copies a text box's contents, by the modern way or the old one; says what to do by hand when neither works. */
+function copyBox(area: HTMLTextAreaElement, status: HTMLDivElement, copied: () => void, byHand: string): void {
+  area.focus();
+  area.select();
+  area.setSelectionRange(0, area.value.length);
+  const fallback = () => {
+    try {
+      if (document.execCommand('copy')) copied();
+      else status.textContent = byHand;
+    } catch {
+      status.textContent = byHand;
+    }
+  };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(area.value).then(copied, fallback);
+  else fallback();
+}
+
+/** Shows a few lines about the game and the phone for a tester to paste into a message. */
+export function showGameInfo(onClose: () => void): void {
+  const { root, area, row, status } = shell('GAME INFO', 'If something goes wrong, copy this and paste it into your message. There is nothing personal in it.');
+  area.readOnly = true;
+  area.rows = 8;
+  area.style.wordBreak = 'normal';
+  area.value = gameInfo();
+  row.append(
+    btn('Close', false, () => {
+      root.remove();
+      onClose();
     }),
+    btn('Copy', true, () => copyBox(area, status, () => (status.textContent = 'Copied!'), 'Press and hold the text to copy it.')),
   );
 }
 

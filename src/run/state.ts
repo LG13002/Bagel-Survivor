@@ -33,10 +33,12 @@ export interface RunResult {
   evolutions: string[];
   /** Challenges finished this run, with the Dough each paid. */
   goals: { name: string; reward: number }[];
-  /** The secret combo evolution was made this run. */
-  combo?: boolean;
+  /** Names of the secret combos made this run. */
+  combos?: string[];
   /** This was the stage's first clear (the results screen adds a line of story). */
   firstClear?: boolean;
+  /** A Daily Run: its date, twist name, whether it was the day's scored run, the streak after it and the day's bonus Dough. */
+  daily?: { date: string; twist: string; scored: boolean; streak: number; bonus: number };
 }
 
 /**
@@ -64,8 +66,14 @@ export class RunState {
   canBest = 0;
   /** Patches of Stale creep burned away this run (the Bread Bin). */
   creepBurned = 0;
-  /** Lox and Schmear was made this run (shown on the results screen). */
-  foundCombo = false;
+  /** Secret combos made this run, by name (shown on the results screen). */
+  foundCombos: string[] = [];
+  /** Day-Old Bin: banishes left, the cards binned so far ('w:pin', 't:butter'), and how many this run. */
+  banishes: number;
+  banished: string[] = [];
+  banishedN = 0;
+  /** Dough coins picked up off the floor this run (they count toward the Whisk Whirl's unlock). */
+  coinPickups = 0;
   /** Bakery ranks read once per run: luck, Second Bake and Hard Crust. */
   luck: number;
   reviveRank: number;
@@ -103,10 +111,18 @@ export class RunState {
   /** A Warm Mug keeps frost away until this time. */
   mugUntil = 0;
 
+  /** Chests and toasters opened (a challenge wants a clear with none). */
+  chestsOpened = 0;
+  /** Seeds picked up, for the Daily's Seeds Pay Dough twist. */
+  seedN = 0;
+  /** When the worn trail drops its next puff (run time). */
+  trailAt = 0;
+
   constructor(up: Record<string, number>) {
     this.luck = up.luck ?? 0;
     this.reviveRank = up.revive ?? 0;
     this.armor = up.armor ?? 0;
     this.rerolls = 1 + (up.reroll ?? 0);
+    this.banishes = up.bin ?? 0;
   }
 }

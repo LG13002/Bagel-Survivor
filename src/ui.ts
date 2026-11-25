@@ -45,6 +45,8 @@ export interface ButtonOpts {
 }
 
 const INK_HEX = 0x24160d;
+/** The smallest area a tap target may have, in points (the usual phone guideline). */
+export const TAP = 44;
 
 /** Chunky Cartoon button: ink outline, thick bottom edge, press-down squish and a click.
  *  x/y/w/h are in device pixels (callers multiply by S). Works while tweens are paused. */
@@ -106,7 +108,10 @@ export function button(
   draw(false);
   const c = scene.add.container(x, y, parts);
   c.setSize(w, h + edge);
-  c.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h + edge), Phaser.Geom.Rectangle.Contains);
+  // A small button still takes a thumb: the area that answers a tap is never under 44 points either way.
+  const tw = Math.max(w, TAP * S);
+  const th = Math.max(h + edge, TAP * S);
+  c.setInteractive(new Phaser.Geom.Rectangle((w - tw) / 2, (h + edge - th) / 2, tw, th), Phaser.Geom.Rectangle.Contains);
   let armed = false;
   const shift = (pressed: boolean) => {
     const dy = pressed ? edge - 1.5 * S : 0;

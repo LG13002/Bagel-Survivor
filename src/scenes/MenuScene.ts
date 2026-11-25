@@ -3,13 +3,14 @@ import { Face } from '../face';
 import { COLORS, CSS, S, VERSION, fmtTime, safeInsets } from '../config';
 import { BAGELS, BAKERY, ENEMIES, ENEMY_BOOK, STAGES, TOPPINGS, WEAPONS, stageById, type StageDef, type WeaponId } from '../data';
 import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
-import { COMBO } from '../weapons';
+import { COMBOS } from '../weapons';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
+import { phoneKind, standalone } from '../gameInfo';
 import { bestStage, getBest, load, persist, takeRecovered, type BestScore, type RunMode, type SaveData } from '../save';
 import { ctex } from '../art';
 import { bigBagel, makeEnemyTextures, makeTextures } from '../textures';
-import { HEADER, button, drawPips, fit, pill, popupFrame, txt } from '../ui';
+import { HEADER, TAP, button, drawPips, fit, pill, popupFrame, txt } from '../ui';
 import { sfx, unlockAudio } from '../sfx';
 import { playMusic } from '../music';
 import { buildSettings, segmented } from '../settingsPanel';
@@ -17,6 +18,10 @@ import { WHATS_NEW } from '../whatsnew';
 import { wipeOpen, wipeTo } from '../wipe';
 import { MENU_LOCK, TIPS, clearFresh, markTip, menuFresh, menuOpen, tipDue, type MenuItem, type TipId } from '../tips';
 import { tipBox, tipIn } from '../run/tutor';
+import { dailyResult, dailyStreak, longDate, today } from '../daily';
+import { Wear, makeLookTextures, worn } from '../looks';
+import { fillDaily, fillLooks, fillStats } from '../menuExtras';
+import { shareScore } from '../scoreCard';
 
 const SECRET_BAGEL_HINT = 'A secret bagel. Keep clearing stages to find it.';
 const SECRET_RECIPE_HINT = 'A secret recipe. Keep evolving weapons to find it.';
@@ -41,6 +46,10 @@ function bestText(label: string, best: BestScore | undefined, endless: boolean, 
   return `${head}: ${fmtTime(best.time)}${dot}${best.kills} kills`;
 }
 
+/** Preview builds run inside another page, where adding to the home screen makes no sense. `?a2hs` shows the card anyway. */
+const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
+const FORCE_A2HS = new URLSearchParams(window.location.search).has('a2hs');
+
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
   private root!: Phaser.GameObjects.Container;
@@ -63,6 +72,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     makeTextures(this);
+    makeLookTextures(this);
     playMusic('menu');
     const save = load();
     // Goals met by older saves (or handed out in preview builds) unlock on opening the game.
@@ -78,6 +88,32 @@ export class MenuScene extends Phaser.Scene {
       clearFresh(save, 'bakery');
       this.openBakery();
     } else this.greet(save);
+    // The first time the Daily Run's button is there, a note points at it (unless another note is already up).
+    if (!this.popup && save.clears > 0 && tipDue('daily')) {
+      markTip('daily');
+      const ins = safeInsets();
+      const note = tipIn(this, tipBox(this, this.scale.width / 2, (ins.top + 78) * S, TIPS.daily, 14), 500);
+      this.root.add(note);
+      this.tweens.add({ targets: note, alpha: 0, delay: 6500, duration: 400, onComplete: () => note.destroy() });
+    }
+  }
+
+  /** The Daily Run's card. */
+  private openDaily(): void {
+    const W = this.scale.width;
+    const save = load();
+    const pw = Math.min(W - 24 * S, 400 * S);
+    const ph = 524 * S;
+    const date = today();
+    const { c, top } = this.openPopup('DAILY RUN', pw, ph, () => this.closePopup(true), longDate(date));
+    fillDaily(this, c, top, pw, ph, save, () => {
+      unlockAudio();
+      clearRun();
+      wipeTo(this, 'game', { daily: true });
+    }, () => {
+      const res = dailyResult(save, date);
+      if (res) shareScore(this, { date, result: res, streak: dailyStreak(save, date), ...worn(save) });
+    });
   }
 
   /** One note at most each time the menu opens: a recovered save, what's new after an update, or the backup reminder. */
@@ -85,6 +121,22 @@ export class MenuScene extends Phaser.Scene {
     const played = save.totalKills > 0 || save.dough > 0;
     if (takeRecovered()) {
       this.notice('SAVE RESTORED', "Your save couldn't be read, so the game loaded its spare copy. Your last run or two may be missing.", [['OK', () => this.closePopup(false)]]);
+      return;
+    }
+    // Opened in a browser tab on a phone: one card, once, on how to put the game on the home screen. It comes
+    // first because progress made in the tab does not follow the game to its home-screen icon on an iPhone.
+    const kind = phoneKind();
+    if (!save.a2hs && ((kind && !standalone() && !PREVIEW) || FORCE_A2HS)) {
+      save.a2hs = true;
+      // The version note is for players who know the game; this one may be their first screen.
+      if (!played) save.seenVersion = VERSION;
+      persist();
+      const steps =
+        kind === 'android'
+          ? '1. Tap the three dots at the top of Chrome.\n2. Choose "Add to Home screen" (or "Install app").\n3. Open the game from its new icon.'
+          : '1. Tap the Share button in Safari (the square with an arrow).\n2. Scroll down and choose "Add to Home Screen".\n3. Tap Add, then open the game from its new icon.';
+      const tail = kind === 'android' ? '' : '\n\nDo it before you play much: progress starts fresh under the new icon.';
+      this.notice('PLAY FULL SCREEN', `${steps}${tail}`, [['Got it', () => this.closePopup(false)]], 'Add it to your home screen');
       return;
     }
     if (save.seenVersion !== VERSION) {
@@ -187,7 +239,9 @@ export class MenuScene extends Phaser.Scene {
     const shelfH = 28 * S;
     const shelfBottom = ty - 6 * S - infoH - plateH - 10 * S;
     const shelfTop = shelfBottom - shelfH;
-    const R = Math.max(34 * S, Math.min((compact ? 74 : 88) * S, (shelfTop - top - 56 * S) / 2, W * 0.24));
+    // A hat stands up to 1.2 bagel radii above the bagel: leave it room under the top row.
+    const hatted = !!worn(save).hat && save.unlocked.includes(BAGELS[this.idx].id);
+    const R = Math.max(34 * S, Math.min((compact ? 74 : 88) * S, (shelfTop - top - 56 * S) / (hatted ? 3.4 : 2), W * 0.24));
     const by = shelfTop - R * 0.97;
 
     // Back wall: staggered tiles, with a warm light behind the bagel.
@@ -221,6 +275,19 @@ export class MenuScene extends Phaser.Scene {
     dp.x = 14 * S + dp.width / 2;
     c.add(dp);
     this.doughPill = dp;
+    // The Daily Run's button, once a stage has been cleared. A red dot until today's run is played.
+    if (save.clears > 0) {
+      const dw = 92 * S;
+      const db = button(this, W - 14 * S - dw / 2, top + 26 * S, dw, 32 * S, 'Daily', () => this.openDaily(), { size: 15, icon: 'ic_cal', radius: 16 });
+      c.add(db);
+      if (!dailyResult(save)) {
+        const dot = this.add.graphics();
+        dot.fillStyle(INK, 1).fillCircle(W - 16 * S, top + 12 * S, 7.5 * S);
+        dot.fillStyle(COLORS.red, 1).fillCircle(W - 16 * S, top + 12 * S, 5.5 * S);
+        c.add(dot);
+        this.tweens.add({ targets: dot, alpha: 0.55, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+      }
+    }
 
     // The shelf: your bagel in the middle, its neighbours waiting on either side.
     const bagel = BAGELS[this.idx];
@@ -254,8 +321,12 @@ export class MenuScene extends Phaser.Scene {
     c.add(hero);
     let face: Face | null = null;
     if (!locked) {
+      // Whatever looks are on show here too: the finish under the eyes, the hat over them.
+      const looks = worn(save);
+      new Wear(this, hero, 62, looks.sprinkle, (o) => c.add(o));
       face = new Face(this, hero, 62, (o) => c.add(o));
       face.idle = true;
+      new Wear(this, hero, 62, looks.hat, (o) => c.add(o));
     }
     const bob = () => this.tweens.add({ targets: hero, y: by - 7 * S, scaleX: hs * 1.03, scaleY: hs * 0.97, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
     bob();
@@ -368,7 +439,7 @@ export class MenuScene extends Phaser.Scene {
     tk.fillStyle(COLORS.cream, 1).fillRoundedRect(tl, ty, cw, th, 10 * S);
     c.add(tk);
     const pad = 14 * S;
-    c.add(txt(this, W / 2, ty + (compact ? 11 : 14) * S, "TODAY'S ORDER", compact ? 10 : 11, '#9a7a56', { stroke: false }));
+    c.add(txt(this, W / 2, ty + (compact ? 11 : 14) * S, "TODAY'S ORDER", 11, '#9a7a56', { stroke: false }));
     const rowH = (compact ? 38 : 42) * S;
     const rowY = ty + (compact ? 22 : 27) * S + rowH / 2;
     const fw = rowH;
@@ -412,7 +483,7 @@ export class MenuScene extends Phaser.Scene {
         if (t.width > room) t.setScale(room / t.width);
         c.add(t);
         if (icon) c.add(this.add.image(t.x - t.displayWidth / 2 - 10 * S, y, lockedMode ? 'ic_lock' : icon).setScale(lockedMode ? 0.4 : 0.46).setAlpha(on ? 1 : 0.6));
-        const z = this.add.zone(cx, y, seg, sh + 8 * S).setInteractive();
+        const z = this.add.zone(cx, y, seg, Math.max(sh + 8 * S, TAP * S)).setInteractive();
         z.on('pointerup', () => {
           if (on) return;
           if (lockedMode) {
@@ -452,7 +523,7 @@ export class MenuScene extends Phaser.Scene {
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => this.scene.start('game', { resume: true }));
       }, { color: COLORS.green });
       const l1 = txt(this, 0, -9 * S, `RESUME ${fmtTime(saved.now)}`, compact ? 18 : 20, CSS.dark, { stroke: false });
-      const l2 = txt(this, 0, 13 * S, `${saved.endless ? 'Endless ' : saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}`, 11, '#2f4a1a', { stroke: false });
+      const l2 = txt(this, 0, 13 * S, `${saved.daily ? 'Daily ' : saved.endless ? 'Endless ' : saved.quick ? 'Quick ' : ''}${name}, Stage ${stageById(saved.stage).num}`, 11, '#2f4a1a', { stroke: false });
       if (l2.width > rw - 16 * S) l2.setScale((rw - 16 * S) / l2.width);
       rb.add([l1, l2]);
       this.pressWith(rb, [l1, l2]);
@@ -501,7 +572,7 @@ export class MenuScene extends Phaser.Scene {
         const tg = this.add.graphics();
         tg.fillStyle(INK, 1).fillRoundedRect(-17 * S, -9 * S, 34 * S, 18 * S, 9 * S);
         tg.fillStyle(COLORS.red, 1).fillRoundedRect(-15 * S, -7 * S, 30 * S, 14 * S, 7 * S);
-        tag.add([tg, txt(this, 0, 0, 'NEW', 9, CSS.cream, { stroke: false })]);
+        tag.add([tg, txt(this, 0, 0, 'NEW', 11, CSS.cream, { stroke: false })]);
         tag.setAngle(8);
         c.add(tag);
         this.tweens.add({ targets: tag, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -798,7 +869,7 @@ export class MenuScene extends Phaser.Scene {
   private tabs(c: Phaser.GameObjects.Container, top: number, pw: number, labels: string[], sel: number, onPick: (i: number) => void, dot = -1): void {
     const W = this.scale.width;
     const w = pw - 36 * S;
-    c.add(segmented(this, W / 2, top + (HEADER + 54) * S, w, 34 * S, labels, sel, onPick, labels.length > 2 && w < 330 * S ? 13 : 15));
+    c.add(segmented(this, W / 2, top + (HEADER + 54) * S, w, 34 * S, labels, sel, onPick, labels.length > 3 ? 12 : labels.length > 2 && w < 330 * S ? 13 : 15));
     if (dot >= 0 && dot !== sel) {
       const g = this.add.graphics();
       const x = W / 2 - w / 2 + (w / labels.length) * (dot + 1) - 10 * S;
@@ -826,6 +897,15 @@ export class MenuScene extends Phaser.Scene {
   private openGoals(tab = 0, page = 0): void {
     const W = this.scale.width;
     const save = load();
+    const TABS = ['Unlocks', 'Challenges', 'Secrets', 'Stats'];
+    if (tab === 3) {
+      const pw = Math.min(W - 24 * S, 400 * S);
+      const ph = 150 * S + 5 * 68 * S + 58 * S;
+      const { c, top } = this.openPopup('GOALS', pw, ph, () => this.closePopup(true), 'Everything so far');
+      this.tabs(c, top, pw, TABS, tab, (i) => this.openGoals(i), unseenGoals(save).length > 0 ? 1 : -1);
+      fillStats(this, c, top, pw, ph, save);
+      return;
+    }
     interface Row { icon: string; dark?: boolean; name: string; sub: string; frac: number; done: boolean; reward?: number; isNew?: boolean }
     let rows: Row[] = [];
     let sub = '';
@@ -855,8 +935,9 @@ export class MenuScene extends Phaser.Scene {
         const done = (save.goalsPaid ?? []).includes(ch.id);
         return { icon: ch.icon, name: ch.name, sub: done ? `Done! +${ch.reward} Dough` : st.progress, frac: done ? 1 : st.frac, done, reward: ch.reward, isNew: fresh.has(ch.id) };
       });
-      const earned = CHALLENGES.filter((ch) => (save.goalsPaid ?? []).includes(ch.id)).reduce((a, ch) => a + ch.reward, 0);
-      sub = `${rows.filter((r) => r.done).length} of ${rows.length} done · ${earned} Dough earned`;
+      // All of them earn the Golden Bagel (a look, in the Bakery).
+      const n = rows.filter((r) => r.done).length;
+      sub = n >= rows.length ? `All ${rows.length} done! The Golden Bagel is yours (Bakery, Looks)` : `${n} of ${rows.length} done · ${rows.length - n} to go for the Golden Bagel`;
       // Seen now: the red dot on the Goals button goes away.
       if (fresh.size) {
         save.goalsSeen = [...(save.goalsPaid ?? [])];
@@ -865,14 +946,15 @@ export class MenuScene extends Phaser.Scene {
     } else {
       const rainbow = BAGELS.find((b) => b.secret)!;
       const bagelFound = save.unlocked.includes(rainbow.id);
-      const comboFound = (save.secrets ?? []).includes('combo');
       rows = [
         bagelFound
           ? { icon: rainbow.tex, name: `${rainbow.name} bagel`, sub: `Found! ${rainbow.goal!.text}.`, frac: 1, done: true }
           : { icon: 'ic_secret', name: '???', sub: SECRET_BAGEL_HINT, frac: 0, done: false },
-        comboFound
-          ? { icon: COMBO.icon, name: COMBO.name, sub: 'Found! Evolve Schmear Flood and Lox Cyclone, then open a gold toaster.', frac: 1, done: true }
-          : { icon: 'ic_secret', name: '???', sub: SECRET_RECIPE_HINT, frac: 0, done: false },
+        ...COMBOS.map((cd) =>
+          (save.secrets ?? []).includes(cd.id)
+            ? { icon: cd.icon, name: cd.name, sub: `Found! Evolve ${WEAPONS[cd.drop].evoName} and ${WEAPONS[cd.keep].evoName}, then open a gold toaster.`, frac: 1, done: true }
+            : { icon: 'ic_secret', name: '???', sub: SECRET_RECIPE_HINT, frac: 0, done: false },
+        ),
       ];
       sub = `${rows.filter((r) => r.done).length} of ${rows.length} secrets found`;
     }
@@ -884,7 +966,7 @@ export class MenuScene extends Phaser.Scene {
     const rowH = 68 * S;
     const ph = 150 * S + PER * rowH + 58 * S;
     const { c, top } = this.openPopup('GOALS', pw, ph, () => this.closePopup(true), sub);
-    this.tabs(c, top, pw, ['Unlocks', 'Challenges', 'Secrets'], tab, (i) => this.openGoals(i), unseenGoals(save).length > 0 ? 1 : -1);
+    this.tabs(c, top, pw, TABS, tab, (i) => this.openGoals(i), unseenGoals(save).length > 0 ? 1 : -1);
     const lx = W / 2 - pw / 2 + 20 * S;
     const textX = lx + 46 * S;
     const rightW = 58 * S;
@@ -939,11 +1021,12 @@ export class MenuScene extends Phaser.Scene {
     const save = load();
     const all = Object.keys(WEAPONS) as WeaponId[];
     const locked = all.filter((id) => WEAPONS[id].unlock);
-    // Five rows a page keeps it on screen on small phones. The secret combo is the last Evolutions row.
+    // Five rows a page keeps it on screen on small phones. The secret combos are the last Evolutions rows.
     const PER = 5;
-    const evoRows: (WeaponId | 'combo')[] = [...all, 'combo'];
-    const ids = tab === 0 ? evoRows.slice(page * PER, page * PER + PER) : locked;
-    const pages = tab === 0 ? Math.ceil(evoRows.length / PER) : 1;
+    const evoRows: (WeaponId | 'combo' | 'toastjam')[] = [...all, ...COMBOS.map((cd) => cd.id)];
+    const rows = tab === 0 ? evoRows : locked;
+    const ids = rows.slice(page * PER, page * PER + PER);
+    const pages = Math.ceil(rows.length / PER);
     const pw = Math.min(W - 24 * S, 400 * S);
     const rowH = 60 * S;
     const ph = 160 * S + PER * rowH + (pages > 1 ? 46 : 0) * S;
@@ -956,16 +1039,18 @@ export class MenuScene extends Phaser.Scene {
       txt(this, x, y, s, 12, CSS.muted, { bold: false, stroke: false, wrap, align: 'left' }).setOrigin(0, 0.5);
     ids.forEach((id, i) => {
       const y = top + 160 * S + i * rowH;
-      if (id === 'combo') {
-        const found = (save.secrets ?? []).includes('combo');
-        c.add(this.add.image(lx + 18 * S, y, found ? WEAPONS.puddle.icon : 'ic_secret').setScale(0.9));
+      const cd = COMBOS.find((o) => o.id === id);
+      if (cd) {
+        const found = (save.secrets ?? []).includes(cd.id);
+        c.add(this.add.image(lx + 18 * S, y, found ? WEAPONS[cd.drop].icon : 'ic_secret').setScale(0.9));
         c.add(txt(this, lx + 44 * S, y, '+', 18, CSS.muted));
-        c.add(this.add.image(lx + 70 * S, y, found ? WEAPONS.lox.icon : 'ic_secret').setScale(0.9));
+        c.add(this.add.image(lx + 70 * S, y, found ? WEAPONS[cd.keep].icon : 'ic_secret').setScale(0.9));
         const tx = lx + 98 * S;
-        c.add(txt(this, tx, y - 10 * S, found ? COMBO.name : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
-        c.add(small(tx, y + 11 * S, found ? 'Schmear Flood + Lox Cyclone' : 'A secret recipe', (pw - 120 * S) / S));
+        c.add(txt(this, tx, y - 10 * S, found ? cd.name : '???', 16, found ? CSS.gold : CSS.muted).setOrigin(0, 0.5));
+        c.add(small(tx, y + 11 * S, found ? `${WEAPONS[cd.drop].evoName} + ${WEAPONS[cd.keep].evoName}` : 'A secret recipe', (pw - 120 * S) / S));
         return;
       }
+      if (id === 'combo' || id === 'toastjam') return;
       const w = WEAPONS[id];
       if (tab === 0) {
         const t = TOPPINGS[w.evolveWith];
@@ -991,7 +1076,7 @@ export class MenuScene extends Phaser.Scene {
     });
     const by = top + 160 * S + PER * rowH - 10 * S;
     if (pages > 1) {
-      const go = (d: number) => this.openCookbook(0, (page + d + pages) % pages);
+      const go = (d: number) => this.openCookbook(tab, (page + d + pages) % pages);
       c.add(button(this, W / 2 - 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(-1), { color: COLORS.panelLight, chevron: -1, radius: 20 }));
       c.add(txt(this, W / 2, by + 4 * S, `${page + 1} / ${pages}`, 15, CSS.cream));
       c.add(button(this, W / 2 + 60 * S, by + 4 * S, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
@@ -1057,7 +1142,7 @@ export class MenuScene extends Phaser.Scene {
       if (!known) pic.setTintFill(0x1d140d);
       c.add(pic);
       const short = known ? e.name.replace(/^The /, '') : '???';
-      c.add(txt(this, cx, cy + 54 * S, short, 9, known ? CSS.cream : CSS.muted, { stroke: false, wrap: (cellW - 8 * S) / S }).setOrigin(0.5, 0.5).setLineSpacing(-2 * S));
+      c.add(txt(this, cx, cy + 54 * S, short, 11, known ? CSS.cream : CSS.muted, { stroke: false, wrap: (cellW - 8 * S) / S }).setOrigin(0.5, 0.5).setLineSpacing(-2 * S));
       if (e.role && beaten.has(e.kind)) c.add(this.add.image(cx + cellW / 2 - 13 * S, cy + 13 * S, 'ic_crown').setScale(0.45));
       const z = this.add.zone(cx, cy + cellH / 2, cellW, cellH).setInteractive();
       z.on('pointerup', () => {
@@ -1079,7 +1164,7 @@ export class MenuScene extends Phaser.Scene {
     c.add(button(this, W / 2 + pw / 2 - 44 * S, ny, 44 * S, 40 * S, '', () => go(1), { color: COLORS.panelLight, chevron: 1, radius: 20 }));
   }
 
-  private openBakery(tab = 0): void {
+  private openBakery(tab = 0, slot = 0, pick = ''): void {
     const W = this.scale.width;
     const save = load();
     const pw = Math.min(W - 24 * S, 400 * S);
@@ -1087,7 +1172,7 @@ export class MenuScene extends Phaser.Scene {
     const gap = 10 * S;
     const list = BAKERY.filter((u) => (u.tab ?? 0) === tab);
     const tabH = 50 * S;
-    const ph = 122 * S + tabH + list.length * (cardH + gap);
+    const ph = 122 * S + tabH + (tab === 2 ? 5 : list.length) * (cardH + gap);
     const { c, top } = this.openPopup('THE BAKERY', pw, ph, () => this.closePopup(true));
     const wallet = pill(this, W / 2, top + (HEADER + 26) * S, 'coin', `${save.dough} Dough to spend`, { size: 15, color: CSS.gold, h: 30 });
     c.add(wallet);
@@ -1098,7 +1183,11 @@ export class MenuScene extends Phaser.Scene {
     const cw = pw - 28 * S;
     // Two tabs so all eight upgrades fit on a phone: Basics and Extras.
     const tabsTop = top + 16 * S;
-    this.tabs(c, tabsTop, pw, ['Basics', 'Extras'], tab, (i) => this.openBakery(i));
+    this.tabs(c, tabsTop, pw, ['Basics', 'Extras', 'Looks'], tab, (i) => this.openBakery(i));
+    if (tab === 2) {
+      fillLooks(this, c, top, pw, ph, save, slot, pick, setWallet, (sl, id) => this.openBakery(2, sl, id));
+      return;
+    }
     const refreshers: (() => void)[] = [];
     list.forEach((u, i) => {
       const y = top + 108 * S + tabH + cardH / 2 + i * (cardH + gap);

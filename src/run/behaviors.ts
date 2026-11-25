@@ -429,7 +429,7 @@ function broiler(g: GameScene, e: Enemy, m: Move, dt: number, t: number): void {
   }
   if (Math.abs(m.mvx) > 1) e.sprite.setFlipX(m.mvx < 0);
   e.sprite.setRotation(Math.sin(t * 2) * 0.05 + (e.enraged ? Math.sin(t * 30) * 0.025 : 0));
-  if (e.enraged && Math.floor(t * 4) % 2) e.sprite.setTint(0xffc9a0);
+  if (e.enraged && (reducedFlash() || Math.floor(t * 4) % 2)) e.sprite.setTint(0xffc9a0);
   else if (e.flashUntil <= t) e.sprite.clearTint();
   e.attackT -= dt;
   if (e.attackT <= 0) {

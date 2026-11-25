@@ -1,46 +1,45 @@
 # Everything Bagel
 
-A short-session, one-thumb survivor roguelite for phones. You are a bagel defending the last bakery from the Stale. Survive 5 minutes, beat the Toaster Tyrant, then get back to your match.
+**You are a bagel. Defend the last bakery from the Stale.**
 
-Game plan: https://claude.ai/artifact/3zMQXC7czm7Hi7xSGMgoZV
+A free, one-thumb survivor game for phones. Runs take about five minutes, it works offline, and it pauses itself when you switch apps.
 
-## Play on your iPhone
+**Play it:** https://lg13002.github.io/Bagel-Survivor/
 
-1. Open the GitHub Pages link (Settings → Pages shows it once deployed) in Safari.
-2. Tap Share → **Add to Home Screen**. It then launches full screen like an app and works offline.
+![The game in play](docs/screenshot.png)
+
+## Play it like an app
+
+**iPhone:** open the link in Safari, tap the Share button, choose **Add to Home Screen**, then open the game from its new icon.
+
+**Android:** open the link in Chrome, tap the three dots, choose **Add to Home screen** (or **Install app**).
+
+It then opens full screen and works with no connection. Do this before you play much on an iPhone: progress starts fresh under the new icon.
 
 ## How it plays
 
-- Touch and drag anywhere to move. Weapons fire on their own.
-- Collect sesame seeds (XP) to level up, then pick 1 of 3 upgrades. Up to 4 weapons and 4 toppings, each to level 5.
-- A max-level weapon plus its matching topping **evolves** when you open a Toaster Chest (dropped by elites every minute and the mini-boss).
-- Giant Mold at 0:45 and every minute after, Crusty Croissant at 2:30, the Toaster Tyrant at 4:30. Beat him to clear the stage and unlock Everything Ed.
-- Every run pays Dough, which you spend in the Bakery on permanent upgrades.
-- The game pauses itself when you switch apps, so you can jump back into your match any time.
-- **Practice** (menu toggle) starts runs at 2:30 with 12 level-ups so you can test builds, chests and bosses. Practice runs pay no Dough.
-- Sound can be turned off from the menu or the pause screen.
+- Drag anywhere to move. Your weapons fire on their own.
+- Pick up seeds to level up, then pick a card: orange cards are weapons, blue cards are toppings. You hold 4 of each, and each goes to level 5.
+- A level 5 weapon and its matching topping **evolve** when you open a chest. Elites drop chests.
+- Beat the boss at 4:30 to clear the stage and open the next one. There are five stages, from the Bakery counter to the Bread Bin, and an ending.
+- Every run pays Dough. Spend it in the Bakery on upgrades that last, and on hats.
+- Twelve bagels, each with its own quirk. Twelve weapons, twelve evolutions and two secret recipes.
+- A Daily Run with a twist, the same for everyone, with a streak and a score card to share.
+- Quick Runs, Endless and Extra Crispy for when the stages are too easy.
 
-| Weapon | + Topping | = Evolution |
-| --- | --- | --- |
-| Sesame Shot | Caffeine | Seed Gatling |
-| Seed Storm | Hot Oven | Everything Inferno |
-| Cream Cheese Puddle | Extra Butter | Schmear Flood |
-| Lox Boomerang | Glaze | Lox Cyclone |
-| Hot Coffee Splash | Salt Crystals | Espresso Nova |
-| Rolling Pin | Fresh Dough | Baker's Dozen |
+## Your save
 
-## Develop
+Progress is kept on your phone, in the browser. Nothing is sent anywhere: no accounts, no ads, no tracking. Settings, Save has a backup code to move your progress to another phone.
+
+## About
+
+Everything is original, drawn in code and synthesized in the browser: there are no image or sound files. Built with Phaser 3, TypeScript and Vite.
+
+- [Release notes](docs/RELEASE_NOTES.md)
+- [Notes for developers](CLAUDE.md) and the [build history](docs/HANDOFF.md)
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173, also on your LAN for phone testing
-npm run build    # type-check + production build into dist/
+npm run dev     # play locally
+npm run build   # type check and build
 ```
-
-Built with Phaser 3, TypeScript and Vite. All art is drawn in code (`src/textures.ts`), and all tuning lives in `src/data.ts`.
-
-Testing flags (add to the URL): `?speed=4` runs the game 4× faster, `?god` makes you invincible, `?t=200` starts the clock at 3:20.
-
-## Deploy
-
-Pushes to `main` deploy to GitHub Pages via `.github/workflows/deploy.yml`. One-time setup: repo **Settings → Pages → Source: GitHub Actions**.

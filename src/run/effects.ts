@@ -1,3 +1,4 @@
+import { trailBit } from '../looks';
 import Phaser from 'phaser';
 import { settings } from '../settings';
 import { S } from '../config';
@@ -118,6 +119,15 @@ export class Effects {
   }
 
   /** A little fading dot behind a projectile (weapons at level 5 and evolved). */
+  /** One puff of the trail the bagel is wearing (a look: it changes nothing). Off with Battery saver. */
+  lookTrail(id: string, x: number, y: number): void {
+    if (settings().saver || this.particles > 260) return;
+    const b = trailBit(id);
+    const im = this.fx(b.tex, x, y, 18).setAlpha(b.alpha).setScale(b.s0 / S);
+    if (b.tint) im.setTint(b.tint);
+    this.g.tweens.add({ targets: im, x: x + b.dx, y: y + b.dy, scale: b.s1 / S, rotation: b.spin, alpha: 0, duration: b.ms, onComplete: () => this.done(im) });
+  }
+
   trailDot(x: number, y: number, color: number): void {
     if (settings().saver || this.particles > 120) return;
     const im = this.fx('dot', x, y, 18).setTint(color).setAlpha(0.85);
@@ -129,7 +139,7 @@ export class Effects {
   hitSpark(x: number, y: number, id: FxId): void {
     if (this.particles > this.cap(110)) return;
     // Damage-over-time weapons tick a lot, so they spark less often.
-    if ((id === 'puddle' || id === 'jar' || id === 'storm' || id === 'combo') && Math.random() < 0.6) return;
+    if ((id === 'puddle' || id === 'jar' || id === 'storm' || id === 'combo' || id === 'whisk') && Math.random() < 0.6) return;
     const tweens = this.g.tweens;
     const part = (tex: string, tint: number, scale: number, dx: number, dy: number, ms: number, rot = 0, depth = 41) => {
       const im = this.fx(tex, x, y, depth).setTint(tint).setRotation(rot);
@@ -183,6 +193,17 @@ export class Effects {
       case 'iron': // dusty puff
         pop('hitring', 0xffd27a, 0.35, 0.9, 200);
         spray('dot', 0xf0dcb0, 2, 16, 0.45, 260);
+        break;
+      case 'cutter': // a thin red slice
+        pop('streak', 0xff6a4a, 0.6, 1.3, 130, rnd());
+        spray('dot', 0xffe0a0, 1, 12, 0.35, 200);
+        break;
+      case 'whisk': // a cream swirl
+        pop('hitring', 0xfff6e0, 0.25, 0.7, 180);
+        break;
+      case 'toastjam': // crumbs and a jam splat
+        spray('dot', 0xe9b56a, 2, 14, 0.35, 220, 6);
+        spray('dot', 0xb0407a, 2, 12, 0.4, 240, 4);
         break;
       case 'combo': // a pink swipe through a cream splat
         if (Math.random() < 0.5) pop('streak', 0xff9a7a, 0.8, 1.4, 160, rnd());

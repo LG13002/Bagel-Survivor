@@ -24,6 +24,13 @@ export const ENDLESS_BOSS_HP = 1.5;
 export const ENDLESS_SPAWN_RAMP = 0.1;
 /** Dough per full minute survived after 5:00. */
 export const ENDLESS_DOUGH_MIN = 10;
+/**
+ * The most an Endless run can pay (before the stage's and Extra Crispy's multipliers): what a very good first 5:00
+ * pays, plus this much a minute after it. A clear pays about 34 a minute, so a long Endless run pays up to about
+ * 1.75 times that rate. Measured without it: 1,847 by 10:00 and 4,918 by 15:00 on the Bakery (a clear pays 152).
+ */
+export const ENDLESS_PAY_BASE = 220;
+export const ENDLESS_PAY_MIN = 60;
 
 /** When a stage boss falls, the next SLOWMO_TIME seconds (real time) play at SLOWMO speed. */
 export const SLOWMO = 0.3;
@@ -47,3 +54,9 @@ export const HIT_GRACE = 1.1;
 export const WAVE_GAP = 1.9;
 /** How long a charger's dash lasts, in seconds (its lane is drawn this long). */
 export const CHARGE_TIME = 0.5;
+
+/** Max health gained for every level reached in a run (the owner's ask after M17: surviving shouldn't hang on Fresh Dough). The gain heals too. */
+export const LEVEL_HP = 2;
+
+/** Health given back by Skip on the level-up screen. Small on purpose: a card should nearly always be worth more. */
+export const SKIP_HEAL = 10;

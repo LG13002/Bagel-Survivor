@@ -28,6 +28,11 @@ export function reducedFlash(): boolean {
   return settings().flash === 'reduced';
 }
 
+/** A smooth pulse around `mid` (plus or minus `amp`, `speed` in radians a second). Held at its brightest when flashing is Reduced. */
+export function pulse(t: number, speed: number, mid: number, amp: number): number {
+  return mid + amp * (reducedFlash() ? 1 : Math.sin(t * speed));
+}
+
 /**
  * A blinking warning's brightness at time t: flips between hi and lo `rate` times a second.
  * With Flashing effects Reduced it holds steady at hi, so the warning keeps its shape and outline without strobing.

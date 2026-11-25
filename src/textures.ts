@@ -3,6 +3,7 @@ import type { StageDef } from './data';
 import { S } from './config';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, drawButcherBlock, drawFreezerFloor, drawOvenFloor, drawStageThumb } from './floors';
 import { ICONS, UI_ICONS, ctex, drawBasket, drawGoldToaster, drawStickyBun, drawCoin, drawDrop, drawFlake, drawGem, drawHeal, drawLox, drawLoxStorm, drawMine, drawPin, drawPuddle, drawSesame, drawToast, drawAnt, drawBagel, drawCroissant, drawCrumb, drawElite, drawKnife, drawMold, drawToaster, drawFrostCrumb, drawIceCube, drawPeaPod, drawPopsicle, drawSprinkleFlake, drawPea, drawWarmMug, drawIcePatch, drawTwinkle, drawScoop, drawMeltPuddle, drawFrostedCroissant, drawTyrantJr, drawWaffle, drawFreezerBurn, drawIcicle, drawPizzaSlice, drawButterKnife, drawJamJar, drawPlayerToast, drawJamPool, drawStamp, drawShock, drawStar4, drawStreak, drawChip, drawHitRing, drawEmberCrumb, drawBurntToast, drawHotSauce, drawSauceShot, drawPopcorn, drawPopBit, drawTot, drawRackPost, drawEmberSpark, drawGreaseSpot, drawSlick, drawFlame, drawMoltenMuffin, drawFreezerBurnt, drawFlapjack, drawPancakeShot, drawFireball, drawBroiler, relight, type BagelLook } from './art';
+import { UTENSIL_ICONS, drawCutter, drawSaucePool, drawWhirl } from './utensils';
 import { BIN_PROPS, drawBinFloor, drawCreep, drawCrumbShot, drawDarkness, drawFallingCrumb, drawKing, drawKnight, drawPuffSpore, drawShard, drawStaleCrumb } from './breadbin';
 import { PANTRY_PROPS, drawBroilerJr, drawBubble, drawDoughBall, drawDoughShot, drawDoughWall, drawDustBunny, drawFlourCloud, drawFlourSack, drawKnot, drawMoldyLoaf, drawMotherDough, drawPantryFloor, drawPeaCan, drawPepperShaker, drawPepperShot, drawRollingCan, drawShelf, drawSmallMuffin, drawSpore, drawSugarCube, drawTangle } from './pantry';
 
@@ -142,6 +143,7 @@ export function makeTextures(scene: Phaser.Scene): void {
   // Upgrade icons (36×36)
   for (const [key, draw] of Object.entries(ICONS)) ctex(scene, key, 36, 36, draw);
   for (const [key, draw] of Object.entries(UI_ICONS)) ctex(scene, key, 36, 36, draw);
+  for (const [key, draw] of Object.entries(UTENSIL_ICONS)) ctex(scene, key, 36, 36, draw);
 }
 
 /** Every enemy's picture, all stages (they are small). */
@@ -282,6 +284,9 @@ export function makeRunTextures(scene: Phaser.Scene, stage: StageDef): void {
   ctex(scene, 'jar', 16, 20, (c) => drawJamJar(c, 16, 20));
   ctex(scene, 'ptoast', 18, 18, (c) => drawPlayerToast(c, 18));
   ctex(scene, 'jam_pool', 128, 128, (c) => drawJamPool(c, 128));
+  ctex(scene, 'cutter_w', 30, 30, (c) => drawCutter(c, 30));
+  ctex(scene, 'whirl', 64, 64, (c) => drawWhirl(c, 64));
+  ctex(scene, 'sauce_pool', 128, 128, (c) => drawSaucePool(c, 128));
   ctex(scene, 'stamp', 128, 128, (c) => drawStamp(c, 128));
   ctex(scene, 'shock', 128, 128, (c) => drawShock(c, 128));
   ctex(scene, 'star4', 12, 12, (c) => drawStar4(c, 12));

@@ -119,4 +119,8 @@ export interface Stats {
   proj: number;
   /** Duration multiplier from Jam. */
   dur: number;
+  /** Projectile speed multiplier from Olive Oil. */
+  shot: number;
+  /** XP multiplier from Vanilla and the Bakery's Proofing. */
+  xp: number;
 }

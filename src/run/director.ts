@@ -4,6 +4,7 @@ import { RUN, type EnemyKind } from '../data';
 import type { Enemy } from '../entities';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
+import { RUSH } from '../daily';
 import { CROWD_COUNT, CRISPY_SPAWN, ENDLESS_BOSS_EVERY, ENDLESS_BOSS_HP, ENDLESS_ELITE_EVERY, ENDLESS_MINI_EVERY, ENDLESS_SPAWN_RAMP } from './modes';
 
 /**
@@ -55,7 +56,7 @@ export class Director {
     const st = g.stage;
     const t = g.stageT;
     const hpMult = foes.hpMult(t);
-    let interval = Math.max(0.1, 0.7 - t * 0.0018) / st.spawnRate / CROWD_COUNT / (g.crispy ? CRISPY_SPAWN : 1);
+    let interval = Math.max(0.1, 0.7 - t * 0.0018) / st.spawnRate / CROWD_COUNT / (g.crispy ? CRISPY_SPAWN : 1) / (g.twist === 'rush' ? RUSH : 1);
     // Endless: about 10% faster spawns for every minute after 5:00.
     if (g.endless && t > 300) interval /= 1 + ENDLESS_SPAWN_RAMP * ((t - 300) / 60);
     if (foes.boss) interval *= 4;
@@ -93,6 +94,11 @@ export class Director {
         e.dropsChest = true;
         // Full runs: the last Giant Mold before the boss carries the second Sticky Bun.
         if (!g.quick && !this.endlessCleared && t >= RUN.bossAt - RUN.eliteEvery) e.dropsBun = true;
+      }
+      // Daily twist: every elite brings a friend.
+      if (g.twist === 'elites') {
+        const e2 = foes.spawnNear(el.kind);
+        if (e2) e2.dropsChest = true;
       }
       hud.banner(el.banner, el.color, 20);
     }

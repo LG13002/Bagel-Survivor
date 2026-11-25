@@ -1,3 +1,4 @@
+import { dailyFor, dailyStreak, today } from './daily';
 import Phaser from 'phaser';
 import { COLORS, S } from './config';
 import { GameScene } from './scenes/GameScene';
@@ -7,12 +8,36 @@ import { IntroScene } from './scenes/IntroScene';
 import { TitleScene } from './scenes/TitleScene';
 import { CreditsScene } from './scenes/CreditsScene';
 import { backupCode, load, persist, resetSave, restoreCode, takeRecovered } from './save';
+import { watchErrors } from './gameInfo';
+import { giantBagel } from './textures';
 import fontUrl from './assets/titan-one.woff2?inline';
 
-const size = () => ({ w: window.innerWidth * S, h: window.innerHeight * S });
+watchErrors();
+
+/**
+ * The game is made for a phone held upright. In a wide window (a laptop, a tablet on its side) it keeps a phone's
+ * shape in the middle, with the page's dark background either side, so every screen looks and plays as it was built.
+ * A short, wide window (a phone on its side) is left alone: a column there would be too small to play.
+ */
+const column = (): number => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return h >= 560 && w > h * 0.8 ? Math.min(w, Math.max(390, Math.round(h * 0.5625))) : w;
+};
+const size = () => ({ w: column() * S, h: window.innerHeight * S });
+/** Centres the game's box in the window. */
+const place = (): void => {
+  const app = document.getElementById('app');
+  if (!app) return;
+  const w = column();
+  app.style.left = `${(window.innerWidth - w) / 2}px`;
+  app.style.width = `${w}px`;
+  app.style.right = 'auto';
+};
 
 function start(): void {
   const { w, h } = size();
+  place();
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'app',
@@ -23,14 +48,22 @@ function start(): void {
     scene: [TitleScene, IntroScene, CreditsScene, MenuScene, GameScene, ResultsScene],
   });
 
-  // Exposed for debugging and automated playtests (tools/bots).
-  Object.assign(window, { __game: game, __save: { load, persist, backupCode, restoreCode, resetSave, takeRecovered } });
+  // The page's launch screen fades once the first screen is drawn (the single-file preview has none).
+  game.events.once(Phaser.Core.Events.POST_RENDER, () => {
+    const splash = document.getElementById('splash');
+    splash?.classList.add('gone');
+    setTimeout(() => splash?.remove(), 400);
+  });
+
+  // Exposed for debugging and automated playtests (tools/bots). `__art` lets the icon and share-picture tools draw a bagel with its eyes.
+  Object.assign(window, { __game: game, __save: { load, persist, backupCode, restoreCode, resetSave, takeRecovered }, __daily: { dailyFor, dailyStreak, today }, __art: { giantBagel } });
 
   let pending = 0;
   const onResize = () => {
     cancelAnimationFrame(pending);
     pending = requestAnimationFrame(() => {
       const s = size();
+      place();
       game.scale.resize(s.w, s.h);
     });
   };

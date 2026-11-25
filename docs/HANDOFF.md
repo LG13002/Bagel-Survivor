@@ -387,6 +387,90 @@ Change list: https://claude.ai/artifact/WPJU3GQWLY1s8LSoL9wmVk (approved by the 
 
 **Measured** (`dodgebench.cjs`, careless walking, damage a minute, from 1:00 / 2:10 / 3:35): Bread Bin 185 / 264 / 204 against the Pantry's 182 / 262 / 135, about 13% more overall, nearly all of it in the King's stretch. To get there the stage's damage dial went from 1.0 to 1.1 and spawn rate from 1.06 to 1.12. A careful bot took far less (61 / 98 / 15 before the dials moved). King fight with an ordinary build (two evolved weapons and two at level 5), circling him: down in 103s of stage time, 220 damage taken, phases at 66% and 33%; the same bot against Mother Dough takes 199 in 67s and against the Broiler 130 in 59s. Frame rate in the bot: Bread Bin 17.5 against the Pantry's 18.5 (the dim layer; 21.4 with Battery saver). Songs levelled with `mixtest.cjs`. `savetest`, `tutortest` (both heights), `qtest` and the new `endtest` pass; resuming mid-King returns in the right phase.
 
+### Phase 3, M17: weapons and Bakery (version 0.17)
+
+Change list: https://claude.ai/artifact/22ikfbSGgbRAPgEAFGNWDD (approved by the owner with Vanilla at +5% XP a level, banishes lasting one run, and the three suggestions).
+
+- **Pizza Cutter** (beat Mother Dough): wheels that cut through enemies and bounce off the screen's edges, the Pantry's shelves, short-lived walls and the oven's knobs. Olive Oil (+10% shot speed a level) evolves it into **Pizza Party**: three wheels that never stop, each leaving a thin red sauce trail that hurts and slows.
+- **Whisk Whirl** (pick up 500 Dough coins): a whirlwind that loops out and back. Vanilla (+5% XP a level) evolves it into **Stand Mixer**: a big tornado circling the bagel that pulls light enemies in. Coins picked up are counted from this version (`save.coinsTotal`); a save that had cleared a stage starts at 250.
+- **Toast and Jam:** the second secret merge (Toast Barrage + Jam Session). `COMBOS` in `weapons.ts` now lists both merges, and the Secrets tab, Cookbook and results screen read from it. With both ready, the pair finished first merges first.
+- **Bakery:** Proofing (Basics, +3% XP a rank) and the Day-Old Bin (Extras, one banish a run per rank). Five upgrades a tab; both tabs fit at 390x640. Each level-up card has a bin button, a binned card can be taken back until a card is picked or the hand is rerolled, and the pause screen shows rerolls and bins left.
+- Two tips (first bin, first bounce), three challenges (both evolutions, 5 banishes in a run), the Cookbook's Weapons tab now has pages, the results screen shows Whisk Whirl's coin count while it is the nearest unlock, save version 4, What's new, version 0.17.
+
+**Deviations from the list:** Pizza Party's wheels never run out of bounces (three wheels on screen at all times) instead of being thrown again and again: the first version piled up seven wheels and covered the floor in sauce. The sauce dabs are small and last about a second for the same reason. Pizza Cutter's base damage went from 15 to 12 after measuring.
+
+**Measured** (`wbench.cjs`, one weapon alone, useful damage a second, Bakery / Freezer / Oven; the crowd changes of M15 mean these don't compare with the older table below):
+
+| | Level 3 | Evolved |
+| --- | --- | --- |
+| The ten older weapons, lowest to highest | 86 to 167 / 107 to 248 / 147 to 261 | 221 to 284 / 298 to 412 / 293 to 384 |
+| Pizza Cutter / Pizza Party | 165 / 248 / about 210 | 221 / 307 / 323 |
+| Whisk Whirl / Stand Mixer | 168 / 218 / 232 | 229 / 321 / 328 |
+
+Pizza Cutter at level 3 matches the best older weapon on the Bakery (Cream Cheese Puddle, 167) and the Freezer (Jam Jar Lob, 248); its oven figure was taken before the last trim and scaled. Toast and Jam against its two evolutions side by side, two runs each: 250 against 248 damage a second, 210 against 214 damage taken a minute, so the merge is worth the freed slot and no more. Lox and Schmear on the same bench: 252 against 232. XP: with the level curve, a run that would end at level 20 ends at 21 with Proofing at rank 5, 21 with Vanilla at level 5, and 23 with both.
+
+**After the owner's M17 playtest:** weapons now burn Stale creep directly wherever they reach (a spark shows it), where before only a hit on an enemy standing on the patch did; every level reached adds 2 max health and heals by it; health packs drop 0.75% of the time instead of 0.5%; Fresh Dough heals 25 instead of 15. `bagelbench.cjs`, Plain Jane, one run each, before and after: healing a minute 49 to 88 (Bakery) and 28 to 66 (Bread Bin); health bars lost over the run 3.1 to 1.9 and 6.1 to 4.5. Everything Ed, same order: bars lost 11.9 to 8.9 and 8.2 to 5.9. The bot's card picks differ between runs, so treat these as rough.
+
+### Phase 3, M18: replay (version 0.18)
+
+[Change list](https://claude.ai/artifact/QPf3SoSQvUPe1S3QWNMJUp), approved with its three suggestions and these picks: one scored Daily try a day (later runs are replays for fun), a set kit for the Daily (every Bakery upgrade at rank 2), and the Golden Bagel as a look. Nothing about an ordinary run changed.
+
+- **Daily Run** (`daily.ts`): the day's stage, bagel and twist come from the local date alone (a hash of the date, then three picks), so every phone agrees with no server. Seven twists. A Full Run with a set kit, on a bagel and stage the player may not own. The first run of the day is scored (time survived; a clear beats any time), kept for two weeks, and pays 30 Dough plus 5 a streak day (up to 25 more). It counts for Dough, defeats, coins, records, challenges and stats, and never for stage clears, bests, beaten bosses or the ending.
+- **Daily card** (calendar button, top right of the menu, once a stage is cleared): stage, bagel, twist, today's result, the streak, the last seven days as crowns, ticks and times, PLAY (or Share and Play again). One tip the first time the button is there.
+- **Score card** (`scoreCard.ts`): a 720 by 900 picture of the date, stage, bagel (with its hat and finish), twist, time, defeats and streak. Share uses the phone's share sheet; where there is none (and in the preview) the picture is shown to press and hold. It has no name or link on it.
+- **Challenges:** nine more (30 in all), listed under "Replay (M18)" in `goals.ts`. All 30 earn the Golden Bagel look and a small golden bagel on the title screen. The Challenges tab's top line counts down to it.
+- **Looks** (`looks.ts`): 10 hats, 6 trails, 4 sprinkles and the Golden Bagel, in the Bakery's third tab with a try-on bagel. 16 are bought (60 to 300 Dough), 5 are earned: Crown (beat the Stale King), Party Hat (a 7-day Daily streak), Top Hat (fill the Bakery), Stars trail (clear a Daily Run), Golden Bagel (all 30 challenges).
+- **Stats tab** on the Goals page: runs, time, defeats, bosses, coins, favourite bagel and weapon, the Daily streak, and the best Endless time on each stage.
+- **Also:** a Daily Run song (`daily`), save version 5, the What's new card.
+
+**Where the build differs from the list**
+- The Golden Bagel takes the sprinkle slot: it glazes the whole bagel, so it and a sprinkle colour can't both show.
+- A bagel wearing a hat is drawn smaller on the title screen and a little smaller on the menu shelf and the results screen, so the hat has room.
+- "Bosses beaten" on the Stats tab starts from the clears a save already has; runs, time and favourites start at zero, as the list said.
+- Rush Hour makes enemies arrive 30% faster; the caps on how many can be out at once are unchanged.
+
+**Dough check** (`bagelbench.cjs`, Plain Jane, one run per stage, 4:25 of a Full Run; the bot never dies, so its defeats run high)
+
+| Stage | Dough if the boss falls | Dough if it doesn't |
+| --- | --- | --- |
+| The Bakery | 152 | 112 |
+| The Freezer | 216 | 156 |
+| The Toaster Oven | 305 | 225 |
+| The Pantry | 370 | 270 |
+| The Bread Bin | 402 | 282 |
+
+Costs: the Bakery's 10 upgrades come to 6,510 Dough, the 16 looks for sale to 2,170, and the 30 challenges pay 2,245 in all. With six runs on each stage at halfway between the two columns (an assumption, not a measurement), reaching the ending takes about 30 runs and pays about 7,500 Dough, so the Bakery fills at about the time the Stale King falls, which is the target. The looks then cost about six more Bread Bin clears, or less with the Daily bonus (30 to 55 a day). No Bakery price, look price or stage pay was changed.
+
+**Checks:** `dailytest.cjs` (17 checks), `savetest.cjs`, `tutortest.cjs` at 760 and 640, `endtest.cjs` and `qtest.cjs` pass. Each twist was checked in a run (kit ranks, health, damage, cards, rerolls, bins, pace, seed coins). `mixtest.cjs`: the Daily song is -20.6 dB at its quietest layer and -14.9 dB at its fullest, beside -21.1 and -15.5 for the Pantry's. `fpsbench.cjs` with `LOOKS=1` (hat, sprinkles, trail) against without: 17.3 and 17.1 frames a second against 17.5 and 17.8 on the Bakery, 17.2 against 17.3 in the Bread Bin (headless numbers; compare, don't read as a phone's).
+
+### Skip on the level-up screen (after the owner's M18 playtest, still version 0.18)
+
+The owner pointed out that "Clear a stage with only one weapon" could not be done on purpose: with no way to pass on a hand, the cards run down to new weapons only (about 24 picks with one weapon). The level-up screen now has a small Skip button beside the title. It asks twice, then spends the level with no card and heals 10 (the owner asked for a small heal so a skip can be a choice; it counts as healing taken). Checked by bot on 760 and 640 tall screens, with the Bin and Reroll buttons showing, and with two levels waiting.
+
+### Phase 3, M19: release candidate (version 0.19)
+
+Built from the approved [M19 change list](https://claude.ai/artifact/S1mjt1XGpjyCRNLkz9n1to). The owner's picks: M19 merges as 0.19, friends and family test the live site, and a small last update with their fixes becomes 1.0; difficulty stays where it is unless the bots show something out of line; Android gets a pass too.
+
+**Balance pass (all bot numbers, release build, one run a cell, about 10% noise run to run).**
+
+- **Weapons** (`wbench.cjs`, useful damage as a share of each stage's median, averaged over the five stages). Level 3: Sesame 59 (the starter, weak alone on purpose), Seed Storm 95, Puddle 106, Lox 99, Coffee 92, Rolling Pin 112, Knife 95, Jam Jar 111, Toast Pop 98, Waffle 99, Pizza Cutter 110, Whisk 105. Evolved: 95, 100, 103, 96, 104, 111 (Pin), 104, 98, 96, 107, 98, 96. **One change:** the Rolling Pin was top in nearly every cell, so its damage went from 23 to 21.5 (evolved 34 to 32), about 6%. A Sesame Shot buff (13.2 to 15.6) was tried and taken back out: the bench showed no gain.
+- **Bagels** (`bagelbench.cjs`, 12 bagels on 5 stages): damage is within 97 to 104% of the median for every bagel. Health bars lost a run follow the quirks (Pumpernickel 2.1 at the sturdy end; Everything, Asiago and Rainbow about 5). No bagel changed.
+- **Stages** (median over every bagel, damage taken a minute before the boss, and health bars lost): Bakery 179 and 1.9, Freezer 223 and 3.0, Toaster Oven 273 and 5.3, Pantry 225 and 3.6, Bread Bin 258 and 4.7. The Oven measures hardest before its boss; the Pantry and the Bread Bin carry their difficulty in their bosses. **No stage dial changed.** Median Dough for a clear: 151, 228, 303, 454, 387.
+- **Extra Crispy** (Plain Jane, no upgrades): 297, 332, 328, 360, 356 damage a minute, about 45% over normal on average. Pays 237, 360, 498, 722, 603.
+- **Daily twists** (`KIT=1` and `DAY=` on `bagelbench.cjs`; same stage and bagel with the kit and no twist as the baseline). On the Bakery (baseline 115 damage taken a minute, 149 Dough): Fast Forward 97 Dough, Seeds Pay Dough 170, Lucky Day 146, Rush Hour 164, Double Elites 153, Bargain Bin 153, Glass Bagel 172 with half the health and 42 damage taken a minute (double damage clears the screen for the bot). On the Bread Bin (baseline 161 and 380): 262 to 481 Dough. None is near impossible and none is free; no twist changed.
+- **Endless pay now has a ceiling.** With no ceiling, a bot run on the Bakery paid 1,847 Dough by 10:00 and 4,918 by 15:00 (a clear pays about 152): level 157, a hundred thousand defeats and 117 coin cards. Now a run past 5:00 pays at most 220 plus 60 a minute after 5:00, before the stage's and Extra Crispy's multipliers (`ENDLESS_PAY_BASE`, `ENDLESS_PAY_MIN`). Measured: Bakery 525 at 10:00 and 824 at 15:00, Bread Bin 3,366 at 20:00, Oven on Extra Crispy 1,560 at 10:00.
+- **Dodging** (`dodgebench.cjs`, careless and careful damage a minute, stages 1 to 5): 160 and 32, 205 and 64, 231 and 108, 207 and 125, 209 and 86.
+
+**Speed.** Frame rate is the same as 0.18 (`fpsbench.cjs`, headless, stages 1 to 5: 18.2, 17.9, 17.1, 17.9, 16.6 against 18.1, 17.8, 17.5, 18.0, 16.6). Over a 20 minute Endless run memory stays between 16 and 20 MB and the object count levels at about 1,100 (`endlessbench.cjs`). The build is 1.93 MB, 494 kB compressed. A repeat visit shows the title in under a second on the test machine (the target was 3 seconds). Boss timing did not move (`bosstime.cjs`: arrive 270.0s, first attack 271.5s).
+
+**Bug bash.** `bugbash.cjs`: 38 runs (five stages in Full, Quick, Endless, Extra Crispy and Practice, one without god mode, the seven twists, a first ending) with no page errors. `resumetest.cjs`: 27 close-and-resume cases clean. `offlinetest.cjs`: offline play and the update flow pass. Found and fixed on the way: a level-up left open was lost when the app closed (`openLevelUp` writes the snapshot first now), tall hats ran into the results screen's subtitle on small phones, and the home-screen icons had lost the bagel's eyes.
+
+**Accessibility.** Every button answers over at least 44 points (`TAP`), no text is under 11 points (`screens.cjs` at 375x667, 390x844, 430x932 and 1280x800, and as an Android phone at 412x915 and 360x740; four Bakery lines were shortened for the 360 wide one), every pulse and strobe goes through `blink()` or `pulse()` so Flashing Reduced holds it steady, and charge lanes carry pale arrowheads so they read without their red (checked through deutan, protan and tritan filters). A laptop window or a tablet on its side shows the game as a phone-shaped column in the middle.
+
+**Release dressing.** The launch screen (`#splash`), the link's picture and description (`public/share.jpg`, the `og:` tags), the home-screen card (once, on a phone, in a browser tab), Copy game info in Settings, About (`gameInfo.ts`), the repo's front page with a screenshot, `docs/RELEASE_NOTES.md`, and the "What's new" card. Skip heals 10.
+
+**Deviations from the list, on purpose:** the Endless ceiling (the list said "check Endless pay"; the check found it broken), and no stage dial changes (the list promised numbers before any change to how hard the whole game is; the numbers are above for the owner to judge).
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.

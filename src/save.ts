@@ -1,4 +1,5 @@
 import { ENEMY_BOOK, STAGES } from './data';
+import type { DailySave } from './daily';
 
 /** Player options, changed on the Settings screen. */
 export interface Settings {
@@ -58,6 +59,8 @@ export interface SaveData {
   beaten?: string[];
   /** Warm Mugs picked up, all runs together. */
   mugs?: number;
+  /** Dough coins picked up off the floor, all runs together (counted since save version 4). */
+  coinsTotal?: number;
   /** Enemy kinds met at least once (the Cookbook's Enemies tab shows the rest as "???"). */
   met?: string[];
   /** Best single-run numbers, for the Goals page's challenges. */
@@ -66,18 +69,26 @@ export interface SaveData {
   noHitBoss?: boolean;
   /** Challenges whose Dough reward has been paid. */
   goalsPaid?: string[];
-  /** Secrets found: 'combo' (Lox and Schmear). The Rainbow bagel counts as found once unlocked. */
+  /** Secrets found: 'combo' (Lox and Schmear), 'toastjam' (Toast and Jam). The Rainbow bagel counts as found once unlocked. */
   secrets?: string[];
   /** Paid challenges already seen on the Goals page (the rest give the Goals button a red dot). */
   goalsSeen?: string[];
   /** One-time tips already shown (ids in `tips.ts`). "Replay tutorial" empties it. */
   tips?: string[];
+  /** The "Play full screen" card (how to add the game to the home screen) has been shown. */
+  a2hs?: boolean;
   /** Menu buttons that have opened: 'bakery', 'goals', 'cookbook'. */
   open?: string[];
   /** Opened menu buttons not tapped yet (they wear a NEW tag). */
   fresh?: string[];
   /** The intro comic has been watched or skipped. */
   intro?: boolean;
+  /** Daily Run results, streak and history (see `daily.ts`). */
+  daily?: DailySave;
+  /** Lifetime counts for the Stats tab, kept since save version 5. */
+  stats?: { runs: number; secs: number; bosses?: number; bagels: Record<string, number>; weapons: Record<string, number> };
+  /** Looks owned and worn (see `looks.ts`). */
+  looks?: { owned: string[]; hat?: string; trail?: string; sprinkle?: string };
   /** The ending and its credits have been seen (the Stale King fell): the title screen turns to morning. */
   ending?: boolean;
 }
@@ -88,6 +99,11 @@ export interface RunRecords {
   strike?: number;
   /** Most patches of Stale creep burned away in one run. */
   creep?: number;
+  /** Cleared a stage holding only one weapon, and cleared one without opening a chest. */
+  oneWeapon?: boolean;
+  noChest?: boolean;
+  /** Most cards binned in one run (Day-Old Bin). */
+  banish?: number;
   kills?: number;
   level?: number;
   /** Evolutions in one run. */
@@ -148,6 +164,18 @@ const STEPS: ((d: SaveData) => void)[] = [
     if (d.stageTime?.stage3) for (const id of ['oven', 'grease']) seen.add(id);
     if ((d.best && Object.keys(d.best).some((k) => k.endsWith(':blueberry')))) seen.add('dash');
     d.tips = [...seen];
+  },
+  // 3 to 4: Dough coins picked up are counted from here on (the Whisk Whirl's unlock). A save that has cleared a
+  // stage starts halfway, so long-time players aren't sent back to zero.
+  (d) => {
+    d.coinsTotal = d.coinsTotal ?? (Object.values(d.stageClears ?? {}).some((n) => n > 0) ? 250 : 0);
+  },
+  // 4 to 5: the Daily Run, looks and the Stats tab. Runs, time and favourites count from here on; bosses beaten
+  // start from the stage clears the save already has.
+  (d) => {
+    d.daily = d.daily ?? { streak: 0, best: 0, days: {} };
+    d.looks = d.looks ?? { owned: [] };
+    d.stats = d.stats ?? { runs: 0, secs: 0, bosses: d.clears ?? 0, bagels: {}, weapons: {} };
   },
 ];
 export const SAVE_VERSION = STEPS.length;

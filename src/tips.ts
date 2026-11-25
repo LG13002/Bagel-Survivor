@@ -22,12 +22,15 @@ export const TIPS = {
   lane: 'A red strip shows where an enemy will dash. Step out of it!',
   creep: 'Grey patches slow you. Your weapons burn them back.',
   shield: "A Crouton Knight's shield halves your hits until it cracks off.",
+  banish: 'Tap a bin to throw a card out for the rest of the run.',
+  bounce: 'Pizza Cutter wheels bounce off edges, shelves and knobs.',
   dash: 'Flick to dash.',
   // Menu, the first time each mode is picked
   quick: 'Quick Run: the whole stage in about 3 minutes. More XP, a little less Dough.',
   endless: 'Endless: beat the boss, then see how long you can last.',
   crispy: 'Extra Crispy: tougher enemies, 1.5x Dough.',
   practice: 'Practice: starts at 2:30 with 12 level-ups. No Dough, no unlocks.',
+  daily: 'New: the Daily Run! One run a day, the same for everyone.',
 } as const;
 export type TipId = keyof typeof TIPS;
 

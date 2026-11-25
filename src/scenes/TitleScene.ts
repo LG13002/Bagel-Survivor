@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { Face } from '../face';
+import { CHALLENGES } from '../goals';
+import { Wear, makeLookTextures, worn } from '../looks';
 import { CSS, S, VERSION, safeInsets } from '../config';
 import { BAGELS } from '../data';
 import { playMusic } from '../music';
@@ -18,6 +20,7 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     makeTextures(this);
+    makeLookTextures(this);
     playMusic('menu');
     this.build();
     const onResize = () => {
@@ -29,7 +32,7 @@ export class TitleScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', onResize);
       // The giant bagel is only used here: free its picture.
-      for (const k of this.textures.getTextureKeys()) if (k.endsWith('_giant') || k === 'title_rays' || k === 'title_bg') this.textures.remove(k);
+      for (const k of this.textures.getTextureKeys()) if (k.endsWith('_giant') || k === 'title_rays' || k === 'title_bg' || (k.startsWith('look_') && Number(k.split('_')[2]) > 700)) this.textures.remove(k);
     });
     if (!wipeOpen()) this.cameras.main.fadeIn(300, 43, 33, 24);
   }
@@ -81,13 +84,19 @@ export class TitleScene extends Phaser.Scene {
 
     // The bagel: as big as the screen allows.
     const logoH = 150 * S;
-    const R = Math.min(W * 0.42, (bottom - top - logoH - 120 * S) * 0.5);
+    const looks = worn(save);
+    // A hat needs the room above the bagel, so a bagel wearing one is smaller and stands on the same spot.
+    const R1 = Math.min(W * 0.42, (bottom - top - logoH - 120 * S) * 0.5);
+    const R = looks.hat ? R1 * 0.68 : R1;
     const size = Math.round((R * 2.3) / S);
-    const by = Math.min(cy, bottom - 110 * S - R);
+    const by = Math.min(cy, bottom - 110 * S - R1) + (R1 - R);
     const shadow = this.add.ellipse(W / 2, by + R * 1.0, R * 1.7, R * 0.3, 0x120c08, 0.4);
     const hero = this.add.image(W / 2, by, giantBagel(this, bagel.tex, size, false));
-    const face = new Face(this, hero, (size * 15.5) / 40, () => undefined);
+    const br = (size * 15.5) / 40;
+    new Wear(this, hero, br, looks.sprinkle, () => undefined);
+    const face = new Face(this, hero, br, () => undefined);
     face.idle = true;
+    new Wear(this, hero, br, looks.hat, () => undefined);
     const hs = (R * 2) / (hero.width * (31 / 40)); // the bagel fills 31/40 of its picture
     hero.setScale(hs);
     this.tweens.add({ targets: hero, y: by - 8 * S, scaleX: hs * 1.02, scaleY: hs * 0.98, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -95,7 +104,7 @@ export class TitleScene extends Phaser.Scene {
 
     // Logo: drops in with a bounce.
     const k = Math.min(1, W / (390 * S));
-    const ly = top + Math.max(70 * S, (by - R - top) * 0.42);
+    const ly = top + Math.max(70 * S, (by - (2 * R1 - R) - top) * 0.42);
     const l1 = txt(this, W / 2, ly, 'EVERYTHING', 46 * k, CSS.gold);
     const l2 = txt(this, W / 2, ly + 56 * k * S, 'BAGEL', 76 * k, CSS.cream);
     [l1, l2].forEach((t, i) => {
@@ -122,6 +131,8 @@ export class TitleScene extends Phaser.Scene {
     const ver = txt(this, W - 14 * S, top + 18 * S, `v${VERSION.replace(/\.0$/, '')}`, 12, morning ? 'rgba(36,22,13,0.7)' : 'rgba(255,243,220,0.6)', { stroke: false }).setOrigin(1, 0.5);
     // A small crown beside the version: the game has been finished.
     if (morning) this.add.image(ver.x - ver.width - 12 * S, ver.y, 'ic_crown').setScale(0.42);
+    // And a little golden bagel: every challenge is done.
+    if (CHALLENGES.every((ch) => (save.goalsPaid ?? []).includes(ch.id))) this.add.image(ver.x - ver.width - (morning ? 30 : 12) * S, ver.y, 'ic_goldbagel').setScale(0.46);
 
     const zone = this.add.zone(0, 0, W, H).setOrigin(0).setInteractive();
     zone.once('pointerup', () => {

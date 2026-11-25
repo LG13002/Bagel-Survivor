@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { S } from '../config';
+import { pulse } from '../settings';
 import { rng } from '../art';
 import { COUNTER_PROPS, FREEZER_PROPS, OVEN_PROPS, type PropDef } from '../floors';
 import { PANTRY_PROPS } from '../pantry';
@@ -182,7 +183,7 @@ export class Floor {
         const w = this.temps[i];
         if (w.warn) {
           w.warn -= dt;
-          w.img.setAlpha(0.35 + 0.2 * Math.sin(g.now * 22));
+          w.img.setAlpha(pulse(g.now, 22, 0.35, 0.2));
           if (w.warn <= 0) {
             w.warn = 0;
             w.img.setAlpha(1);
