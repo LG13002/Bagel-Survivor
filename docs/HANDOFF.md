@@ -447,6 +447,30 @@ Costs: the Bakery's 10 upgrades come to 6,510 Dough, the 16 looks for sale to 2,
 
 The owner pointed out that "Clear a stage with only one weapon" could not be done on purpose: with no way to pass on a hand, the cards run down to new weapons only (about 24 picks with one weapon). The level-up screen now has a small Skip button beside the title. It asks twice, then spends the level with no card and heals 10 (the owner asked for a small heal so a skip can be a choice; it counts as healing taken). Checked by bot on 760 and 640 tall screens, with the Bin and Reroll buttons showing, and with two levels waiting.
 
+### Phase 3, M19: release candidate (version 0.19)
+
+Built from the approved [M19 change list](https://claude.ai/artifact/S1mjt1XGpjyCRNLkz9n1to). The owner's picks: M19 merges as 0.19, friends and family test the live site, and a small last update with their fixes becomes 1.0; difficulty stays where it is unless the bots show something out of line; Android gets a pass too.
+
+**Balance pass (all bot numbers, release build, one run a cell, about 10% noise run to run).**
+
+- **Weapons** (`wbench.cjs`, useful damage as a share of each stage's median, averaged over the five stages). Level 3: Sesame 59 (the starter, weak alone on purpose), Seed Storm 95, Puddle 106, Lox 99, Coffee 92, Rolling Pin 112, Knife 95, Jam Jar 111, Toast Pop 98, Waffle 99, Pizza Cutter 110, Whisk 105. Evolved: 95, 100, 103, 96, 104, 111 (Pin), 104, 98, 96, 107, 98, 96. **One change:** the Rolling Pin was top in nearly every cell, so its damage went from 23 to 21.5 (evolved 34 to 32), about 6%. A Sesame Shot buff (13.2 to 15.6) was tried and taken back out: the bench showed no gain.
+- **Bagels** (`bagelbench.cjs`, 12 bagels on 5 stages): damage is within 97 to 104% of the median for every bagel. Health bars lost a run follow the quirks (Pumpernickel 2.1 at the sturdy end; Everything, Asiago and Rainbow about 5). No bagel changed.
+- **Stages** (median over every bagel, damage taken a minute before the boss, and health bars lost): Bakery 179 and 1.9, Freezer 223 and 3.0, Toaster Oven 273 and 5.3, Pantry 225 and 3.6, Bread Bin 258 and 4.7. The Oven measures hardest before its boss; the Pantry and the Bread Bin carry their difficulty in their bosses. **No stage dial changed.** Median Dough for a clear: 151, 228, 303, 454, 387.
+- **Extra Crispy** (Plain Jane, no upgrades): 297, 332, 328, 360, 356 damage a minute, about 45% over normal on average. Pays 237, 360, 498, 722, 603.
+- **Daily twists** (`KIT=1` and `DAY=` on `bagelbench.cjs`; same stage and bagel with the kit and no twist as the baseline). On the Bakery (baseline 115 damage taken a minute, 149 Dough): Fast Forward 97 Dough, Seeds Pay Dough 170, Lucky Day 146, Rush Hour 164, Double Elites 153, Bargain Bin 153, Glass Bagel 172 with half the health and 42 damage taken a minute (double damage clears the screen for the bot). On the Bread Bin (baseline 161 and 380): 262 to 481 Dough. None is near impossible and none is free; no twist changed.
+- **Endless pay now has a ceiling.** With no ceiling, a bot run on the Bakery paid 1,847 Dough by 10:00 and 4,918 by 15:00 (a clear pays about 152): level 157, a hundred thousand defeats and 117 coin cards. Now a run past 5:00 pays at most 220 plus 60 a minute after 5:00, before the stage's and Extra Crispy's multipliers (`ENDLESS_PAY_BASE`, `ENDLESS_PAY_MIN`). Measured: Bakery 525 at 10:00 and 824 at 15:00, Bread Bin 3,366 at 20:00, Oven on Extra Crispy 1,560 at 10:00.
+- **Dodging** (`dodgebench.cjs`, careless and careful damage a minute, stages 1 to 5): 160 and 32, 205 and 64, 231 and 108, 207 and 125, 209 and 86.
+
+**Speed.** Frame rate is the same as 0.18 (`fpsbench.cjs`, headless, stages 1 to 5: 18.2, 17.9, 17.1, 17.9, 16.6 against 18.1, 17.8, 17.5, 18.0, 16.6). Over a 20 minute Endless run memory stays between 16 and 20 MB and the object count levels at about 1,100 (`endlessbench.cjs`). The build is 1.93 MB, 494 kB compressed. A repeat visit shows the title in under a second on the test machine (the target was 3 seconds). Boss timing did not move (`bosstime.cjs`: arrive 270.0s, first attack 271.5s).
+
+**Bug bash.** `bugbash.cjs`: 38 runs (five stages in Full, Quick, Endless, Extra Crispy and Practice, one without god mode, the seven twists, a first ending) with no page errors. `resumetest.cjs`: 27 close-and-resume cases clean. `offlinetest.cjs`: offline play and the update flow pass. Found and fixed on the way: a level-up left open was lost when the app closed (`openLevelUp` writes the snapshot first now), tall hats ran into the results screen's subtitle on small phones, and the home-screen icons had lost the bagel's eyes.
+
+**Accessibility.** Every button answers over at least 44 points (`TAP`), no text is under 11 points (`screens.cjs` at 375x667, 390x844, 430x932 and 1280x800, and as an Android phone at 412x915 and 360x740; four Bakery lines were shortened for the 360 wide one), every pulse and strobe goes through `blink()` or `pulse()` so Flashing Reduced holds it steady, and charge lanes carry pale arrowheads so they read without their red (checked through deutan, protan and tritan filters). A laptop window or a tablet on its side shows the game as a phone-shaped column in the middle.
+
+**Release dressing.** The launch screen (`#splash`), the link's picture and description (`public/share.jpg`, the `og:` tags), the home-screen card (once, on a phone, in a browser tab), Copy game info in Settings, About (`gameInfo.ts`), the repo's front page with a screenshot, `docs/RELEASE_NOTES.md`, and the "What's new" card. Skip heals 10.
+
+**Deviations from the list, on purpose:** the Endless ceiling (the list said "check Endless pay"; the check found it broken), and no stage dial changes (the list promised numbers before any change to how hard the whole game is; the numbers are above for the owner to judge).
+
 ## Weapon benchmark (bot, M11 part 3)
 
 `tools/bots/wbench.cjs`: one weapon alone on Plain Jane, from 2:00 for about 75s of game time, two runs each. Useful damage per second (overkill removed). "vs middle" is the average gap to the middle weapon on each stage.

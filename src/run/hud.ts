@@ -220,7 +220,7 @@ export class Hud {
       const sc = (sz * 0.82) / (36 * S);
       const im = g.add.image(x + sz / 2, y + sz / 2, icon).setScale(sc);
       c.add(im);
-      const t = txt(g, x + sz - 1 * S, y + sz - 2 * S, lv, 10, evolved ? CSS.gold : CSS.cream).setOrigin(1, 1);
+      const t = txt(g, x + sz - 1 * S, y + sz - 2 * S, lv, 11, evolved ? CSS.gold : CSS.cream).setOrigin(1, 1);
       c.add(t);
       // A slot that just changed pops, with a ring in its color.
       if (first || was[n] === id) return;

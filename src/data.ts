@@ -660,17 +660,17 @@ export interface UpgradeDef {
 }
 
 export const BAKERY: UpgradeDef[] = [
-  { id: 'hp', icon: 'ic_bk_crust', name: 'Thicker Crust', blurb: '+10 max health per rank', costs: [20, 45, 90, 160, 260] },
-  { id: 'dmg', icon: 'ic_bk_oven', name: 'Hotter Oven', blurb: '+6% damage per rank', costs: [25, 55, 110, 190, 300] },
-  { id: 'speed', icon: 'ic_bk_rise', name: 'Quick Rise', blurb: '+4% move speed per rank', costs: [15, 35, 70, 130, 210] },
-  { id: 'magnet', icon: 'ic_bk_sticky', name: 'Sticky Seeds', blurb: '+15% pickup range per rank', costs: [15, 35, 70, 130, 210] },
-  { id: 'proof', icon: 'ic_bk_proof', name: 'Proofing', blurb: '+3% XP from seeds per rank', costs: [20, 45, 90, 160, 260] },
+  { id: 'hp', icon: 'ic_bk_crust', name: 'Thicker Crust', blurb: '+10 health a rank', costs: [20, 45, 90, 160, 260] },
+  { id: 'dmg', icon: 'ic_bk_oven', name: 'Hotter Oven', blurb: '+6% damage a rank', costs: [25, 55, 110, 190, 300] },
+  { id: 'speed', icon: 'ic_bk_rise', name: 'Quick Rise', blurb: '+4% speed a rank', costs: [15, 35, 70, 130, 210] },
+  { id: 'magnet', icon: 'ic_bk_sticky', name: 'Sticky Seeds', blurb: '+15% reach a rank', costs: [15, 35, 70, 130, 210] },
+  { id: 'proof', icon: 'ic_bk_proof', name: 'Proofing', blurb: '+3% seed XP a rank', costs: [20, 45, 90, 160, 260] },
   // Extras (Phase 2)
-  { id: 'luck', icon: 'ic_bk_luck', name: 'Lucky Seed', blurb: '+5% luck: better cards', costs: [25, 55, 110, 190, 300], tab: 1 },
+  { id: 'luck', icon: 'ic_bk_luck', name: 'Lucky Seed', blurb: '+5% luck a rank', costs: [25, 55, 110, 190, 300], tab: 1 },
   { id: 'reroll', icon: 'ic_bk_reroll', name: 'Reroll Rack', blurb: '+1 reroll per run', costs: [30, 60, 110, 180, 270], tab: 1 },
   { id: 'revive', icon: 'ic_bk_revive', name: 'Second Bake', blurb: 'Revive once per run', costs: [60, 120, 200, 300, 420], tab: 1 },
-  { id: 'armor', icon: 'ic_bk_armor', name: 'Hard Crust', blurb: '-1 damage per hit taken', costs: [25, 55, 110, 190, 300], tab: 1 },
-  { id: 'bin', icon: 'ic_bk_bin', name: 'Day-Old Bin', blurb: 'Bin 1 more card per run', costs: [30, 60, 110, 180, 270], tab: 1 },
+  { id: 'armor', icon: 'ic_bk_armor', name: 'Hard Crust', blurb: '-1 damage each hit', costs: [25, 55, 110, 190, 300], tab: 1 },
+  { id: 'bin', icon: 'ic_bk_bin', name: 'Day-Old Bin', blurb: '+1 card to bin a run', costs: [30, 60, 110, 180, 270], tab: 1 },
 ];
 
 export type EnemyKind =

@@ -6,10 +6,11 @@ import { CHALLENGES, claimGoals, unseenGoals } from '../goals';
 import { COMBOS } from '../weapons';
 import { checkUnlocks, checkWeaponUnlocks, goalStatus, modesOpen, weaponGoalStatus, weaponOpen, pickedStage, stagePlayable, stageUnlocked } from '../progress';
 import { clearRun, loadRun } from '../runsave';
+import { phoneKind, standalone } from '../gameInfo';
 import { bestStage, getBest, load, persist, takeRecovered, type BestScore, type RunMode, type SaveData } from '../save';
 import { ctex } from '../art';
 import { bigBagel, makeEnemyTextures, makeTextures } from '../textures';
-import { HEADER, button, drawPips, fit, pill, popupFrame, txt } from '../ui';
+import { HEADER, TAP, button, drawPips, fit, pill, popupFrame, txt } from '../ui';
 import { sfx, unlockAudio } from '../sfx';
 import { playMusic } from '../music';
 import { buildSettings, segmented } from '../settingsPanel';
@@ -44,6 +45,10 @@ function bestText(label: string, best: BestScore | undefined, endless: boolean, 
   if (best.cleared) return big ? `♛ ${label} cleared${dot}${best.kills} kills` : `${label}: ♛ cleared${dot}${best.kills} kills`;
   return `${head}: ${fmtTime(best.time)}${dot}${best.kills} kills`;
 }
+
+/** Preview builds run inside another page, where adding to the home screen makes no sense. `?a2hs` shows the card anyway. */
+const PREVIEW = import.meta.env.VITE_PREVIEW === '1';
+const FORCE_A2HS = new URLSearchParams(window.location.search).has('a2hs');
 
 export class MenuScene extends Phaser.Scene {
   private idx = 0;
@@ -116,6 +121,22 @@ export class MenuScene extends Phaser.Scene {
     const played = save.totalKills > 0 || save.dough > 0;
     if (takeRecovered()) {
       this.notice('SAVE RESTORED', "Your save couldn't be read, so the game loaded its spare copy. Your last run or two may be missing.", [['OK', () => this.closePopup(false)]]);
+      return;
+    }
+    // Opened in a browser tab on a phone: one card, once, on how to put the game on the home screen. It comes
+    // first because progress made in the tab does not follow the game to its home-screen icon on an iPhone.
+    const kind = phoneKind();
+    if (!save.a2hs && ((kind && !standalone() && !PREVIEW) || FORCE_A2HS)) {
+      save.a2hs = true;
+      // The version note is for players who know the game; this one may be their first screen.
+      if (!played) save.seenVersion = VERSION;
+      persist();
+      const steps =
+        kind === 'android'
+          ? '1. Tap the three dots at the top of Chrome.\n2. Choose "Add to Home screen" (or "Install app").\n3. Open the game from its new icon.'
+          : '1. Tap the Share button in Safari (the square with an arrow).\n2. Scroll down and choose "Add to Home Screen".\n3. Tap Add, then open the game from its new icon.';
+      const tail = kind === 'android' ? '' : '\n\nDo it before you play much: progress starts fresh under the new icon.';
+      this.notice('PLAY FULL SCREEN', `${steps}${tail}`, [['Got it', () => this.closePopup(false)]], 'Add it to your home screen');
       return;
     }
     if (save.seenVersion !== VERSION) {
@@ -418,7 +439,7 @@ export class MenuScene extends Phaser.Scene {
     tk.fillStyle(COLORS.cream, 1).fillRoundedRect(tl, ty, cw, th, 10 * S);
     c.add(tk);
     const pad = 14 * S;
-    c.add(txt(this, W / 2, ty + (compact ? 11 : 14) * S, "TODAY'S ORDER", compact ? 10 : 11, '#9a7a56', { stroke: false }));
+    c.add(txt(this, W / 2, ty + (compact ? 11 : 14) * S, "TODAY'S ORDER", 11, '#9a7a56', { stroke: false }));
     const rowH = (compact ? 38 : 42) * S;
     const rowY = ty + (compact ? 22 : 27) * S + rowH / 2;
     const fw = rowH;
@@ -462,7 +483,7 @@ export class MenuScene extends Phaser.Scene {
         if (t.width > room) t.setScale(room / t.width);
         c.add(t);
         if (icon) c.add(this.add.image(t.x - t.displayWidth / 2 - 10 * S, y, lockedMode ? 'ic_lock' : icon).setScale(lockedMode ? 0.4 : 0.46).setAlpha(on ? 1 : 0.6));
-        const z = this.add.zone(cx, y, seg, sh + 8 * S).setInteractive();
+        const z = this.add.zone(cx, y, seg, Math.max(sh + 8 * S, TAP * S)).setInteractive();
         z.on('pointerup', () => {
           if (on) return;
           if (lockedMode) {
@@ -551,7 +572,7 @@ export class MenuScene extends Phaser.Scene {
         const tg = this.add.graphics();
         tg.fillStyle(INK, 1).fillRoundedRect(-17 * S, -9 * S, 34 * S, 18 * S, 9 * S);
         tg.fillStyle(COLORS.red, 1).fillRoundedRect(-15 * S, -7 * S, 30 * S, 14 * S, 7 * S);
-        tag.add([tg, txt(this, 0, 0, 'NEW', 9, CSS.cream, { stroke: false })]);
+        tag.add([tg, txt(this, 0, 0, 'NEW', 11, CSS.cream, { stroke: false })]);
         tag.setAngle(8);
         c.add(tag);
         this.tweens.add({ targets: tag, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -1121,7 +1142,7 @@ export class MenuScene extends Phaser.Scene {
       if (!known) pic.setTintFill(0x1d140d);
       c.add(pic);
       const short = known ? e.name.replace(/^The /, '') : '???';
-      c.add(txt(this, cx, cy + 54 * S, short, 9, known ? CSS.cream : CSS.muted, { stroke: false, wrap: (cellW - 8 * S) / S }).setOrigin(0.5, 0.5).setLineSpacing(-2 * S));
+      c.add(txt(this, cx, cy + 54 * S, short, 11, known ? CSS.cream : CSS.muted, { stroke: false, wrap: (cellW - 8 * S) / S }).setOrigin(0.5, 0.5).setLineSpacing(-2 * S));
       if (e.role && beaten.has(e.kind)) c.add(this.add.image(cx + cellW / 2 - 13 * S, cy + 13 * S, 'ic_crown').setScale(0.45));
       const z = this.add.zone(cx, cy + cellH / 2, cellW, cellH).setInteractive();
       z.on('pointerup', () => {

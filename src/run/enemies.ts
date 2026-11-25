@@ -78,7 +78,7 @@ export class Enemies {
     // Wind-up: fades in. Dash: steady, then gone.
     const k = windup ? 1 - Math.min(1, e.stateT / 0.6) : 1;
     gfx.fillStyle(0xe0533d, 0.14 + 0.16 * k);
-    gfx.lineStyle(1.5, 0xff8a7a, 0.35 + 0.4 * k);
+    gfx.lineStyle(1.5, 0xffb0a0, 0.45 + 0.4 * k);
     let x = e.x;
     let y = e.y;
     let ux = e.vx / dash;
@@ -113,6 +113,20 @@ export class Enemies {
       gfx.closePath();
       gfx.fillPath();
       gfx.strokePath();
+      // Pale arrowheads along the strip: the lane reads by its shape and brightness, not only by being red.
+      gfx.lineStyle(2.5, 0xffe9dc, 0.3 + 0.45 * k);
+      for (let d = 22; d < len - 6; d += 44) {
+        const cx = x + ux * d;
+        const cy = y + uy * d;
+        const ax = ux * hw * 0.55;
+        const ay = uy * hw * 0.55;
+        gfx.beginPath();
+        gfx.moveTo(cx + px * 0.6 - ax, cy + py * 0.6 - ay);
+        gfx.lineTo(cx + ax, cy + ay);
+        gfx.lineTo(cx - px * 0.6 - ax, cy - py * 0.6 - ay);
+        gfx.strokePath();
+      }
+      gfx.lineStyle(1.5, 0xffb0a0, 0.45 + 0.4 * k);
       if (!hit) break;
       left -= len;
       x = ex;

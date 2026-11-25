@@ -531,7 +531,7 @@ class RollingPinW extends Weapon {
     const lv = this.level;
     const p = this.w.player;
     const size = (lv >= 5 || this.evolved ? 1.5 : 1) * s.area;
-    const dmg = (this.evolved ? 34 : 23 * (lv >= 3 ? 1.5 : 1)) * s.damage;
+    const dmg = (this.evolved ? 32 : 21.5 * (lv >= 3 ? 1.5 : 1)) * s.damage;
     if (this.tick(dt, (this.evolved ? 3.8 : 3) * s.cooldown)) {
       // Roll toward the nearest enemy (falls back to the direction of travel).
       const aim = this.aim(420);

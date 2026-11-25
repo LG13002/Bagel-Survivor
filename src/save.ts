@@ -75,6 +75,8 @@ export interface SaveData {
   goalsSeen?: string[];
   /** One-time tips already shown (ids in `tips.ts`). "Replay tutorial" empties it. */
   tips?: string[];
+  /** The "Play full screen" card (how to add the game to the home screen) has been shown. */
+  a2hs?: boolean;
   /** Menu buttons that have opened: 'bakery', 'goals', 'cookbook'. */
   open?: string[];
   /** Opened menu buttons not tapped yet (they wear a NEW tag). */

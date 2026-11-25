@@ -79,7 +79,7 @@ export class ResultsScene extends Phaser.Scene {
     fit(txt(this, W / 2, top + (72 - 8 * hat) * S, dy ? `${niceDate(dy.date)}: ${st.name}, ${dy.twist}` : `Stage ${st.num}: ${st.name}${tags ? ` (${tags})` : ''}`, 13, r.crispy ? '#ff9a5c' : CSS.muted, { stroke: false }), pw - 30 * S);
     // The bagel: pleased with itself after a win, flat and glum after going stale.
     const bagelDef = BAGELS.find((b) => b.id === r.bagel);
-    const hero = this.add.image(W / 2, top + 119 * S, bigBagel(this, bagelDef?.tex ?? 'bagel_plain', false)).setScale(hat ? 0.4 : 0.44).setY(top + (119 + 7 * hat) * S);
+    const hero = this.add.image(W / 2, top + 119 * S, bigBagel(this, bagelDef?.tex ?? 'bagel_plain', false)).setScale(hat ? 0.34 : 0.44).setY(top + (119 + 14 * hat) * S);
     new Wear(this, hero, 62, looks.sprinkle, () => undefined);
     const face = new Face(this, hero, 62, () => undefined);
     new Wear(this, hero, 62, looks.hat, () => undefined);

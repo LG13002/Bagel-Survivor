@@ -122,6 +122,8 @@ export class Panels {
   openLevelUp(second?: Choice[]): void {
     const g = this.g;
     const run = g.run;
+    // Closing the app on this screen keeps the level-up: the run is saved with it waiting.
+    if (!second) g.writeSnapshot();
     g.setPaused('levelup');
     sfx('level');
     const W = g.scale.width;
@@ -205,7 +207,7 @@ export class Panels {
       const partner = this.partner(choice);
       if (partner) {
         const pi = g.add.image(cw / 2 - 20 * S, 29 * S, partner.icon).setScale(0.6).setAlpha(partner.owned ? 1 : 0.8);
-        const pl = txt(g, pi.x - 14 * S, 30 * S, kind === 'wnew' || kind === 'wup' ? 'EVOLVES WITH' : 'EVOLVES', 9, partner.owned ? CSS.gold : CSS.muted, { stroke: false }).setOrigin(1, 0.5);
+        const pl = txt(g, pi.x - 14 * S, 30 * S, kind === 'wnew' || kind === 'wup' ? 'EVOLVES WITH' : 'EVOLVES', 11, partner.owned ? CSS.gold : CSS.muted, { stroke: false }).setOrigin(1, 0.5);
         card.add([pl, pi]);
       }
       // The note sits between the name and the level pips (or the card's bottom edge when there are none),
@@ -386,7 +388,7 @@ export class Panels {
       title.x -= over;
       sub.x -= Math.min(over, Math.max(0, sub.x + sub.width / 2 + 8 * S - (sx - 32 * S)));
     }
-    c.add([skip, txt(g, sx, sy + 28 * S, `+${SKIP_HEAL} health`, 11, CSS.muted)]);
+    c.add([skip, txt(g, sx, sy - 25 * S, `+${SKIP_HEAL} health`, 11, CSS.muted)]);
   }
 
   // ---------------------------------------------------------------- Chests

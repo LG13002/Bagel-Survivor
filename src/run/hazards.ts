@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { blink as blinkAt } from '../settings';
+import { blink as blinkAt, pulse } from '../settings';
 import { S } from '../config';
 import { RUN } from '../data';
 import type { EnemyShot, Hazard } from '../entities';
@@ -216,7 +216,7 @@ export class Hazards {
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const h = this.rings[i];
       h.t -= dt;
-      h.sprite.setAlpha(0.6 + 0.4 * Math.sin(g.now * 25));
+      h.sprite.setAlpha(pulse(g.now, 25, 0.6, 0.4));
       if (h.t <= 0) {
         const dx = h.x - p.x;
         const dy = h.y - p.y;
@@ -303,7 +303,7 @@ export class Hazards {
     for (let i = this.freezes.length - 1; i >= 0; i--) {
       const f = this.freezes[i];
       f.t -= dt;
-      f.img.setAlpha(0.6 + 0.4 * Math.sin(g.now * 25));
+      f.img.setAlpha(pulse(g.now, 25, 0.6, 0.4));
       if (f.t > 0) continue;
       const dx = f.x - p.x;
       const dy = f.y - p.y;

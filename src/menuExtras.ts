@@ -70,7 +70,7 @@ export function fillDaily(scene: Phaser.Scene, c: Box, top: number, pw: number, 
   c.add(strip);
   c.add(txt(scene, W / 2, sy + 18 * S, `TWIST: ${tw.name}`, 16, CSS.gold));
   c.add(fit(txt(scene, W / 2, sy + 38 * S, tw.blurb, 12, CSS.cream, { bold: false, stroke: false }), iw - 20 * S));
-  c.add(fit(txt(scene, W / 2, sy + sh + 14 * S, 'Same kit for everyone: every Bakery upgrade at rank 2.', 11, CSS.muted, { bold: false, stroke: false }), iw));
+  c.add(fit(txt(scene, W / 2, sy + sh + 14 * S, 'Same kit for all: Bakery upgrades at rank 2.', 11, CSS.muted, { bold: false, stroke: false }), iw));
 
   // Today's result and the streak.
   const ry = sy + sh + 42 * S;
@@ -93,10 +93,10 @@ export function fillDaily(scene: Phaser.Scene, c: Box, top: number, pw: number, 
     const isToday = i === 6;
     week.fillStyle(0x1d140d, isToday ? 0.9 : 0.55).fillRoundedRect(x - cw / 2 + 2 * S, wy, cw - 4 * S, wh, 8 * S);
     if (isToday) week.lineStyle(2 * S, COLORS.gold, 1).strokeRoundedRect(x - cw / 2 + 2 * S, wy, cw - 4 * S, wh, 8 * S);
-    c.add(txt(scene, x, wy + 10 * S, weekday(day), 10, isToday ? CSS.gold : CSS.muted, { stroke: false }));
+    c.add(txt(scene, x, wy + 10 * S, weekday(day), 11, isToday ? CSS.gold : CSS.muted, { stroke: false }));
     if (r) {
       c.add(scene.add.image(x, wy + 27 * S, r.c ? 'ic_crown' : 'ic_check').setScale(r.c ? 0.5 : 0.48));
-      c.add(txt(scene, x, wy + 44 * S, fmtTime(r.t), 10, CSS.cream, { bold: false, stroke: false }));
+      c.add(txt(scene, x, wy + 44 * S, fmtTime(r.t), 11, CSS.cream, { bold: false, stroke: false }));
     } else c.add(txt(scene, x, wy + 30 * S, '·', 20, CSS.muted, { stroke: false }));
   }
 
@@ -236,7 +236,7 @@ export function fillLooks(scene: Phaser.Scene, c: Box, top: number, pw: number, 
       c.add([body, top2]);
     }
     if (wearing) c.add(scene.add.image(x + cw / 2 - 13 * S, y + 14 * S, 'ic_check').setScale(0.42));
-    if (mine) c.add(txt(scene, x, y + 60 * S, wearing ? 'On' : 'Yours', 10, wearing ? CSS.gold : '#c9e6a8', { stroke: false }));
+    if (mine) c.add(txt(scene, x, y + 60 * S, wearing ? 'On' : 'Yours', 11, wearing ? CSS.gold : '#c9e6a8', { stroke: false }));
     else if (l.cost !== undefined) {
       const t = txt(scene, x + 6 * S, y + 60 * S, `${l.cost}`, 11, save.dough >= l.cost ? CSS.gold : CSS.muted, { stroke: false });
       c.add(t);

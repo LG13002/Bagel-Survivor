@@ -15,7 +15,17 @@
     <link rel="apple-touch-icon" href="icon-180.png" />
     <link rel="icon" type="image/png" href="icon-192.png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <title>Everything Bagel</title>
+    <title>Everything Bagel: defend the last bakery</title>
+    <meta name="description" content="You are a bagel. Defend the last bakery from the Stale. A free one-thumb survivor game for your phone." />
+    <!-- The picture and words a messaging app shows when the link is sent. The game stays unlisted (noindex above). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Everything Bagel" />
+    <meta property="og:description" content="You are a bagel. Defend the last bakery from the Stale. A free one-thumb survivor game for your phone." />
+    <meta property="og:url" content="https://lg13002.github.io/Bagel-Survivor/" />
+    <meta property="og:image" content="https://lg13002.github.io/Bagel-Survivor/share.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
     <style>
       html,
       body {
@@ -40,6 +50,32 @@
         display: block;
         touch-action: none;
       }
+      /* The launch screen: shown by the page itself until the game has drawn its first screen. */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: radial-gradient(circle at 50% 45%, #5a3d22 0%, #2b2118 70%);
+        color: #f2b84b;
+        font: 800 26px/1.1 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        letter-spacing: 1px;
+        transition: opacity 0.3s;
+      }
+      #splash img {
+        width: 132px;
+        height: 132px;
+        border-radius: 30px;
+        box-shadow: 0 6px 0 #1d140d;
+      }
+      #splash.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
       #safe {
         position: fixed;
         visibility: hidden;
@@ -52,6 +88,7 @@
   <body>
     <div id="app"></div>
     <div id="safe"></div>
+    <div id="splash"><img src="icon-192.png" alt="" /><div>EVERYTHING BAGEL</div></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

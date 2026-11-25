@@ -13,6 +13,8 @@ const path = require('path');
   for (const size of [512, 192, 180]) {
     const url = await p.evaluate((n) => {
       const tex = (k) => window.__game.textures.get(k).getSourceImage();
+      // The title screen's own bagel has no eyes (they are drawn live on top), so draw one that has.
+      const bagel = window.__art.giantBagel(window.__game.scene.getScene('title'), 'bagel_everything', 400);
       const cv = document.createElement('canvas');
       cv.width = cv.height = n;
       const c = cv.getContext('2d');
@@ -26,7 +28,7 @@ const path = require('path');
       c.ellipse(n / 2, n * 0.83, n * 0.27, n * 0.045, 0, 0, Math.PI * 2);
       c.fill();
       const d = (n * 0.66 * 40) / 31;
-      c.drawImage(tex('bagel_everything_giant'), n / 2 - d / 2, n * 0.5 - d / 2, d, d);
+      c.drawImage(tex(bagel), n / 2 - d / 2, n * 0.5 - d / 2, d, d);
       return cv.toDataURL('image/png');
     }, size);
     fs.writeFileSync(path.join(__dirname, '..', 'public', `icon-${size}.png`), Buffer.from(url.split(',')[1], 'base64'));

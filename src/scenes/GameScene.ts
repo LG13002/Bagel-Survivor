@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { flash, shake } from '../settings';
+import { blink, flash, shake } from '../settings';
 import { COLORS, CSS, DEBUG, S, ZOOM } from '../config';
 import {
   BAGELS,
@@ -35,7 +35,7 @@ import { Floor, POST_R } from '../run/floor';
 import { Hazards } from '../run/hazards';
 import { CREEP_SLOW } from '../run/bin';
 import { Hud } from '../run/hud';
-import { CROWD_XP, HIT_GRACE, LEVEL_HP, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
+import { CROWD_XP, HIT_GRACE, LEVEL_HP, CRISPY_DMG, CRISPY_DOUGH, ENDLESS_DOUGH_MIN, ENDLESS_PAY_BASE, ENDLESS_PAY_MIN, PRACTICE_LEVELS, PRACTICE_START, QUICK_DOUGH, QUICK_PACE, QUICK_XP, SLOWMO } from '../run/modes';
 import { Panels } from '../run/panels';
 import { Pickups } from '../run/pickups';
 import { Tutor } from '../run/tutor';
@@ -893,7 +893,8 @@ export class GameScene extends Phaser.Scene implements World {
       this.effects.lookTrail(this.trail, p.x - p.moveX * 10, p.y + 7 - p.moveY * 10);
     }
     p.sprite.setRotation(moving ? p.moveX * 0.12 : 0);
-    p.sprite.setAlpha(this.now < p.invulnUntil ? (Math.floor(this.now * 20) % 2 ? 0.45 : 1) : 1);
+    // Safe after a hit: the bagel blinks, or with flashing Reduced stays see-through.
+    p.sprite.setAlpha(this.now < p.invulnUntil ? blink(this.now, 20, 0.45, 1) : 1);
     this.hpBg.setPosition(p.x, p.y + 22);
     this.hpFill.setPosition(p.x - 15, p.y + 22).setSize(30 * Math.max(0, p.hp / p.maxHp), 4);
     this.cameras.main.centerOn(p.x, p.y);
@@ -1107,7 +1108,12 @@ export class GameScene extends Phaser.Scene implements World {
     if (r.miniKilled) dough += 10;
     if (victory || cleared) dough += 40;
     // Endless: a bonus for every full minute after 5:00.
-    if (this.endless && this.stageT > 300) dough += Math.floor((this.stageT - 300) / 60) * ENDLESS_DOUGH_MIN;
+    if (this.endless && this.stageT > 300) {
+      dough += Math.floor((this.stageT - 300) / 60) * ENDLESS_DOUGH_MIN;
+      // A ceiling on a long Endless run: a strong build defeats tens of thousands and levels far past a full build
+      // (every level then is a coin card), and without this one run paid as much as thirty clears.
+      dough = Math.min(dough, ENDLESS_PAY_BASE + ((this.stageT - 300) / 60) * ENDLESS_PAY_MIN);
+    }
     return Math.round(dough * this.stage.dough * (this.quick ? QUICK_DOUGH : 1) * (this.crispy ? CRISPY_DOUGH : 1));
   }
 
